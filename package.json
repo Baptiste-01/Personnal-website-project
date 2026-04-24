@@ -1,0 +1,25 @@
+{
+  "name": "jklm-clone",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"bun run dev:api\" \"bun run dev:web\"",
+    "dev:api": "cd apps/api && bun run --hot index.ts",
+    "dev:web": "cd apps/web && bun run dev",
+    "build": "bun --filter \"*\" run build",
+    "db:push": "bun --filter \"@jklm/database\" run db:push",
+    "db:studio": "bun --filter \"@jklm/database\" run db:studio"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "prisma": "^7.8.0",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "@prisma/client": "^7.8.0"
+  }
+}

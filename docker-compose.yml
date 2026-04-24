@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: jklm-db
+    restart: always
+    environment:
+      POSTGRES_USER: jklm_user
+      POSTGRES_PASSWORD: jklm_password
+      POSTGRES_DB: jklm_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:

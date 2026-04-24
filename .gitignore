@@ -1,0 +1,14 @@
+node_modules/
+**/node_modules/
+.bun-cache/
+bun.lockb
+dist/
+build/
+.env
+.env*
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log
+tmp/
