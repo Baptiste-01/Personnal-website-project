@@ -1,4 +1,4 @@
-// This is your Prisma schema file,
+// This is the Prisma schema for Smik Party
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
@@ -10,11 +10,28 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Room {
-  id        String   @id @default(cuid())
-  name      String
-  players   Int      @default(0)
-  status    String   @default("waiting")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+model Arena {
+  id         String   @id @default(cuid())
+  name       String
+  players    Int      @default(0)
+  maxPlayers Int      @default(20)
+  status     String   @default("waiting")
+  gameMode   String   @default("flashguess")
+  difficulty String   @default("facile")
+  categories String[]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Question {
+  id              String   @id @default(cuid())
+  text            String
+  answer          String
+  acceptedAnswers String[]
+  hint            String?
+  category        String
+  difficulty      String
+  createdAt       DateTime @default(now())
+
+  @@index([category, difficulty])
 }

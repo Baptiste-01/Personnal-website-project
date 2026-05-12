@@ -3,12 +3,12 @@ version: '3.8'
 services:
   postgres:
     image: postgres:15
-    container_name: jklm-db
+    container_name: smik-db
     restart: always
     environment:
-      POSTGRES_USER: jklm_user
-      POSTGRES_PASSWORD: jklm_password
-      POSTGRES_DB: jklm_db
+      POSTGRES_USER: smik_user
+      POSTGRES_PASSWORD: smik_password
+      POSTGRES_DB: smik_db
     ports:
       - "5432:5432"
     volumes:
