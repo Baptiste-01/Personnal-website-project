@@ -90,6 +90,25 @@ export default function Lobby() {
 
   useEffect(() => { fetchArenas() }, [fetchArenas])
 
+  const handleCreateArena = async () => {
+    try {
+      const res = await fetch('http://localhost:3000/arenas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: `Arène de ${Math.floor(Math.random() * 1000)}`,
+          gameMode: 'flashguess',
+        })
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      navigate(`/arena/${data.id}`)
+    } catch (err) {
+      console.error('Erreur création arène:', err)
+      alert("Erreur lors de la création de l'arène")
+    }
+  }
+
   return (
     <div className="lobby">
       <header className="lobby-header" id="lobby-header">
@@ -108,15 +127,21 @@ export default function Lobby() {
         <div className="lobby-panel" id="arenas-panel">
           <div className="lobby-panel-header">
             <h2 className="lobby-panel-title">Arenes disponibles</h2>
-            <button
-              className={`btn-refresh ${isRefreshing ? 'is-loading' : ''}`}
-              onClick={() => fetchArenas(true)}
-              disabled={isRefreshing}
-              id="refresh-button"
-            >
-              <IconRefresh />
-              {isRefreshing ? 'Chargement...' : 'Actualiser'}
-            </button>
+            <div className="lobby-panel-actions">
+              <button className="btn-create" onClick={handleCreateArena} id="create-arena-button">
+                <IconZap />
+                Nouvelle Arène
+              </button>
+              <button
+                className={`btn-refresh ${isRefreshing ? 'is-loading' : ''}`}
+                onClick={() => fetchArenas(true)}
+                disabled={isRefreshing}
+                id="refresh-button"
+              >
+                <IconRefresh />
+                {isRefreshing ? 'Chargement...' : 'Actualiser'}
+              </button>
+            </div>
           </div>
 
           {fetchState === 'loading' && <SkeletonList />}

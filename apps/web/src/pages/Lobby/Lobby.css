@@ -134,6 +134,46 @@
   color: var(--color-text-primary);
 }
 
+/* ─── Panel Actions ─── */
+.lobby-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* ─── Create Button ─── */
+.btn-create {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 20px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--font-body);
+  color: white;
+  background: linear-gradient(135deg, var(--color-accent) 0%, #8b5cf6 100%);
+  border: none;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  box-shadow: 0 4px 12px var(--color-accent-glow);
+}
+
+.btn-create:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px var(--color-accent-glow);
+  filter: brightness(1.1);
+}
+
+.btn-create:active {
+  transform: scale(0.97);
+}
+
+.btn-create svg {
+  width: 14px;
+  height: 14px;
+}
+
 /* ─── Refresh Button ─── */
 .btn-refresh {
   display: inline-flex;
@@ -620,7 +660,13 @@
     align-items: stretch;
   }
 
-  .btn-refresh {
+  .lobby-panel-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .btn-create, .btn-refresh {
+    width: 100%;
     justify-content: center;
   }
 

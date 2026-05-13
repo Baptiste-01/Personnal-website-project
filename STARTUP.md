@@ -1,22 +1,61 @@
 # Starting the Project
 
-To start both the **API** and the **Web** application concurrently, run the following command from the root directory:
+## Prérequis
 
-```bash
-bun run dev
-```
+1. **Démarrer Docker** (PostgreSQL) :
+   ```bash
+   docker-compose up -d
+   ```
 
-## Available Scripts
+2. **Pousser le schéma** (première fois seulement) :
+   ```bash
+   bun run db:push
+   ```
+
+3. **Lancer le projet** :
+   ```bash
+   bun run dev
+   ```
+
+---
+
+## Import de questions (Excel)
+
+Accède à **http://localhost:5173/admin** pour importer des questions via fichier `.xlsx`.
+
+- Un onglet du fichier = une catégorie (`geographie`, `histoire`, `sciences`, `cinema`, `musique`, `sport`, `litterature`, `gastronomie`)
+- Télécharge le template depuis la page Admin
+- L'import fait un **upsert** (insert si nouvelle, update si elle existe déjà)
+
+### Endpoints Admin (API)
+| Méthode | URL | Description |
+|---|---|---|
+| `POST` | `/admin/import` | Import fichier xlsx |
+| `GET` | `/admin/template` | Télécharger le template |
+| `GET` | `/admin/stats` | Stats questions par catégorie |
+
+---
+
+## Scripts disponibles
 
 ### Root Directory
-- `bun run dev`: Starts both API and Web in development mode.
-- `bun run build`: Builds all packages and applications.
-- `bun run db:push`: Pushes the Prisma schema to the database.
-- `bun run db:studio`: Opens Prisma Studio.
+- `bun run dev`: Démarre API + Web en parallèle
+- `bun run build`: Build tous les packages
+- `bun run db:push`: Push le schéma Prisma
+- `bun run db:studio`: Ouvre Prisma Studio
 
 ### API (`apps/api`)
-- `bun run --hot index.ts`: Starts the API with hot reloading.
+- `bun run --hot index.ts`: API en mode hot-reload
 
 ### Web (`apps/web`)
-- `bun run dev`: Starts the Vite development server.
-- `bun run build`: Builds the React application.
+- `bun run dev`: Vite dev server
+- `bun run build`: Build React
+
+---
+
+## URLs de développement
+| Service | URL |
+|---|---|
+| Web | http://localhost:5173 |
+| API | http://localhost:3000 |
+| Admin (import) | http://localhost:5173/admin |
