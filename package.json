@@ -12,7 +12,10 @@
     "dev:web": "cd apps/web && bun run dev",
     "build": "bun --filter \"*\" run build",
     "db:push": "bun --filter \"@jklm/database\" run db:push",
-    "db:studio": "bun --filter \"@jklm/database\" run db:studio"
+    "db:studio": "bun --filter \"@jklm/database\" run db:studio",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:status": "docker-compose ps"
   },
   "devDependencies": {
     "concurrently": "^9.2.1",

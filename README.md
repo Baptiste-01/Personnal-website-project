@@ -61,13 +61,15 @@ The backend logic must be strictly separated into three distinct layers to avoid
 
 3.  **Launch Environment (Database):**
     ```bash
-    docker-compose up -d
+    bun run docker:up
     ```
 
 4.  **Run Development Server:**
     ```bash
     bun run dev
     ```
+
+For more detailed instructions, see the [Startup Guide (FR)](STARTUP.md) or the [Startup Guide (EN)](STARTUP_EN.md).
 
 ---
 

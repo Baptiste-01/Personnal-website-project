@@ -4,7 +4,7 @@
 
 1. **Démarrer Docker** (PostgreSQL) :
    ```bash
-   docker-compose up -d
+   bun run docker:up
    ```
 
 2. **Pousser le schéma** (première fois seulement) :
@@ -43,6 +43,9 @@ Accède à **http://localhost:5173/admin** pour importer des questions via fichi
 - `bun run build`: Build tous les packages
 - `bun run db:push`: Push le schéma Prisma
 - `bun run db:studio`: Ouvre Prisma Studio
+- `bun run docker:up`: Démarre la base de données PostgreSQL (Docker)
+- `bun run docker:down`: Arrête la base de données PostgreSQL (Docker)
+- `bun run docker:status`: Affiche l'état des conteneurs Docker
 
 ### API (`apps/api`)
 - `bun run --hot index.ts`: API en mode hot-reload
