@@ -1,4 +1,4 @@
-// This is the Prisma schema for Smik Party
+// Smik Party — Prisma Schema
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
@@ -8,6 +8,10 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+// ═══════════════════════════════════════════════
+//  ARÈNES & QUESTIONS (existant)
+// ═══════════════════════════════════════════════
 
 model Arena {
   id         String   @id @default(cuid())
@@ -33,4 +37,132 @@ model Question {
   createdAt       DateTime @default(now())
 
   @@index([category, difficulty])
+}
+
+// ═══════════════════════════════════════════════
+//  UTILISATEURS
+// ═══════════════════════════════════════════════
+
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique        // pseudo unique, jamais modifiable
+  displayName  String                  // nom affiché (peut changer)
+  passwordHash String                  // bcrypt hash, jamais exposé via API
+  avatarUrl    String?                 // URL avatar (optionnel)
+  bio          String?                 // courte description
+  isAdmin      Boolean  @default(false) // accès au panneau d'administration
+  level        Int      @default(1)
+  xp           Int      @default(0)
+  totalPoints  Int      @default(0)
+  gamesPlayed  Int      @default(0)
+  gamesWon     Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  sessions     Session[]
+  achievements UserAchievement[]
+  gameHistory  GameHistory[]
+  // Amitiés : l'utilisateur peut être demandeur ou destinataire
+  sentFriendRequests     Friendship[] @relation("FriendshipSender")
+  receivedFriendRequests Friendship[] @relation("FriendshipReceiver")
+
+  @@index([username])
+}
+
+// ═══════════════════════════════════════════════
+//  SESSIONS (authentification par token)
+// ═══════════════════════════════════════════════
+
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([token])
+  @@index([userId])
+}
+
+// ═══════════════════════════════════════════════
+//  SUCCÈS (Achievements)
+// ═══════════════════════════════════════════════
+
+/// Catalogue de tous les succès disponibles dans le jeu
+model Achievement {
+  id          String   @id @default(cuid())
+  key         String   @unique   // ex: "first_win", "100_games", "perfect_score"
+  name        String             // ex: "Première victoire"
+  description String             // ex: "Gagnez votre première partie"
+  icon        String             // emoji ou URL icône
+  xpReward    Int      @default(0)
+  rarity      String   @default("common") // common | rare | epic | legendary
+  createdAt   DateTime @default(now())
+
+  unlockedBy  UserAchievement[]
+}
+
+/// Table pivot : succès débloqué par un utilisateur
+model UserAchievement {
+  id            String      @id @default(cuid())
+  userId        String
+  achievementId String
+  unlockedAt    DateTime    @default(now())
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievement Achievement @relation(fields: [achievementId], references: [id])
+
+  @@unique([userId, achievementId])
+  @@index([userId])
+}
+
+// ═══════════════════════════════════════════════
+//  LISTE D'AMIS
+// ═══════════════════════════════════════════════
+
+model Friendship {
+  id         String           @id @default(cuid())
+  senderId   String
+  receiverId String
+  status     FriendshipStatus @default(PENDING)
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  sender   User @relation("FriendshipSender",   fields: [senderId],   references: [id], onDelete: Cascade)
+  receiver User @relation("FriendshipReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  // Un seul sens possible entre deux joueurs
+  @@unique([senderId, receiverId])
+  @@index([senderId])
+  @@index([receiverId])
+}
+
+enum FriendshipStatus {
+  PENDING   // demande envoyée, pas encore acceptée
+  ACCEPTED  // amis confirmés
+  BLOCKED   // l'un a bloqué l'autre
+}
+
+// ═══════════════════════════════════════════════
+//  HISTORIQUE DES PARTIES
+// ═══════════════════════════════════════════════
+
+model GameHistory {
+  id           String   @id @default(cuid())
+  userId       String
+  arenaName    String
+  gameMode     String
+  difficulty   String
+  score        Int
+  rank         Int?     // position dans la partie (1 = 1er)
+  totalPlayers Int      @default(1)
+  xpEarned     Int      @default(0)
+  playedAt     DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([playedAt])
 }

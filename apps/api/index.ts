@@ -3,6 +3,7 @@ import { cors } from '@elysiajs/cors'
 import { questionsRoute } from './routes/questions'
 import { arenasRoute } from './routes/arenas'
 import { importRoute } from './routes/import'
+import { authRoute } from './routes/auth'
 import prisma from './lib/prisma'
 
 /* ─── Graceful shutdown ──────────────────────────────────────── */
@@ -32,6 +33,7 @@ const app = new Elysia()
   })
 
   /* Routes */
+  .use(authRoute)
   .use(questionsRoute)
   .use(arenasRoute)
   .use(importRoute)

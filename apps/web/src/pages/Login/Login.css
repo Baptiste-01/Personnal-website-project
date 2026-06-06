@@ -277,3 +277,154 @@
 .login-back:hover {
   color: var(--color-text-secondary);
 }
+
+/* ─── Auth tabs ─── */
+.auth-tabs {
+  display: flex;
+  gap: 3px;
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  padding: 3px;
+  margin-bottom: 24px;
+}
+
+.auth-tab {
+  flex: 1;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--font-body);
+  color: var(--color-text-muted);
+  background: none;
+  border: none;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.auth-tab:hover:not(.auth-tab--active) {
+  color: var(--color-text-secondary);
+}
+
+.auth-tab--active {
+  color: var(--color-text-primary);
+  background: var(--color-bg-elevated);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.4);
+}
+
+/* ─── Password field with eye toggle ─── */
+.login-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.login-input--with-icon {
+  padding-right: 44px;
+}
+
+.login-eye {
+  position: absolute;
+  right: 12px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  padding: 0;
+  transition: color var(--transition-fast);
+}
+
+.login-eye svg {
+  width: 16px;
+  height: 16px;
+}
+
+.login-eye:hover { color: var(--color-text-secondary); }
+
+/* ─── Input state variants ─── */
+.login-input--error {
+  border-color: rgba(239, 68, 68, 0.5) !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+}
+
+/* ─── Input counter ─── */
+.login-input-counter {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  text-align: right;
+  margin-top: 2px;
+}
+
+/* ─── Input messages ─── */
+.login-input-msg {
+  font-size: 11px;
+  margin-top: 3px;
+}
+.login-input-msg--error { color: #f87171; }
+
+/* ─── Label hint ─── */
+.login-label-hint {
+  font-weight: 400;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  margin-left: 6px;
+}
+
+/* ─── Password strength ─── */
+.pwd-strength {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.pwd-strength-bars {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+}
+
+.pwd-strength-bar {
+  flex: 1;
+  height: 3px;
+  border-radius: var(--radius-full);
+  background: var(--color-bg-elevated);
+  transition: background var(--transition-fast);
+}
+
+.pwd-strength-label {
+  font-size: 11px;
+  font-weight: 600;
+  min-width: 36px;
+  text-align: right;
+  transition: color var(--transition-fast);
+}
+
+/* ─── Switch hint ─── */
+.auth-switch-hint {
+  text-align: center;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  margin-top: 4px;
+}
+
+.auth-switch-link {
+  color: var(--color-accent-hover);
+  font-weight: 600;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: inherit;
+  padding: 0;
+  transition: color var(--transition-fast);
+}
+
+.auth-switch-link:hover {
+  color: var(--color-accent);
+  text-decoration: underline;
+}
