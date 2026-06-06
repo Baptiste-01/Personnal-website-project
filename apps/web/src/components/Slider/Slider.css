@@ -1,0 +1,165 @@
+/* ═══════════════════════════════════════════════════════
+   Slider — Infinite loop marquee carousel
+   Réutilisable sur toutes les pages
+   ═══════════════════════════════════════════════════════ */
+
+/* ─── Outer wrapper ─── */
+.sc-wrapper {
+  position: relative;
+  width: 100%;
+  overflow: hidden;         /* clip the infinite track */
+}
+
+/* ─── Fade masks (left / right edges) ─── */
+.sc-fade {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 60px;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.sc-fade--left {
+  left: 0;
+  background: linear-gradient(to right, var(--color-bg-primary) 0%, transparent 100%);
+}
+
+.sc-fade--right {
+  right: 0;
+  background: linear-gradient(to left, var(--color-bg-primary) 0%, transparent 100%);
+}
+
+/* ─── Outer container (hides overflow, full width) ─── */
+.sc-track-outer {
+  width: 100%;
+  overflow: hidden;
+}
+
+/* ─── Scrolling track ─── */
+@keyframes sc-marquee {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(calc(-1 * var(--sc-set-width, 2000px))); }
+}
+
+.sc-track {
+  display: flex;
+  align-items: stretch;
+  will-change: transform;
+  animation-name: sc-marquee;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  /* duration & playState are set inline */
+}
+
+/* ─── Individual card ─── */
+.sc-card {
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-top: 2px solid transparent;   /* overridden inline */
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  cursor: default;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    transform var(--transition-fast),
+    box-shadow var(--transition-fast);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Subtle shimmer on hover */
+.sc-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  opacity: 0;
+  transition: opacity var(--transition-base);
+  background: linear-gradient(160deg, rgba(59,130,246,0.07) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.sc-card:hover {
+  background: var(--color-bg-card-hover);
+  border-color: var(--color-border-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+}
+
+.sc-card:hover::after {
+  opacity: 1;
+}
+
+/* ─── Tag badge ─── */
+.sc-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: var(--radius-full);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  width: fit-content;
+  line-height: 1.6;
+  margin-bottom: 1px;
+}
+
+.sc-tag--blue   { background: rgba(59,130,246,0.15);  color: #60a5fa; border: 1px solid rgba(59,130,246,0.25); }
+.sc-tag--green  { background: rgba(34,197,94,0.12);   color: #4ade80; border: 1px solid rgba(34,197,94,0.25); }
+.sc-tag--orange { background: rgba(245,158,11,0.12);  color: #fbbf24; border: 1px solid rgba(245,158,11,0.25); }
+.sc-tag--red    { background: rgba(239,68,68,0.12);   color: #f87171; border: 1px solid rgba(239,68,68,0.25); }
+.sc-tag--purple { background: rgba(168,85,247,0.12);  color: #c084fc; border: 1px solid rgba(168,85,247,0.25); }
+
+/* ─── Title ─── */
+.sc-title {
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ─── Description ─── */
+.sc-desc {
+  font-size: 0.67rem;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  flex: 1;
+}
+
+/* ─── CTA button ─── */
+.sc-cta {
+  margin-top: auto;
+  padding: 3px 10px;
+  font-size: 0.62rem;
+  font-weight: 600;
+  font-family: var(--font-body);
+  color: white;
+  background: var(--color-accent);
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  width: fit-content;
+  transition: background var(--transition-fast), transform var(--transition-fast);
+  white-space: nowrap;
+}
+
+.sc-cta:hover {
+  background: var(--color-accent-hover);
+  transform: translateY(-1px);
+}

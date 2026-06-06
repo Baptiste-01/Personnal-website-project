@@ -12,3 +12,6 @@ Thumbs.db
 .idea/
 *.log
 tmp/
+
+# ─── Templates locaux (non versionnés) ───
+_templates/
