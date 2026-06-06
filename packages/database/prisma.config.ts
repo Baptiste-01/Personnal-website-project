@@ -1,12 +1,13 @@
+import { defineConfig } from "prisma/config"
 
-import { defineConfig } from "prisma/config";
-
+// DATABASE_URL est injecté via --env-file=.env (racine du projet)
+// Voir package.json root : "db:push" et "db:studio"
 export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {
     path: "prisma/migrations",
   },
   datasource: {
-    url: process.env["DATABASE_URL"] ?? "postgresql://smik_user:smik_password@localhost:5433/smik_db?schema=public",
+    url: process.env["DATABASE_URL"],
   },
-});
+})
