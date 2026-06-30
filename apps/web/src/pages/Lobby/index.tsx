@@ -352,10 +352,21 @@ export default function Lobby() {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
 
-  // Auth simulée — à remplacer par un vrai contexte
-  const [isConnected] = useState(false)
+  const [isConnected, setIsConnected] = useState(false)
+  const [authUser, setAuthUser] = useState<any>(null)
   const [favorites, setFavorites] = useState<Set<string>>(new Set())
   const [activeRuleTab, setActiveRuleTab] = useState<'all' | 'favorites'>('all')
+
+  useEffect(() => {
+    const userStr = localStorage.getItem('auth_user')
+    if (userStr) {
+      try {
+        const user = JSON.parse(userStr)
+        setAuthUser(user)
+        setIsConnected(true)
+      } catch (e) {}
+    }
+  }, [])
 
   const fetchArenas = useCallback(async (manual = false) => {
     if (manual) setIsRefreshing(true)
@@ -407,10 +418,17 @@ export default function Lobby() {
 
       {/* ─── Navbar ─── */}
       <nav className="lobby-nav" id="lobby-nav">
-        <button className="btn-login" id="login-button" onClick={() => navigate('/login')}>
-          <IconLogin />
-          {isConnected ? 'Mon profil' : 'Se connecter'}
-        </button>
+        {isConnected && authUser ? (
+          <button className="btn-login" id="profile-button" onClick={() => navigate('/profile')}>
+            <IconUser />
+            {authUser.username}
+          </button>
+        ) : (
+          <button className="btn-login" id="login-button" onClick={() => navigate('/login')}>
+            <IconLogin />
+            Se connecter
+          </button>
+        )}
       </nav>
 
       {/* ─── Header ─── */}
@@ -499,7 +517,7 @@ export default function Lobby() {
 
           {fetchState === 'success' && arenas.length > 0 && (
             <div className="arena-list" id="arena-list">
-              {arenas.map((a, i) => (
+              {arenas.map((a) => (
                 <ArenaCard
                   key={a.id}
                   arena={a}

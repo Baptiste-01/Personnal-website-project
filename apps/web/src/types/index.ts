@@ -53,6 +53,9 @@ export interface GameSettings {
   difficulty: Difficulty
   roundCount: number
   timePerRound: number
+  maxPoints: number
+  infiniteRounds: boolean
+  pointsPerAnswer: number   // points for the 1st (fastest) correct answer
 }
 
 export interface Arena {
@@ -71,4 +74,7 @@ export const DEFAULT_GAME_SETTINGS: GameSettings = {
   difficulty: 'facile',
   roundCount: 10,
   timePerRound: 20,
+  maxPoints: 1000,
+  infiniteRounds: false,
+  pointsPerAnswer: 100,
 }
