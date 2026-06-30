@@ -7,6 +7,7 @@ import {
 } from '../../components/Icons'
 import { CATEGORY_LABELS, DIFFICULTY_LABELS } from '../../types'
 import type { Category, Difficulty, GameSettings } from '../../types'
+import { API_URL } from '../../lib/api'
 import './Arena.css'
 
 /* ─── Constants ─── */
@@ -116,7 +117,7 @@ export default function Arena() {
   const minPointsPerAnswer = Math.max(1, Math.round(settings.pointsPerAnswer * 0.1))
 
   useEffect(() => {
-    fetch(`http://localhost:3000/arenas/${arenaId}`)
+    fetch(`${API_URL}/arenas/${arenaId}`)
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data) setArenaName(data.name) })
       .catch(() => setArenaName('Mon Arène'))

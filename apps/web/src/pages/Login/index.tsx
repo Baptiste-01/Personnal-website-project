@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { IconGamepad, IconLogin } from '../../components/Icons'
+import { API_URL } from '../../lib/api'
 import './Login.css'
 
 /* ─── Types ─── */
@@ -97,7 +98,7 @@ export default function LoginPage() {
     setLoginLoading(true)
 
     try {
-      const res = await fetch('http://localhost:3000/auth/login', {
+      const res = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: loginUsername, password: loginPassword }),
@@ -134,7 +135,7 @@ export default function LoginPage() {
 
     setRegLoading(true)
     try {
-      const res = await fetch('http://localhost:3000/auth/register', {
+      const res = await fetch(`${API_URL}/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: regUsername, password: regPassword }),

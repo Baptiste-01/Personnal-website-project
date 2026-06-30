@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { IconArrowLeft, IconGamepad, IconUser, IconCrown, IconHash, IconClock, IconCheck, IconX } from '../../components/Icons'
 import type { Question, Category, Difficulty } from '../../types'
+import { API_URL } from '../../lib/api'
 import './FlashGuess.css'
 
 /** Remove accents and lowercase for matching */
@@ -43,7 +44,7 @@ export default function FlashGuess() {
       difficulty,
       count: String(totalRounds),
     })
-    fetch(`http://localhost:3000/questions?${params}`)
+    fetch(`${API_URL}/questions?${params}`)
       .then(r => r.json())
       .then((data: Question[]) => {
         setQuestions(data)

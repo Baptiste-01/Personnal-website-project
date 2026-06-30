@@ -11,10 +11,26 @@ process.on('beforeExit', async () => {
   await prisma.$disconnect()
 })
 
+/* ─── Config ──────────────────────────────────────────────────── */
+const PORT = Number(process.env.PORT) || 3000
+
+// Allowed origins: local dev + production Vercel URL
+// Add your Vercel URL to ALLOWED_ORIGINS env var (comma-separated) after deploy
+const ALLOWED_ORIGINS = (
+  process.env.ALLOWED_ORIGINS ?? 'http://localhost:5173,http://localhost:4173'
+).split(',').map(o => o.trim())
+
 /* ─── App ────────────────────────────────────────────────────── */
 const app = new Elysia()
-  .use(cors())
-
+  .use(cors({
+    origin: (request) => {
+      const origin = request.headers.get('origin') ?? ''
+      // Allow requests with no origin (e.g. server-to-server, curl)
+      if (!origin) return true
+      return ALLOWED_ORIGINS.some(allowed => origin === allowed || origin.endsWith('.vercel.app'))
+    },
+    credentials: true,
+  }))
   /* Health check */
   .get('/', async () => {
     let dbStatus = 'disconnected'
@@ -49,10 +65,11 @@ const app = new Elysia()
     return arena
   })
 
-  .listen(3000)
+  .listen(PORT)
 
 console.log(`✅ Smik Party API running at ${app.server?.hostname}:${app.server?.port}`)
 console.log(`   → DB: postgresql (Prisma)`)
-console.log(`   → Import Excel: POST http://localhost:3000/admin/import`)
-console.log(`   → Template:     GET  http://localhost:3000/admin/template`)
-console.log(`   → Stats:        GET  http://localhost:3000/admin/stats`)
+console.log(`   → Allowed origins: ${ALLOWED_ORIGINS.join(', ')} + *.vercel.app`)
+console.log(`   → Import Excel: POST /admin/import`)
+console.log(`   → Template:     GET  /admin/template`)
+console.log(`   → Stats:        GET  /admin/stats`)

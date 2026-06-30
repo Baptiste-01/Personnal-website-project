@@ -1,0 +1,17 @@
+services:
+  # ─── API (Bun + Elysia) ─────────────────────────────────────────
+  - type: web
+    name: smik-api
+    env: bun
+    region: frankfurt  # Change to 'ohio' or 'oregon' if you prefer US servers
+    plan: free
+    rootDir: apps/api
+    buildCommand: bun install
+    startCommand: bun run index.ts
+    envVars:
+      - key: DATABASE_URL
+        sync: false  # Set this manually in Render dashboard from Neon
+      - key: ALLOWED_ORIGINS
+        sync: false  # Set this after getting your Vercel URL, e.g.: https://smik-party.vercel.app
+      - key: NODE_ENV
+        value: production

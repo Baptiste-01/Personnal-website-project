@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { IconUser, IconTrophy, IconStar, IconGamepad, IconLogOut, IconChevronLeft } from '../../components/Icons'
+import { API_URL } from '../../lib/api'
 import './Profile.css'
 
 interface UserProfile {
@@ -32,7 +33,7 @@ export default function Profile() {
     }
 
     // Fetch the full profile from the /auth/me endpoint
-    fetch('http://localhost:3000/auth/me', {
+    fetch(`${API_URL}/auth/me`, {
       headers: {
         'Authorization': `Bearer ${token}`
       }
@@ -57,7 +58,7 @@ export default function Profile() {
   const handleLogout = () => {
     const token = localStorage.getItem('auth_token')
     if (token) {
-      fetch('http://localhost:3000/auth/logout', {
+      fetch(`${API_URL}/auth/logout`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       }).catch(console.error)

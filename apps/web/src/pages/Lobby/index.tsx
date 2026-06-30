@@ -7,6 +7,7 @@ import {
 } from '../../components/Icons'
 import { DIFFICULTY_LABELS } from '../../types'
 import type { Difficulty } from '../../types'
+import { API_URL } from '../../lib/api'
 import Slider from '../../components/Slider/Slider'
 import type { SlideItem } from '../../components/Slider/Slider'
 import './Lobby.css'
@@ -372,7 +373,7 @@ export default function Lobby() {
     if (manual) setIsRefreshing(true)
     else setFetchState('loading')
     try {
-      const res = await fetch('http://localhost:3000/arenas')
+      const res = await fetch(`${API_URL}/arenas`)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data: ArenaItem[] = await res.json()
       setArenas(data)
@@ -387,7 +388,7 @@ export default function Lobby() {
   useEffect(() => { fetchArenas() }, [fetchArenas])
 
   const handleCreateArena = async (name: string, difficulty: Difficulty) => {
-    const res = await fetch('http://localhost:3000/arenas', {
+    const res = await fetch(`${API_URL}/arenas`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, difficulty, gameMode: 'flashguess' }),
