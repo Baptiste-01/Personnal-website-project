@@ -5,9 +5,9 @@ services:
     env: bun
     region: frankfurt  # Change to 'ohio' or 'oregon' if you prefer US servers
     plan: free
-    rootDir: apps/api
-    buildCommand: bun install
-    startCommand: bun run index.ts
+    # No rootDir — build runs from monorepo root to access all workspace packages
+    buildCommand: "bun install && cd packages/database && bunx prisma generate"
+    startCommand: "bun --cwd apps/api index.ts"
     envVars:
       - key: DATABASE_URL
         sync: false  # Set this manually in Render dashboard from Neon
