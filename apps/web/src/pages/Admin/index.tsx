@@ -176,7 +176,10 @@ export default function Admin() {
                   <span className="stats-item-cat">{CAT_EMOJI[cat] ?? '❓'} {cat}</span>
                   <span className="stats-item-count">{total}</span>
                   <span className="stats-item-detail">
-                    {details.map(d => `${d.difficulty}: ${d.count}`).join(' · ')}
+                    {details.map(d => {
+                      const diffTag = d.difficulty === 'facile' ? '🟢 Easy' : d.difficulty === 'moyen' ? '🟡 Normal' : d.difficulty === 'difficile' ? '🔴 Hard' : d.difficulty
+                      return `${diffTag}: ${d.count}`
+                    }).join(' · ')}
                   </span>
                 </div>
               ))}
@@ -343,8 +346,8 @@ export default function Admin() {
                 </tr>
                 <tr>
                   <td><strong>difficulté</strong></td>
-                  <td>facile / moyen / difficile</td>
-                  <td><span className="optional">Optionnel (défaut: facile)</span></td>
+                  <td>easy / normal / hard (ou facile / moyen / difficile)</td>
+                  <td><span className="optional">Optionnel (défaut: easy)</span></td>
                 </tr>
               </tbody>
             </table>

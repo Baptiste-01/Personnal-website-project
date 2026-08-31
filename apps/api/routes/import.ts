@@ -38,10 +38,19 @@ function normaliseRow(raw: Record<string, unknown>): ExcelRow {
 }
 
 /* ─── Validate difficulty value ───────────────────────────────── */
-const VALID_DIFFICULTIES = ['facile', 'moyen', 'difficile']
+const DIFFICULTY_NORMALIZE_MAP: Record<string, string> = {
+  facile: 'facile',
+  easy: 'facile',
+  moyen: 'moyen',
+  normal: 'moyen',
+  medium: 'moyen',
+  difficile: 'difficile',
+  hard: 'difficile',
+}
+
 function validateDifficulty(val: string | undefined): string {
   const d = (val ?? 'facile').toLowerCase().trim()
-  return VALID_DIFFICULTIES.includes(d) ? d : 'facile'
+  return DIFFICULTY_NORMALIZE_MAP[d] ?? 'facile'
 }
 
 /* ─── Route ───────────────────────────────────────────────────── */
@@ -167,14 +176,17 @@ export const importRoute = new Elysia({ prefix: '/admin' })
 
     const EXAMPLES: Record<string, string[][]> = {
       geographie: [
-        ['Quelle est la capitale de la France ?', 'Paris', 'paris,Paris', 'Ville lumière', 'facile'],
-        ["Quel est le plus petit pays du monde ?", 'Vatican', 'vatican,le vatican', 'Enclave dans Rome', 'moyen'],
+        ['Quelle est la capitale de la France ?', 'Paris', 'paris,Paris', 'Ville lumière', 'easy'],
+        ["Quel est le plus petit pays du monde ?", 'Vatican', 'vatican,le vatican', 'Enclave dans Rome', 'normal'],
+        ["Quelle est la capitale de la Mongolie ?", 'Oulan-Bator', 'oulan-bator,ulaanbaatar', 'Asie centrale', 'hard'],
       ],
       histoire: [
         ["En quelle année a débuté la Révolution française ?", '1789', '1789', 'Prise de la Bastille', 'facile'],
+        ["En quelle année le mur de Berlin est-il tombé ?", '1989', '1989', 'Fin de la guerre froide', 'normal'],
       ],
       sciences: [
-        ["Quel est le symbole chimique de l'eau ?", 'H2O', 'h2o', 'Deux éléments', 'facile'],
+        ["Quel est le symbole chimique de l'eau ?", 'H2O', 'h2o', 'Deux éléments', 'easy'],
+        ["Quel est le plus grand organe du corps humain ?", 'Peau', 'peau,la peau', 'Recouvre tout le corps', 'medium'],
       ],
     }
 

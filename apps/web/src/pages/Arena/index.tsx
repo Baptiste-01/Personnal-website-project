@@ -5,20 +5,11 @@ import {
   IconTrophy, IconShield, IconZap, IconInfinity, IconSettings,
   IconCopy, IconWifi, IconUsers, IconTarget,
 } from '../../components/Icons'
-import { CATEGORY_LABELS, DIFFICULTY_LABELS } from '../../types'
+import {
+  CATEGORY_LABELS, DIFFICULTY_LABELS, ALL_CATEGORIES, CATEGORY_ICONS, DEFAULT_CATEGORY_DIFFICULTIES
+} from '../../types'
 import type { Category, Difficulty, GameSettings } from '../../types'
 import './Arena.css'
-
-/* ─── Constants ─── */
-const ALL_CATEGORIES: Category[] = [
-  'geographie', 'histoire', 'sciences', 'cinema',
-  'musique', 'sport', 'litterature', 'gastronomie',
-]
-
-const CATEGORY_ICONS: Record<Category, string> = {
-  geographie: '🌍', histoire: '📜', sciences: '🔬', cinema: '🎬',
-  musique: '🎵', sport: '⚽', litterature: '📚', gastronomie: '🍽️',
-}
 
 const TIME_OPTIONS = [5, 10, 15, 20, 30, 45, 60]
 const ROUND_OPTIONS = [5, 10, 15, 20, 30]
@@ -109,10 +100,24 @@ export default function Arena() {
     const rounds = searchParams.get('rounds')
     const time = searchParams.get('time')
     const maxPts = searchParams.get('maxPoints')
+    const catDiffsStr = searchParams.get('catDiffs')
+
+    const initialCatDiffs: Record<string, Difficulty[]> = { ...DEFAULT_CATEGORY_DIFFICULTIES }
+    if (catDiffsStr) {
+      catDiffsStr.split(',').forEach(p => {
+        const [c, dStr] = p.split(':')
+        if (c && dStr) {
+          const diffs = dStr.split('+').filter(Boolean) as Difficulty[]
+          if (diffs.length > 0) initialCatDiffs[c] = diffs
+        }
+      })
+    }
 
     return {
-      categories: ['geographie', 'histoire', 'sciences', 'cinema', 'musique'],
+      categories: ['geographie', 'histoire', 'sciences', 'cinema', 'musique', 'sport', 'litterature', 'gastronomie'],
       difficulty: diff ?? 'facile',
+      difficulties: ['facile', 'moyen', 'difficile'],
+      categoryDifficulties: initialCatDiffs,
       roundCount: rounds && rounds !== 'infinite' ? Number(rounds) : 10,
       timePerRound: time ? Number(time) : 20,
       maxPoints: maxPts ? Number(maxPts) : 1000,
@@ -139,7 +144,43 @@ export default function Arena() {
     })
   }
 
+  const toggleCategoryDifficulty = (cat: Category, diff: Difficulty) => {
+    setSettings(prev => {
+      const current = prev.categoryDifficulties[cat] ?? ['facile', 'moyen', 'difficile']
+      const has = current.includes(diff)
+      let updated: Difficulty[]
+      if (has) {
+        if (current.length === 1) return prev // keep at least 1 difficulty
+        updated = current.filter(d => d !== diff)
+      } else {
+        updated = [...current, diff]
+      }
+      return {
+        ...prev,
+        categoryDifficulties: {
+          ...prev.categoryDifficulties,
+          [cat]: updated,
+        },
+      }
+    })
+  }
+
+  const setCategoryAllDifficulties = (cat: Category) => {
+    setSettings(prev => ({
+      ...prev,
+      categoryDifficulties: {
+        ...prev.categoryDifficulties,
+        [cat]: ['facile', 'moyen', 'difficile'],
+      },
+    }))
+  }
+
   const startGame = useCallback(() => {
+    const catDiffsStr = Object.entries(settings.categoryDifficulties)
+      .filter(([cat]) => settings.categories.includes(cat as Category))
+      .map(([cat, diffs]) => `${cat}:${(diffs ?? []).join('+')}`)
+      .join(',')
+
     const params = new URLSearchParams({
       categories: settings.categories.join(','),
       difficulty: settings.difficulty,
@@ -148,6 +189,7 @@ export default function Arena() {
       maxPoints: String(settings.maxPoints),
       infiniteRounds: String(settings.infiniteRounds),
       pointsPerAnswer: String(settings.pointsPerAnswer),
+      catDiffs: catDiffsStr,
     })
     navigate(`/play/${arenaId}?${params.toString()}`)
   }, [settings, arenaId, navigate])
@@ -345,23 +387,93 @@ export default function Arena() {
               <div className="tab-content fade-in" id="tab-content-categories">
                 <div className="settings-section">
                   <div className="settings-label-row">
-                    <h3 className="settings-label"><IconTarget /> Catégories de questions</h3>
+                    <h3 className="settings-label"><IconTarget /> Catégories & Difficultés</h3>
                     <span className="settings-label-count">
                       {settings.categories.length}/{ALL_CATEGORIES.length} sélectionnées
                     </span>
                   </div>
-                  <div className="category-grid">
-                    {ALL_CATEGORIES.map(cat => (
+
+                  {/* Quick Preset Bar */}
+                  <div className="quick-diff-preset-bar">
+                    <span className="quick-diff-label">Définir toutes sur :</span>
+                    {[
+                      { key: 'facile', label: '🟢 Easy' },
+                      { key: 'moyen', label: '🟡 Normal' },
+                      { key: 'difficile', label: '🔴 Hard' },
+                      { key: 'all', label: '✨ Tous (All)' },
+                    ].map(preset => (
                       <button
-                        key={cat}
-                        className={`category-chip ${settings.categories.includes(cat) ? 'category-chip--active' : ''}`}
-                        onClick={() => toggleCategory(cat)}
-                        id={`category-${cat}`}
+                        key={preset.key}
+                        type="button"
+                        className="cat-diff-pill"
+                        onClick={() => {
+                          setSettings(prev => {
+                            const nextDiffs = { ...prev.categoryDifficulties }
+                            const targetDiffs = preset.key === 'all'
+                              ? ['facile', 'moyen', 'difficile'] as Difficulty[]
+                              : [preset.key as Difficulty]
+                            ALL_CATEGORIES.forEach(c => { nextDiffs[c] = targetDiffs })
+                            return { ...prev, categoryDifficulties: nextDiffs }
+                          })
+                        }}
                       >
-                        <span className="category-emoji">{CATEGORY_ICONS[cat]}</span>
-                        {CATEGORY_LABELS[cat]}
+                        {preset.label}
                       </button>
                     ))}
+                  </div>
+
+                  {/* Per-Category Cards Grid */}
+                  <div className="category-diff-list">
+                    {ALL_CATEGORIES.map(cat => {
+                      const isSelected = settings.categories.includes(cat)
+                      const currentDiffs = settings.categoryDifficulties[cat] ?? ['facile', 'moyen', 'difficile']
+                      const isAllSelected = currentDiffs.length === 3
+
+                      return (
+                        <div key={cat} className={`category-card ${isSelected ? 'category-card--active' : ''}`}>
+                          <div className="category-card-header">
+                            <div className="category-card-title-group" onClick={() => toggleCategory(cat)}>
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => toggleCategory(cat)}
+                                style={{ accentColor: 'var(--color-accent)', cursor: 'pointer' }}
+                              />
+                              <span className="category-emoji">{CATEGORY_ICONS[cat]}</span>
+                              <span className="category-card-name">{CATEGORY_LABELS[cat]}</span>
+                            </div>
+                          </div>
+                          {isSelected && (
+                            <div className="category-card-diff-pills fade-in">
+                              {/* Difficulty toggles */}
+                              {(['facile', 'moyen', 'difficile'] as Difficulty[]).map(d => {
+                                const active = currentDiffs.includes(d)
+                                return (
+                                  <button
+                                    key={d}
+                                    type="button"
+                                    className={`cat-diff-pill ${active ? 'cat-diff-pill--active diff--' + d : ''}`}
+                                    onClick={() => toggleCategoryDifficulty(cat, d)}
+                                    id={`cat-diff-${cat}-${d}`}
+                                  >
+                                    {d === 'facile' ? '🟢 Easy' : d === 'moyen' ? '🟡 Normal' : '🔴 Hard'}
+                                  </button>
+                                )
+                              })}
+                              {/* All difficulties toggle */}
+                              <button
+                                type="button"
+                                className={`cat-diff-pill ${isAllSelected ? 'cat-diff-pill--active' : ''}`}
+                                onClick={() => setCategoryAllDifficulties(cat)}
+                                id={`cat-diff-${cat}-all`}
+                              >
+                                ✨ Tous
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
                   </div>
                   <p className="settings-hint">Au moins 1 catégorie requise.</p>
                 </div>

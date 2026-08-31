@@ -26,6 +26,7 @@ export default function FlashGuess() {
   const timePerRound = Number(searchParams.get('time') ?? '20')
   const maxPoints = Number(searchParams.get('maxPoints') ?? '1000')
   const pointsPerAnswer = Number(searchParams.get('pointsPerAnswer') ?? '100')
+  const catDiffsParam = searchParams.get('catDiffs')
 
   const [questions, setQuestions] = useState<Question[]>([])
   const [phase, setPhase] = useState<Phase>('loading')
@@ -45,10 +46,14 @@ export default function FlashGuess() {
   useEffect(() => {
     const fetchCount = isInfinite ? 30 : Math.min(50, totalRounds)
     const params = new URLSearchParams({
-      categories: categories.join(','),
-      difficulty,
       count: String(fetchCount),
     })
+    if (catDiffsParam) {
+      params.set('catDiffs', catDiffsParam)
+    } else {
+      params.set('categories', categories.join(','))
+      params.set('difficulty', difficulty)
+    }
     fetch(`http://localhost:3000/questions?${params}`)
       .then(r => r.json())
       .then((data: Question[]) => {

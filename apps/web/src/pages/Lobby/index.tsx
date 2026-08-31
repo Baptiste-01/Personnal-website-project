@@ -6,7 +6,7 @@ import {
   IconBookOpen, IconHeart, IconLock, IconChevronRight, IconTarget, IconTrophy, IconX,
   IconInfinity, IconClock
 } from '../../components/Icons'
-import { DIFFICULTY_LABELS } from '../../types'
+import { DIFFICULTY_LABELS, CATEGORY_LABELS, ALL_CATEGORIES, CATEGORY_ICONS, DEFAULT_CATEGORY_DIFFICULTIES } from '../../types'
 import type { Difficulty } from '../../types'
 import Slider from '../../components/Slider/Slider'
 import type { SlideItem } from '../../components/Slider/Slider'
@@ -87,13 +87,17 @@ const GAME_RULES: GameRule[] = [
 
 const DIFFICULTY_COLOR: Record<Difficulty, string> = {
   facile: 'diff--easy',
+  easy: 'diff--easy',
   moyen: 'diff--medium',
+  normal: 'diff--medium',
   difficile: 'diff--hard',
+  hard: 'diff--hard',
 }
 
 interface CreateArenaSettings {
   name: string
   difficulty: Difficulty
+  categoryDifficulties: Record<string, Difficulty[]>
   infiniteRounds: boolean
   roundCount: number
   timePerRound: number
@@ -110,6 +114,7 @@ function CreateArenaModal({
 }) {
   const [name, setName] = useState('')
   const [difficulty, setDifficulty] = useState<Difficulty>('moyen')
+  const [categoryDifficulties, setCategoryDifficulties] = useState<Record<string, Difficulty[]>>(DEFAULT_CATEGORY_DIFFICULTIES)
   const [infiniteRounds, setInfiniteRounds] = useState(false)
   const [roundCount, setRoundCount] = useState(10)
   const [timePerRound, setTimePerRound] = useState(20)
@@ -125,6 +130,30 @@ function CreateArenaModal({
     return () => window.removeEventListener('keydown', handleKey)
   }, [onClose])
 
+  const handleGlobalDifficultyChange = (d: Difficulty | 'all') => {
+    if (d !== 'all') setDifficulty(d)
+    const targetDiffs = d === 'all' ? ['facile', 'moyen', 'difficile'] as Difficulty[] : [d]
+    setCategoryDifficulties(prev => {
+      const next = { ...prev }
+      Object.keys(next).forEach(k => { next[k] = targetDiffs })
+      return next
+    })
+  }
+
+  const toggleCategoryDiff = (cat: string, diff: Difficulty) => {
+    setCategoryDifficulties(prev => {
+      const current = prev[cat] ?? ['facile', 'moyen', 'difficile']
+      const has = current.includes(diff)
+      if (has && current.length === 1) return prev
+      const updated = has ? current.filter(d => d !== diff) : [...current, diff]
+      return { ...prev, [cat]: updated }
+    })
+  }
+
+  const setCategoryAllDiffs = (cat: string) => {
+    setCategoryDifficulties(prev => ({ ...prev, [cat]: ['facile', 'moyen', 'difficile'] }))
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     const trimmed = name.trim()
@@ -135,6 +164,7 @@ function CreateArenaModal({
       await onCreate({
         name: trimmed,
         difficulty,
+        categoryDifficulties,
         infiniteRounds,
         roundCount,
         timePerRound,
@@ -174,21 +204,76 @@ function CreateArenaModal({
             <span className="modal-input-counter">{name.length}/40</span>
           </div>
 
-          {/* Difficulté */}
+          {/* Preset / Multi-select pour toutes */}
           <div className="modal-field">
-            <label className="modal-label">Difficulté</label>
+            <label className="modal-label">Niveaux de difficulté par défaut</label>
             <div className="modal-diff-row">
               {(['facile', 'moyen', 'difficile'] as Difficulty[]).map(d => (
                 <button
                   key={d}
                   type="button"
                   className={`modal-diff-btn ${difficulty === d ? 'modal-diff-btn--active ' + DIFFICULTY_COLOR[d] : ''}`}
-                  onClick={() => setDifficulty(d)}
+                  onClick={() => handleGlobalDifficultyChange(d)}
                   id={`modal-diff-${d}`}
                 >
                   {DIFFICULTY_LABELS[d]}
                 </button>
               ))}
+              <button
+                type="button"
+                className="modal-diff-btn"
+                onClick={() => handleGlobalDifficultyChange('all')}
+                id="modal-diff-all"
+              >
+                ✨ Tous
+              </button>
+            </div>
+          </div>
+
+          {/* Difficulté par catégorie */}
+          <div className="modal-field">
+            <div className="settings-label-row">
+              <label className="modal-label">Difficultés par catégorie (sélectionnez 1, 2 ou toutes)</label>
+            </div>
+            <div className="category-diff-list">
+              {ALL_CATEGORIES.map(cat => {
+                const currentDiffs = categoryDifficulties[cat] ?? ['facile', 'moyen', 'difficile']
+                const isAllSelected = currentDiffs.length === 3
+                return (
+                  <div key={cat} className="category-card category-card--active">
+                    <div className="category-card-header">
+                      <div className="category-card-title-group">
+                        <span className="category-emoji">{CATEGORY_ICONS[cat]}</span>
+                        <span className="category-card-name">{CATEGORY_LABELS[cat]}</span>
+                      </div>
+                    </div>
+                    <div className="category-card-diff-pills">
+                      {(['facile', 'moyen', 'difficile'] as Difficulty[]).map(d => {
+                        const active = currentDiffs.includes(d)
+                        return (
+                          <button
+                            key={d}
+                            type="button"
+                            className={`cat-diff-pill ${active ? 'cat-diff-pill--active diff--' + d : ''}`}
+                            onClick={() => toggleCategoryDiff(cat, d)}
+                            id={`modal-cat-diff-${cat}-${d}`}
+                          >
+                            {d === 'facile' ? '🟢 Easy' : d === 'moyen' ? '🟡 Normal' : '🔴 Hard'}
+                          </button>
+                        )
+                      })}
+                      <button
+                        type="button"
+                        className={`cat-diff-pill ${isAllSelected ? 'cat-diff-pill--active' : ''}`}
+                        onClick={() => setCategoryAllDiffs(cat)}
+                        id={`modal-cat-diff-${cat}-all`}
+                      >
+                        ✨ Tous
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           </div>
 
@@ -591,12 +676,17 @@ export default function Lobby() {
     })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     const data = await res.json()
+    const catDiffsStr = Object.entries(settings.categoryDifficulties)
+      .map(([cat, diffs]) => `${cat}:${(diffs ?? []).join('+')}`)
+      .join(',')
+
     const query = new URLSearchParams({
       difficulty: settings.difficulty,
       rounds: settings.infiniteRounds ? 'infinite' : String(settings.roundCount),
       time: String(settings.timePerRound),
       maxPoints: String(settings.maxPoints),
       infiniteRounds: String(settings.infiniteRounds),
+      catDiffs: catDiffsStr,
     })
     navigate(`/arena/${data.id}?${query.toString()}`)
   }
