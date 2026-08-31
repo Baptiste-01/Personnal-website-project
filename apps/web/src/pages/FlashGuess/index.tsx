@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
-import { IconArrowLeft, IconGamepad, IconUser, IconCrown, IconHash, IconClock, IconCheck, IconX } from '../../components/Icons'
+import { IconArrowLeft, IconGamepad, IconUser, IconCrown, IconHash, IconClock, IconCheck, IconX, IconInfinity, IconTrophy } from '../../components/Icons'
 import type { Question, Category, Difficulty } from '../../types'
 import './FlashGuess.css'
 
@@ -20,8 +20,12 @@ export default function FlashGuess() {
   // Parse settings from URL
   const categories = (searchParams.get('categories') ?? 'geographie').split(',') as Category[]
   const difficulty = (searchParams.get('difficulty') ?? 'facile') as Difficulty
-  const totalRounds = Number(searchParams.get('rounds') ?? '10')
+  const isInfinite = searchParams.get('infiniteRounds') === 'true' || searchParams.get('rounds') === 'infinite'
+  const rawRounds = searchParams.get('rounds')
+  const totalRounds = isInfinite ? Infinity : Number(rawRounds ?? '10')
   const timePerRound = Number(searchParams.get('time') ?? '20')
+  const maxPoints = Number(searchParams.get('maxPoints') ?? '1000')
+  const pointsPerAnswer = Number(searchParams.get('pointsPerAnswer') ?? '100')
 
   const [questions, setQuestions] = useState<Question[]>([])
   const [phase, setPhase] = useState<Phase>('loading')
@@ -34,14 +38,16 @@ export default function FlashGuess() {
   const [roundScores, setRoundScores] = useState<number[]>([])
   const [showHint, setShowHint] = useState(false)
 
-  const currentQ = questions[round] ?? null
+  const questionIndex = questions.length > 0 ? (round % questions.length) : 0
+  const currentQ = questions[questionIndex] ?? null
 
   // Fetch questions from API
   useEffect(() => {
+    const fetchCount = isInfinite ? 30 : Math.min(50, totalRounds)
     const params = new URLSearchParams({
       categories: categories.join(','),
       difficulty,
-      count: String(totalRounds),
+      count: String(fetchCount),
     })
     fetch(`http://localhost:3000/questions?${params}`)
       .then(r => r.json())
@@ -53,9 +59,9 @@ export default function FlashGuess() {
       .catch(() => {
         // Fallback: use hardcoded questions if API fails
         setQuestions([
-          { id: 1, text: 'Quelle est la capitale de la France ?', answer: 'Paris', acceptedAnswers: ['paris'], hint: 'Ville lumiere', category: 'geographie' as Category, difficulty: 'facile' as Difficulty },
+          { id: 1, text: 'Quelle est la capitale de la France ?', answer: 'Paris', acceptedAnswers: ['paris'], hint: 'Ville lumière', category: 'geographie' as Category, difficulty: 'facile' as Difficulty },
           { id: 2, text: 'Qui a peint la Joconde ?', answer: 'Leonard de Vinci', acceptedAnswers: ['leonard de vinci', 'de vinci', 'vinci', 'da vinci'], hint: 'Artiste de la Renaissance', category: 'histoire' as Category, difficulty: 'facile' as Difficulty },
-          { id: 3, text: 'Quel est le symbole chimique de l\'eau ?', answer: 'H2O', acceptedAnswers: ['h2o'], hint: 'Deux elements', category: 'sciences' as Category, difficulty: 'facile' as Difficulty },
+          { id: 3, text: 'Quel est le symbole chimique de l\'eau ?', answer: 'H2O', acceptedAnswers: ['h2o'], hint: 'Deux éléments', category: 'sciences' as Category, difficulty: 'facile' as Difficulty },
         ])
         setPhase('playing')
         setTimeLeft(timePerRound)
@@ -93,8 +99,8 @@ export default function FlashGuess() {
 
     if (isCorrect) {
       const streakMultiplier = streak >= 5 ? 2.0 : streak >= 3 ? 1.5 : 1.0
-      const speedBonus = Math.round((timeLeft / timePerRound) * 500)
-      const roundPts = Math.round((1000 + speedBonus) * streakMultiplier)
+      const speedBonus = Math.round((timeLeft / timePerRound) * (pointsPerAnswer * 0.5))
+      const roundPts = Math.round((pointsPerAnswer + speedBonus) * streakMultiplier)
       setScore(prev => prev + roundPts)
       setStreak(prev => prev + 1)
       setRoundScores(prev => [...prev, roundPts])
@@ -108,8 +114,10 @@ export default function FlashGuess() {
     }
   }
 
+  const isWinCondition = score >= maxPoints || (!isInfinite && round + 1 >= totalRounds)
+
   const nextRound = () => {
-    if (round + 1 >= questions.length || round + 1 >= totalRounds) {
+    if (isWinCondition) {
       setPhase('results')
       return
     }
@@ -137,7 +145,7 @@ export default function FlashGuess() {
       <header className="fg-topbar">
         <button className="fg-back" onClick={() => navigate(`/arena/${arenaId}`)}><IconArrowLeft /><span>Retour</span></button>
         <div className="fg-topbar-center"><div className="fg-topbar-icon"><IconGamepad /></div><h1 className="fg-topbar-title">FlashGuess</h1></div>
-        <div className="fg-topbar-score">Score: <strong>{score}</strong></div>
+        <div className="fg-topbar-score">Score: <strong>{score} / {maxPoints} pts</strong></div>
       </header>
 
       <div className="fg-layout">
@@ -154,8 +162,11 @@ export default function FlashGuess() {
             {streak >= 3 && <span className="fg-streak-badge">x{streak}</span>}
           </div>
           <div className="fg-stats">
-            <div className="fg-stat"><span className="fg-stat-label">Serie</span><span className="fg-stat-value">{streak}</span></div>
-            <div className="fg-stat"><span className="fg-stat-label">Manche</span><span className="fg-stat-value">{round + 1}/{Math.min(totalRounds, questions.length)}</span></div>
+            <div className="fg-stat"><span className="fg-stat-label">Série</span><span className="fg-stat-value">{streak}</span></div>
+            <div className="fg-stat">
+              <span className="fg-stat-label">Manche</span>
+              <span className="fg-stat-value">{isInfinite ? `${round + 1} (∞)` : `${round + 1}/${totalRounds}`}</span>
+            </div>
           </div>
         </aside>
 
@@ -172,7 +183,9 @@ export default function FlashGuess() {
               {/* Progress */}
               <div className="fg-progress-bar">
                 <div className="fg-progress-header">
-                  <span className="fg-round-label"><IconHash /> Manche {round + 1} / {Math.min(totalRounds, questions.length)}</span>
+                  <span className="fg-round-label">
+                    {isInfinite ? <><IconInfinity /> Manche {round + 1} (Victoire à {maxPoints} pts)</> : <><IconHash /> Manche {round + 1} / {totalRounds}</>}
+                  </span>
                   <span className="fg-timer" style={{ color: timerColor }}><IconClock /> {timeLeft}s</span>
                 </div>
                 <div className="fg-timer-track"><div className="fg-timer-fill" style={{ width: `${timerPct}%`, backgroundColor: timerColor }} /></div>
@@ -196,7 +209,7 @@ export default function FlashGuess() {
                     ref={inputRef}
                     type="text"
                     className="fg-answer-input"
-                    placeholder="Tapez votre reponse..."
+                    placeholder="Tapez votre réponse..."
                     value={answer}
                     onChange={e => setAnswer(e.target.value)}
                     onKeyDown={handleKeyDown}
@@ -212,12 +225,12 @@ export default function FlashGuess() {
               {phase === 'reveal' && (
                 <div className="fg-reveal fade-in">
                   <div className={`fg-reveal-badge ${feedback === 'correct' ? 'fg-reveal-badge--correct' : 'fg-reveal-badge--wrong'}`}>
-                    {feedback === 'correct' ? <><IconCheck /> Correct</> : <><IconX /> Temps ecoule</>}
+                    {feedback === 'correct' ? <><IconCheck /> Correct</> : <><IconX /> Temps écoulé</>}
                   </div>
-                  <p className="fg-reveal-answer">Reponse : <strong>{currentQ.answer}</strong></p>
+                  <p className="fg-reveal-answer">Réponse : <strong>{currentQ.answer}</strong></p>
                   {feedback === 'correct' && <p className="fg-reveal-points">+{roundScores[roundScores.length - 1]} points</p>}
                   <button className="fg-next-btn" onClick={nextRound} id="next-round">
-                    {round + 1 >= Math.min(totalRounds, questions.length) ? 'Voir les resultats' : 'Manche suivante'}
+                    {isWinCondition ? 'Voir les résultats' : 'Manche suivante'}
                   </button>
                 </div>
               )}
@@ -227,11 +240,13 @@ export default function FlashGuess() {
           {/* Results */}
           {phase === 'results' && (
             <div className="fg-results fade-in">
-              <div className="fg-results-icon"><IconCrown /></div>
-              <h2 className="fg-results-title">Partie terminee</h2>
+              <div className="fg-results-icon">{score >= maxPoints ? <IconTrophy /> : <IconCrown />}</div>
+              <h2 className="fg-results-title">
+                {score >= maxPoints ? `🏆 Victoire ! Score de ${maxPoints} pts atteint !` : 'Partie terminée'}
+              </h2>
               <p className="fg-results-score">Score final : <strong>{score} points</strong></p>
               <p className="fg-results-detail">
-                {roundScores.filter(s => s > 0).length} / {roundScores.length} reponses correctes
+                {roundScores.filter(s => s > 0).length} / {roundScores.length} réponses correctes
               </p>
               <div className="fg-results-actions">
                 <button className="fg-replay-btn" onClick={() => window.location.reload()} id="replay">Rejouer</button>

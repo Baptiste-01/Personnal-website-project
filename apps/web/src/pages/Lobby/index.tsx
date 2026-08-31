@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import {
   IconGamepad, IconRefresh, IconZap, IconUser,
   IconInbox, IconAlertCircle, IconLogin,
-  IconBookOpen, IconHeart, IconLock, IconChevronRight, IconTarget, IconTrophy, IconX
+  IconBookOpen, IconHeart, IconLock, IconChevronRight, IconTarget, IconTrophy, IconX,
+  IconInfinity, IconClock
 } from '../../components/Icons'
 import { DIFFICULTY_LABELS } from '../../types'
 import type { Difficulty } from '../../types'
@@ -21,6 +22,9 @@ interface ArenaItem {
   gameMode: string
   difficulty: Difficulty
   roundCount?: number
+  timePerRound?: number
+  maxPoints?: number
+  infiniteRounds?: boolean
   totalPoints?: number
 }
 
@@ -34,6 +38,7 @@ interface GameRule {
   difficulty: Difficulty
   roundCount: number
   timePerRound: number
+  infiniteRounds?: boolean
 }
 
 /* ─── Static game rules catalog ─── */
@@ -46,6 +51,17 @@ const GAME_RULES: GameRule[] = [
     difficulty: 'moyen',
     roundCount: 10,
     timePerRound: 20,
+    infiniteRounds: false,
+  },
+  {
+    id: 'flashguess-infinite',
+    name: 'FlashGuess Infini',
+    description: 'Manches infinies ! La partie continue jusqu’à ce qu’un joueur atteigne la limite de points.',
+    pointsTotal: 1000,
+    difficulty: 'moyen',
+    roundCount: 0,
+    timePerRound: 20,
+    infiniteRounds: true,
   },
   {
     id: 'flashguess-sprint',
@@ -55,6 +71,7 @@ const GAME_RULES: GameRule[] = [
     difficulty: 'facile',
     roundCount: 5,
     timePerRound: 15,
+    infiniteRounds: false,
   },
   {
     id: 'flashguess-expert',
@@ -64,6 +81,7 @@ const GAME_RULES: GameRule[] = [
     difficulty: 'difficile',
     roundCount: 15,
     timePerRound: 12,
+    infiniteRounds: false,
   },
 ]
 
@@ -73,16 +91,29 @@ const DIFFICULTY_COLOR: Record<Difficulty, string> = {
   difficile: 'diff--hard',
 }
 
+interface CreateArenaSettings {
+  name: string
+  difficulty: Difficulty
+  infiniteRounds: boolean
+  roundCount: number
+  timePerRound: number
+  maxPoints: number
+}
+
 /* ─── Create Arena Modal ─── */
 function CreateArenaModal({
   onClose,
   onCreate,
 }: {
   onClose: () => void
-  onCreate: (name: string, difficulty: Difficulty) => Promise<void>
+  onCreate: (settings: CreateArenaSettings) => Promise<void>
 }) {
   const [name, setName] = useState('')
   const [difficulty, setDifficulty] = useState<Difficulty>('moyen')
+  const [infiniteRounds, setInfiniteRounds] = useState(false)
+  const [roundCount, setRoundCount] = useState(10)
+  const [timePerRound, setTimePerRound] = useState(20)
+  const [maxPoints, setMaxPoints] = useState(1000)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
@@ -101,7 +132,14 @@ function CreateArenaModal({
     setIsSubmitting(true)
     setError('')
     try {
-      await onCreate(trimmed, difficulty)
+      await onCreate({
+        name: trimmed,
+        difficulty,
+        infiniteRounds,
+        roundCount,
+        timePerRound,
+        maxPoints,
+      })
     } catch {
       setError('Impossible de créer l\'arène. Le serveur est-il démarré ?')
       setIsSubmitting(false)
@@ -120,6 +158,7 @@ function CreateArenaModal({
         </div>
 
         <form className="modal-form" onSubmit={handleSubmit}>
+          {/* Nom */}
           <div className="modal-field">
             <label className="modal-label" htmlFor="arena-name-input">Nom de l'arène</label>
             <input
@@ -135,6 +174,7 @@ function CreateArenaModal({
             <span className="modal-input-counter">{name.length}/40</span>
           </div>
 
+          {/* Difficulté */}
           <div className="modal-field">
             <label className="modal-label">Difficulté</label>
             <div className="modal-diff-row">
@@ -149,6 +189,153 @@ function CreateArenaModal({
                   {DIFFICULTY_LABELS[d]}
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* Mode de manches */}
+          <div className="modal-field">
+            <label className="modal-label">Mode de manches</label>
+            <div className="modal-mode-switch">
+              <button
+                type="button"
+                className={`modal-mode-btn ${!infiniteRounds ? 'modal-mode-btn--active' : ''}`}
+                onClick={() => setInfiniteRounds(false)}
+                id="mode-fixed-rounds"
+              >
+                <IconZap /> Manches fixes
+              </button>
+              <button
+                type="button"
+                className={`modal-mode-btn ${infiniteRounds ? 'modal-mode-btn--active' : ''}`}
+                onClick={() => setInfiniteRounds(true)}
+                id="mode-infinite-rounds"
+              >
+                <IconInfinity /> Manches infinies
+              </button>
+            </div>
+          </div>
+
+          {/* Notice infini */}
+          {infiniteRounds && (
+            <div className="modal-infinite-notice fade-in">
+              <IconInfinity />
+              <span>Mode infini activé — Victoire au 1er joueur à <strong>{maxPoints} pts</strong></span>
+            </div>
+          )}
+
+          {/* Nombre de manches (si non infini) */}
+          {!infiniteRounds && (
+            <div className="modal-field fade-in">
+              <label className="modal-label">Nombre de manches</label>
+              <div className="modal-options-pills">
+                {[5, 10, 15, 20, 30].map(n => (
+                  <button
+                    key={n}
+                    type="button"
+                    className={`modal-option-pill ${roundCount === n ? 'modal-option-pill--active' : ''}`}
+                    onClick={() => setRoundCount(n)}
+                    id={`modal-rounds-${n}`}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+              <div className="slider-control-group">
+                <div className="slider-input-row">
+                  <input
+                    type="range"
+                    min={1}
+                    max={50}
+                    step={1}
+                    value={roundCount}
+                    onChange={e => setRoundCount(Number(e.target.value))}
+                    className="settings-range-slider"
+                    id="modal-rounds-slider"
+                  />
+                  <span className="slider-val-badge">{roundCount} manche{roundCount > 1 ? 's' : ''}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Temps par question */}
+          <div className="modal-field">
+            <label className="modal-label">Temps par question</label>
+            <div className="modal-options-pills">
+              {[5, 10, 15, 20, 30, 45, 60].map(t => (
+                <button
+                  key={t}
+                  type="button"
+                  className={`modal-option-pill ${timePerRound === t ? 'modal-option-pill--active' : ''}`}
+                  onClick={() => setTimePerRound(t)}
+                  id={`modal-time-${t}`}
+                >
+                  <IconClock /> {t}s
+                </button>
+              ))}
+            </div>
+            <div className="slider-control-group">
+              <div className="slider-input-row">
+                <input
+                  type="range"
+                  min={5}
+                  max={120}
+                  step={1}
+                  value={timePerRound}
+                  onChange={e => setTimePerRound(Number(e.target.value))}
+                  className="settings-range-slider"
+                  id="modal-time-slider"
+                />
+                <span className="slider-val-badge">{timePerRound}s</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Score maximum (Limit of points) */}
+          <div className="modal-field">
+            <label className="modal-label">Score maximum (Limite de points)</label>
+            <div className="modal-pts-input-row">
+              <div className="modal-pts-input-group">
+                <input
+                  id="modal-max-points-input"
+                  type="number"
+                  min={100}
+                  max={99999}
+                  step={50}
+                  value={maxPoints}
+                  onChange={e => setMaxPoints(Math.max(100, Math.min(99999, Number(e.target.value) || 100)))}
+                  className="modal-pts-input"
+                />
+                <span className="modal-pts-unit">pts</span>
+              </div>
+              <div className="modal-options-pills" style={{ flex: 1 }}>
+                {[500, 1000, 2000, 5000].map(p => (
+                  <button
+                    key={p}
+                    type="button"
+                    className={`modal-option-pill ${maxPoints === p ? 'modal-option-pill--active' : ''}`}
+                    onClick={() => setMaxPoints(p)}
+                    id={`modal-maxpts-${p}`}
+                  >
+                    {p >= 1000 ? `${p / 1000}k` : p}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="slider-control-group">
+              <div className="slider-input-row">
+                <input
+                  type="range"
+                  min={100}
+                  max={10000}
+                  step={50}
+                  value={maxPoints}
+                  onChange={e => setMaxPoints(Number(e.target.value))}
+                  className="settings-range-slider"
+                  id="modal-maxpts-slider"
+                />
+                <span className="slider-val-badge">{maxPoints.toLocaleString('fr-FR')} pts</span>
+              </div>
             </div>
           </div>
 
@@ -197,7 +384,8 @@ function ArenaCard({ arena, onJoin }: { arena: ArenaItem; onJoin: (id: string) =
   const isLive = arena.status === 'playing'
   const statusClass = isLive ? 'status-badge--live' : 'status-badge--waiting'
   const statusLabel = isLive ? 'En cours' : 'En attente'
-  const rounds = arena.roundCount ?? 10
+  const isInfinite = arena.infiniteRounds || arena.roundCount === 0
+  const roundsDisplay = isInfinite ? '∞ manches' : `${arena.roundCount ?? 10} manches`
 
   return (
     <div className="arena-card" id={`arena-${arena.id}`} onClick={() => onJoin(arena.id)}>
@@ -214,12 +402,12 @@ function ArenaCard({ arena, onJoin }: { arena: ArenaItem; onJoin: (id: string) =
             {arena.gameMode === 'flashguess' ? 'FlashGuess' : arena.gameMode}
           </span>
           <span className="arena-chip">
-            <IconZap />
-            {rounds} manches
+            {isInfinite ? <IconInfinity /> : <IconZap />}
+            {roundsDisplay}
           </span>
           <span className="arena-chip">
             <IconTrophy />
-            {(arena.totalPoints ?? rounds * 100)} pts max
+            {(arena.maxPoints ?? arena.totalPoints ?? 1000)} pts max
           </span>
         </div>
       </div>
@@ -251,6 +439,7 @@ function GameRuleCard({
   isFavorite: boolean
   onToggleFavorite: (id: string) => void
 }) {
+  const isInfinite = rule.infiniteRounds || rule.roundCount === 0
   return (
     <div className={`game-rule-card ${isFavorite ? 'game-rule-card--fav' : ''}`} id={`rule-${rule.id}`}>
       <div className="game-rule-header">
@@ -285,7 +474,7 @@ function GameRuleCard({
         </div>
         <div className="rule-stat-sep" />
         <div className="rule-stat">
-          <span className="rule-stat-value">{rule.roundCount}</span>
+          <span className="rule-stat-value">{isInfinite ? '∞' : rule.roundCount}</span>
           <span className="rule-stat-label">Manches</span>
         </div>
         <div className="rule-stat-sep" />
@@ -386,15 +575,30 @@ export default function Lobby() {
 
   useEffect(() => { fetchArenas() }, [fetchArenas])
 
-  const handleCreateArena = async (name: string, difficulty: Difficulty) => {
+  const handleCreateArena = async (settings: CreateArenaSettings) => {
     const res = await fetch('http://localhost:3000/arenas', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, difficulty, gameMode: 'flashguess' }),
+      body: JSON.stringify({
+        name: settings.name,
+        difficulty: settings.difficulty,
+        gameMode: 'flashguess',
+        infiniteRounds: settings.infiniteRounds,
+        roundCount: settings.roundCount,
+        timePerRound: settings.timePerRound,
+        maxPoints: settings.maxPoints,
+      }),
     })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     const data = await res.json()
-    navigate(`/arena/${data.id}`)
+    const query = new URLSearchParams({
+      difficulty: settings.difficulty,
+      rounds: settings.infiniteRounds ? 'infinite' : String(settings.roundCount),
+      time: String(settings.timePerRound),
+      maxPoints: String(settings.maxPoints),
+      infiniteRounds: String(settings.infiniteRounds),
+    })
+    navigate(`/arena/${data.id}?${query.toString()}`)
   }
 
   const toggleFavorite = (id: string) => {

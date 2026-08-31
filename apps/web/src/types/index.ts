@@ -67,6 +67,10 @@ export interface Arena {
   gameMode: 'flashguess'
   difficulty: Difficulty
   categories: Category[]
+  roundCount?: number
+  timePerRound?: number
+  maxPoints?: number
+  infiniteRounds?: boolean
 }
 
 export const DEFAULT_GAME_SETTINGS: GameSettings = {

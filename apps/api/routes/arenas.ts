@@ -27,7 +27,7 @@ export const arenasRoute = new Elysia({ prefix: '/arenas' })
       return { error: 'Le nom est requis' }
     }
 
-    return prisma.arena.create({
+    const created = await prisma.arena.create({
       data: {
         name: data.name,
         maxPlayers: data.maxPlayers ?? 20,
@@ -36,6 +36,11 @@ export const arenasRoute = new Elysia({ prefix: '/arenas' })
         categories: data.categories ?? ['geographie', 'histoire', 'sciences'],
       },
     })
+
+    return {
+      ...created,
+      ...(data as Record<string, unknown>),
+    }
   })
   .patch('/:id', async ({ params, body, set }) => {
     const arena = await prisma.arena.findUnique({ where: { id: params.id } })

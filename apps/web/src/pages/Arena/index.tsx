@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   IconArrowLeft, IconGamepad, IconUser, IconCheck, IconClock,
   IconTrophy, IconShield, IconZap, IconInfinity, IconSettings,
@@ -96,20 +96,29 @@ function Toggle({ checked, onChange, id }: { checked: boolean; onChange: (v: boo
 /* ─── Main Arena ─── */
 export default function Arena() {
   const { arenaId } = useParams<{ arenaId: string }>()
+  const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const [arenaName, setArenaName] = useState('Chargement...')
   const players = MOCK_PLAYERS
   const [activeTab, setActiveTab] = useState<SettingTab>('general')
   const [copied, setCopied] = useState(false)
 
-  const [settings, setSettings] = useState<GameSettings>({
-    categories: ['geographie', 'histoire', 'sciences', 'cinema', 'musique'],
-    difficulty: 'facile',
-    roundCount: 10,
-    timePerRound: 20,
-    maxPoints: 1000,
-    infiniteRounds: false,
-    pointsPerAnswer: 100,
+  const [settings, setSettings] = useState<GameSettings>(() => {
+    const diff = searchParams.get('difficulty') as Difficulty | null
+    const inf = searchParams.get('infiniteRounds')
+    const rounds = searchParams.get('rounds')
+    const time = searchParams.get('time')
+    const maxPts = searchParams.get('maxPoints')
+
+    return {
+      categories: ['geographie', 'histoire', 'sciences', 'cinema', 'musique'],
+      difficulty: diff ?? 'facile',
+      roundCount: rounds && rounds !== 'infinite' ? Number(rounds) : 10,
+      timePerRound: time ? Number(time) : 20,
+      maxPoints: maxPts ? Number(maxPts) : 1000,
+      infiniteRounds: inf === 'true' || rounds === 'infinite',
+      pointsPerAnswer: 100,
+    }
   })
 
   /* ─── Derived: min points (at end of timer) = 10% of pointsPerAnswer ─── */
@@ -403,6 +412,21 @@ export default function Arena() {
                         </button>
                       ))}
                     </div>
+                    <div className="slider-control-group">
+                      <div className="slider-input-row">
+                        <input
+                          type="range"
+                          min={1}
+                          max={50}
+                          step={1}
+                          value={settings.roundCount}
+                          onChange={e => setSettings(prev => ({ ...prev, roundCount: Number(e.target.value) }))}
+                          className="settings-range-slider"
+                          id="rounds-slider"
+                        />
+                        <span className="slider-val-badge">{settings.roundCount} manche{settings.roundCount > 1 ? 's' : ''}</span>
+                      </div>
+                    </div>
                   </div>
                 )}
 
@@ -420,6 +444,21 @@ export default function Arena() {
                         <IconClock /> {t}s
                       </button>
                     ))}
+                  </div>
+                  <div className="slider-control-group">
+                    <div className="slider-input-row">
+                      <input
+                        type="range"
+                        min={5}
+                        max={120}
+                        step={1}
+                        value={settings.timePerRound}
+                        onChange={e => setSettings(prev => ({ ...prev, timePerRound: Number(e.target.value) }))}
+                        className="settings-range-slider"
+                        id="time-slider"
+                      />
+                      <span className="slider-val-badge">{settings.timePerRound}s</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -467,6 +506,21 @@ export default function Arena() {
                       ))}
                     </div>
                   </div>
+                  <div className="slider-control-group">
+                    <div className="slider-input-row">
+                      <input
+                        type="range"
+                        min={100}
+                        max={10000}
+                        step={50}
+                        value={settings.maxPoints}
+                        onChange={e => setSettings(prev => ({ ...prev, maxPoints: Number(e.target.value) }))}
+                        className="settings-range-slider"
+                        id="maxpts-slider"
+                      />
+                      <span className="slider-val-badge">{settings.maxPoints.toLocaleString('fr-FR')} pts</span>
+                    </div>
+                  </div>
                 </div>
 
                 {/* ── Points per correct answer input ── */}
@@ -504,6 +558,21 @@ export default function Arena() {
                           {p}
                         </button>
                       ))}
+                    </div>
+                  </div>
+                  <div className="slider-control-group">
+                    <div className="slider-input-row">
+                      <input
+                        type="range"
+                        min={10}
+                        max={1000}
+                        step={10}
+                        value={settings.pointsPerAnswer}
+                        onChange={e => setSettings(prev => ({ ...prev, pointsPerAnswer: Number(e.target.value) }))}
+                        className="settings-range-slider"
+                        id="ppa-slider"
+                      />
+                      <span className="slider-val-badge">{settings.pointsPerAnswer} pts</span>
                     </div>
                   </div>
                 </div>
