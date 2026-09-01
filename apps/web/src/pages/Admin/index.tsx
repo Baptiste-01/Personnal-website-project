@@ -349,6 +349,11 @@ export default function Admin() {
                   <td>easy / normal / hard (ou facile / moyen / difficile)</td>
                   <td><span className="optional">Optionnel (défaut: easy)</span></td>
                 </tr>
+                <tr>
+                  <td><strong>image_url</strong> (ou image)</td>
+                  <td>https://... (URL de la photo/illustration de la question)</td>
+                  <td><span className="optional">Optionnel</span></td>
+                </tr>
               </tbody>
             </table>
           </div>

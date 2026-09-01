@@ -73,11 +73,12 @@ export const CATEGORY_DIFFICULTY_LABELS: Record<CategoryDifficulty, string> = {
 }
 
 export interface Question {
-  id: number
+  id: number | string
   text: string
   answer: string
   acceptedAnswers: string[]
   hint: string
+  imageUrl?: string | null
   category: Category
   difficulty: Difficulty
 }

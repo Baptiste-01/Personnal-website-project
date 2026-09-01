@@ -32,6 +32,7 @@ model Question {
   answer          String
   acceptedAnswers String[]
   hint            String?
+  imageUrl        String?
   category        String
   difficulty      String
   createdAt       DateTime @default(now())

@@ -38,6 +38,7 @@ export default function FlashGuess() {
   const [streak, setStreak] = useState(0)
   const [roundScores, setRoundScores] = useState<number[]>([])
   const [showHint, setShowHint] = useState(false)
+  const [modalImage, setModalImage] = useState<string | null>(null)
 
   const questionIndex = questions.length > 0 ? (round % questions.length) : 0
   const currentQ = questions[questionIndex] ?? null
@@ -64,9 +65,10 @@ export default function FlashGuess() {
       .catch(() => {
         // Fallback: use hardcoded questions if API fails
         setQuestions([
-          { id: 1, text: 'Quelle est la capitale de la France ?', answer: 'Paris', acceptedAnswers: ['paris'], hint: 'Ville lumière', category: 'geographie' as Category, difficulty: 'facile' as Difficulty },
-          { id: 2, text: 'Qui a peint la Joconde ?', answer: 'Leonard de Vinci', acceptedAnswers: ['leonard de vinci', 'de vinci', 'vinci', 'da vinci'], hint: 'Artiste de la Renaissance', category: 'histoire' as Category, difficulty: 'facile' as Difficulty },
-          { id: 3, text: 'Quel est le symbole chimique de l\'eau ?', answer: 'H2O', acceptedAnswers: ['h2o'], hint: 'Deux éléments', category: 'sciences' as Category, difficulty: 'facile' as Difficulty },
+          { id: 1, text: 'Quel est ce célèbre monument de Paris ?', answer: 'Tour Eiffel', acceptedAnswers: ['tour eiffel', 'eiffel', 'la tour eiffel'], hint: 'Conçue par Gustave Eiffel', imageUrl: 'https://images.unsplash.com/photo-1511739001486-6bfe10ce785f?w=600&auto=format&fit=crop', category: 'geographie' as Category, difficulty: 'facile' as Difficulty },
+          { id: 2, text: 'Quelle est la capitale de la France ?', answer: 'Paris', acceptedAnswers: ['paris'], hint: 'Ville lumière', category: 'geographie' as Category, difficulty: 'facile' as Difficulty },
+          { id: 3, text: 'Qui a peint la Joconde ?', answer: 'Leonard de Vinci', acceptedAnswers: ['leonard de vinci', 'de vinci', 'vinci', 'da vinci'], hint: 'Artiste de la Renaissance', imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec/Mona_Lisa_%28Leonardo_da_Vinci%29.jpg/300px-Mona_Lisa_%28Leonardo_da_Vinci%29.jpg', category: 'histoire' as Category, difficulty: 'facile' as Difficulty },
+          { id: 4, text: 'Quel est le symbole chimique de l\'eau ?', answer: 'H2O', acceptedAnswers: ['h2o'], hint: 'Deux éléments', category: 'sciences' as Category, difficulty: 'facile' as Difficulty },
         ])
         setPhase('playing')
         setTimeLeft(timePerRound)
@@ -199,6 +201,26 @@ export default function FlashGuess() {
               {/* Question */}
               <div className={`fg-prompt ${phase === 'reveal' ? 'fg-prompt--reveal' : ''}`}>
                 <p className="fg-prompt-text">{currentQ.text}</p>
+
+                {currentQ.imageUrl && (
+                  <div className="fg-question-image-wrapper">
+                    <img
+                      src={currentQ.imageUrl}
+                      alt="Illustration de la question"
+                      className="fg-question-image"
+                      onClick={() => setModalImage(currentQ.imageUrl ?? null)}
+                      title="Cliquer pour agrandir"
+                    />
+                    <button
+                      type="button"
+                      className="fg-image-zoom-btn"
+                      onClick={() => setModalImage(currentQ.imageUrl ?? null)}
+                    >
+                      🔍 Agrandir l'image
+                    </button>
+                  </div>
+                )}
+
                 {showHint && currentQ.hint && phase === 'playing' && (
                   <p className="fg-hint">Indice : {currentQ.hint}</p>
                 )}
@@ -261,6 +283,16 @@ export default function FlashGuess() {
           )}
         </main>
       </div>
+
+      {/* Image zoom modal */}
+      {modalImage && (
+        <div className="fg-modal-backdrop fade-in" onClick={() => setModalImage(null)}>
+          <div className="fg-modal-card" onClick={e => e.stopPropagation()}>
+            <button className="fg-modal-close" onClick={() => setModalImage(null)} title="Fermer">✕</button>
+            <img src={modalImage} alt="Illustration grand format" className="fg-modal-img" />
+          </div>
+        </div>
+      )}
     </div>
   )
 }

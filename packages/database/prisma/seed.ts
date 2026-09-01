@@ -1,15 +1,16 @@
-import { PrismaClient } from '@prisma/client'
-
-const prisma = new PrismaClient()
+import prisma from '../../../apps/api/lib/prisma'
 
 const questions = [
   // ── Geographie - Facile ──
   { text: "Quelle est la capitale de la France ?", answer: "Paris", acceptedAnswers: ["paris"], hint: "Ville lumiere", category: "geographie", difficulty: "facile" },
+  { text: "Quel est ce celebre monument de Paris ?", answer: "Tour Eiffel", acceptedAnswers: ["tour eiffel", "eiffel", "la tour eiffel"], hint: "Conçue par Gustave Eiffel en 1889", imageUrl: "https://images.unsplash.com/photo-1511739001486-6bfe10ce785f?w=600&auto=format&fit=crop", category: "geographie", difficulty: "facile" },
+  { text: "Dans quel pays se trouve cette merveille du monde ?", answer: "Inde", acceptedAnswers: ["inde", "l'inde", "india"], hint: "Il s'agit du Taj Mahal", imageUrl: "https://images.unsplash.com/photo-1564507592333-c60657eea523?w=600&auto=format&fit=crop", category: "geographie", difficulty: "facile" },
   { text: "Quel est le plus grand ocean du monde ?", answer: "Pacifique", acceptedAnswers: ["pacifique", "ocean pacifique", "l'ocean pacifique"], hint: "Entre l'Asie et l'Amerique", category: "geographie", difficulty: "facile" },
   { text: "Quel pays a pour capitale Tokyo ?", answer: "Japon", acceptedAnswers: ["japon", "le japon", "japan"], hint: "Pays insulaire d'Asie", category: "geographie", difficulty: "facile" },
   { text: "Quel est le plus long fleuve de France ?", answer: "Loire", acceptedAnswers: ["loire", "la loire"], hint: "Traverse le centre de la France", category: "geographie", difficulty: "facile" },
   { text: "Quelle est la capitale de l'Espagne ?", answer: "Madrid", acceptedAnswers: ["madrid"], hint: "Au centre de la peninsule iberique", category: "geographie", difficulty: "facile" },
   // ── Geographie - Moyen ──
+  { text: "Dans quelle ville se situe ce monument antique ?", answer: "Rome", acceptedAnswers: ["rome", "roma"], hint: "Il s'agit du Colisée", imageUrl: "https://images.unsplash.com/photo-1552832230-c0197dd311b5?w=600&auto=format&fit=crop", category: "geographie", difficulty: "moyen" },
   { text: "Quelle est la capitale de l'Australie ?", answer: "Canberra", acceptedAnswers: ["canberra"], hint: "Ce n'est pas Sydney", category: "geographie", difficulty: "moyen" },
   { text: "Quel est le plus petit pays du monde ?", answer: "Vatican", acceptedAnswers: ["vatican", "le vatican", "cite du vatican"], hint: "Enclave dans Rome", category: "geographie", difficulty: "moyen" },
   { text: "Quel fleuve traverse Le Caire ?", answer: "Nil", acceptedAnswers: ["nil", "le nil"], hint: "Le plus long fleuve d'Afrique", category: "geographie", difficulty: "moyen" },
@@ -20,6 +21,7 @@ const questions = [
   { text: "Quel est le point culminant de l'Afrique ?", answer: "Kilimandjaro", acceptedAnswers: ["kilimandjaro", "kilimanjaro", "mont kilimandjaro"], hint: "En Tanzanie", category: "geographie", difficulty: "difficile" },
   { text: "Quelle est la capitale du Bhoutan ?", answer: "Thimphou", acceptedAnswers: ["thimphou", "thimphu"], hint: "Royaume himalayen", category: "geographie", difficulty: "difficile" },
   // ── Histoire - Facile ──
+  { text: "Qui a peint ce célèbre chef-d'œuvre ?", answer: "Leonard de Vinci", acceptedAnswers: ["leonard de vinci", "da vinci", "vinci", "de vinci"], hint: "Exposé au musée du Louvre", imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec/Mona_Lisa_%28Leonardo_da_Vinci%29.jpg/300px-Mona_Lisa_%28Leonardo_da_Vinci%29.jpg", category: "histoire", difficulty: "facile" },
   { text: "En quelle annee a debute la Revolution francaise ?", answer: "1789", acceptedAnswers: ["1789"], hint: "Prise de la Bastille", category: "histoire", difficulty: "facile" },
   { text: "Qui a decouvert l'Amerique en 1492 ?", answer: "Christophe Colomb", acceptedAnswers: ["christophe colomb", "colomb", "christoph colomb"], hint: "Navigateur genois", category: "histoire", difficulty: "facile" },
   { text: "Quel roi de France etait surnomme le Roi-Soleil ?", answer: "Louis XIV", acceptedAnswers: ["louis xiv", "louis 14"], hint: "Chateau de Versailles", category: "histoire", difficulty: "facile" },
@@ -33,6 +35,7 @@ const questions = [
   { text: "En quelle annee Gutenberg a-t-il invente l'imprimerie ?", answer: "1440", acceptedAnswers: ["1440", "vers 1440"], hint: "XVe siecle, Allemagne", category: "histoire", difficulty: "difficile" },
   { text: "Quel traite a mis fin a la Premiere Guerre mondiale ?", answer: "Traite de Versailles", acceptedAnswers: ["traite de versailles", "versailles"], hint: "Signe en 1919", category: "histoire", difficulty: "difficile" },
   // ── Sciences - Facile ──
+  { text: "Quelle est cette planète aux spectaculaires anneaux ?", answer: "Saturne", acceptedAnswers: ["saturne", "saturn"], hint: "Sixième planète du système solaire", imageUrl: "https://images.unsplash.com/photo-1614728894747-a83421e2b9c9?w=600&auto=format&fit=crop", category: "sciences", difficulty: "facile" },
   { text: "Quel est le symbole chimique de l'eau ?", answer: "H2O", acceptedAnswers: ["h2o"], hint: "Deux elements", category: "sciences", difficulty: "facile" },
   { text: "Combien de planetes composent le systeme solaire ?", answer: "8", acceptedAnswers: ["8", "huit"], hint: "Pluton n'en fait plus partie", category: "sciences", difficulty: "facile" },
   { text: "Quel gaz les plantes absorbent-elles ?", answer: "CO2", acceptedAnswers: ["co2", "dioxyde de carbone", "gaz carbonique"], hint: "Effet de serre", category: "sciences", difficulty: "facile" },
@@ -81,6 +84,7 @@ const questions = [
   // ── Litterature - Difficile ──
   { text: "Quel prix Nobel de litterature Camus a-t-il recu, en quelle annee ?", answer: "1957", acceptedAnswers: ["1957"], hint: "Il avait 44 ans", category: "litterature", difficulty: "difficile" },
   // ── Gastronomie - Facile ──
+  { text: "Quel est le nom de ce plat traditionnel japonais ?", answer: "Sushi", acceptedAnswers: ["sushi", "sushis"], hint: "Riz vinaigré et poisson cru", imageUrl: "https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=600&auto=format&fit=crop", category: "gastronomie", difficulty: "facile" },
   { text: "De quel pays vient la pizza ?", answer: "Italie", acceptedAnswers: ["italie", "l'italie", "italy"], hint: "Pays en forme de botte", category: "gastronomie", difficulty: "facile" },
   { text: "Quel fromage est utilise dans la raclette ?", answer: "Raclette", acceptedAnswers: ["raclette", "fromage a raclette"], hint: "Du meme nom que le plat", category: "gastronomie", difficulty: "facile" },
   { text: "De quel pays vient le sushi ?", answer: "Japon", acceptedAnswers: ["japon", "le japon", "japan"], hint: "Riz vinaigre et poisson cru", category: "gastronomie", difficulty: "facile" },

@@ -12,6 +12,7 @@ interface ExcelRow {
   indice?: string
   difficulté?: string
   difficulte?: string
+  imageUrl?: string
 }
 
 interface ImportResult {
@@ -29,10 +30,11 @@ function normaliseRow(raw: Record<string, unknown>): ExcelRow {
     const k = key.toLowerCase().trim()
     const v = String(val ?? '').trim()
     if (k === 'question') row.question = v
-    else if (k === 'réponse' || k === 'reponse' || k === 'réponse') row.réponse = v
+    else if (k === 'réponse' || k === 'reponse') row.réponse = v
     else if (k === 'réponses_acceptées' || k === 'reponses_acceptees') row.réponses_acceptées = v
     else if (k === 'indice') row.indice = v
     else if (k === 'difficulté' || k === 'difficulte') row.difficulté = v
+    else if (k === 'image' || k === 'image_url' || k === 'imageurl' || k === 'image url' || k === 'photo' || k === 'illustration' || k === 'image_link') row.imageUrl = v
   }
   return row
 }
@@ -113,6 +115,7 @@ export const importRoute = new Elysia({ prefix: '/admin' })
 
           const difficulty = validateDifficulty(raw.difficulté)
           const hint = raw.indice ?? null
+          const imageUrl = raw.imageUrl?.trim() || null
 
           try {
             const existing = await prisma.question.findFirst({
@@ -122,13 +125,13 @@ export const importRoute = new Elysia({ prefix: '/admin' })
             if (existing) {
               await prisma.question.update({
                 where: { id: existing.id },
-                data: { answer, acceptedAnswers, hint, category, difficulty },
+                data: { answer, acceptedAnswers, hint, category, difficulty, imageUrl },
               })
               result.updated++
               totalUpdated++
             } else {
               await prisma.question.create({
-                data: { text: questionText, answer, acceptedAnswers, hint, category, difficulty },
+                data: { text: questionText, answer, acceptedAnswers, hint, category, difficulty, imageUrl },
               })
               result.inserted++
               totalInserted++
@@ -172,21 +175,24 @@ export const importRoute = new Elysia({ prefix: '/admin' })
       'gastronomie',
     ]
 
-    const HEADERS = ['question', 'réponse', 'réponses_acceptées', 'indice', 'difficulté']
+    const HEADERS = ['question', 'réponse', 'réponses_acceptées', 'indice', 'difficulté', 'image_url']
 
     const EXAMPLES: Record<string, string[][]> = {
       geographie: [
-        ['Quelle est la capitale de la France ?', 'Paris', 'paris,Paris', 'Ville lumière', 'easy'],
-        ["Quel est le plus petit pays du monde ?", 'Vatican', 'vatican,le vatican', 'Enclave dans Rome', 'normal'],
-        ["Quelle est la capitale de la Mongolie ?", 'Oulan-Bator', 'oulan-bator,ulaanbaatar', 'Asie centrale', 'hard'],
+        ['Quelle est la capitale de la France ?', 'Paris', 'paris,Paris', 'Ville lumière', 'easy', ''],
+        ['Quel est ce célèbre monument de Paris ?', 'Tour Eiffel', 'tour eiffel,eiffel', 'Construite en 1889', 'easy', 'https://images.unsplash.com/photo-1511739001486-6bfe10ce785f?w=600&auto=format&fit=crop'],
+        ["Quel est le plus petit pays du monde ?", 'Vatican', 'vatican,le vatican', 'Enclave dans Rome', 'normal', ''],
+        ["Quelle est la capitale de la Mongolie ?", 'Oulan-Bator', 'oulan-bator,ulaanbaatar', 'Asie centrale', 'hard', ''],
       ],
       histoire: [
-        ["En quelle année a débuté la Révolution française ?", '1789', '1789', 'Prise de la Bastille', 'facile'],
-        ["En quelle année le mur de Berlin est-il tombé ?", '1989', '1989', 'Fin de la guerre froide', 'normal'],
+        ["Qui a peint ce célèbre chef-d'œuvre ?", 'Leonard de Vinci', 'leonard de vinci,da vinci,vinci', 'Exposé au Louvre', 'easy', 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec/Mona_Lisa_%28Leonardo_da_Vinci%29.jpg/300px-Mona_Lisa_%28Leonardo_da_Vinci%29.jpg'],
+        ["En quelle année a débuté la Révolution française ?", '1789', '1789', 'Prise de la Bastille', 'facile', ''],
+        ["En quelle année le mur de Berlin est-il tombé ?", '1989', '1989', 'Fin de la guerre froide', 'normal', ''],
       ],
       sciences: [
-        ["Quel est le symbole chimique de l'eau ?", 'H2O', 'h2o', 'Deux éléments', 'easy'],
-        ["Quel est le plus grand organe du corps humain ?", 'Peau', 'peau,la peau', 'Recouvre tout le corps', 'medium'],
+        ["Quelle est cette planète aux spectaculaires anneaux ?", 'Saturne', 'saturne,saturn', '6e planète du système solaire', 'easy', 'https://images.unsplash.com/photo-1614728894747-a83421e2b9c9?w=600&auto=format&fit=crop'],
+        ["Quel est le symbole chimique de l'eau ?", 'H2O', 'h2o', 'Deux éléments', 'easy', ''],
+        ["Quel est le plus grand organe du corps humain ?", 'Peau', 'peau,la peau', 'Recouvre tout le corps', 'medium', ''],
       ],
     }
 
@@ -198,7 +204,7 @@ export const importRoute = new Elysia({ prefix: '/admin' })
       const sheet = XLSX.utils.aoa_to_sheet(data)
 
       // Auto-width columns
-      sheet['!cols'] = [{ wch: 55 }, { wch: 25 }, { wch: 35 }, { wch: 30 }, { wch: 12 }]
+      sheet['!cols'] = [{ wch: 50 }, { wch: 25 }, { wch: 35 }, { wch: 30 }, { wch: 12 }, { wch: 50 }]
 
       XLSX.utils.book_append_sheet(workbook, sheet, cat)
     }
