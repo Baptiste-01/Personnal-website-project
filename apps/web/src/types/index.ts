@@ -145,3 +145,26 @@ export const DEFAULT_GAME_SETTINGS: GameSettings = {
   infiniteRounds: false,
   pointsPerAnswer: 100,
 }
+
+export interface Achievement {
+  id: string
+  name: string
+  description?: string
+  icon?: string
+  unlockedAt: string
+}
+
+export interface AuthUser {
+  id: string
+  username: string
+  avatarUrl?: string | null
+  bio?: string | null
+  level: number
+  xp: number
+  totalPoints: number
+  gamesPlayed: number
+  gamesWon: number
+  createdAt: string
+  recentAchievements?: Achievement[]
+}
+

@@ -3,12 +3,13 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   IconArrowLeft, IconGamepad, IconUser, IconCheck, IconClock,
   IconTrophy, IconShield, IconZap, IconInfinity, IconSettings,
-  IconCopy, IconWifi, IconUsers, IconTarget,
+  IconCopy, IconWifi, IconUsers, IconTarget, IconTrash,
 } from '../../components/Icons'
 import {
   CATEGORY_LABELS, DIFFICULTY_LABELS, ALL_CATEGORIES, CATEGORY_ICONS, DEFAULT_CATEGORY_DIFFICULTIES
 } from '../../types'
 import type { Category, Difficulty, GameSettings } from '../../types'
+import { useArenaSocket } from '../../hooks/useArenaSocket'
 import './Arena.css'
 
 const TIME_OPTIONS = [5, 10, 15, 20, 30, 45, 60]
@@ -23,11 +24,7 @@ interface PlayerEntry {
   score: number
 }
 
-const MOCK_PLAYERS: PlayerEntry[] = [
-  { id: 'p1', name: 'Vous', isHost: true, isReady: true, score: 0 },
-  { id: 'p2', name: 'Alex_Pro', isHost: false, isReady: true, score: 0 },
-  { id: 'p3', name: 'Marie42', isHost: false, isReady: false, score: 0 },
-]
+
 
 /* ─── Settings Tabs ─── */
 type SettingTab = 'general' | 'timer' | 'categories' | 'points'
@@ -90,7 +87,6 @@ export default function Arena() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const [arenaName, setArenaName] = useState('Chargement...')
-  const players = MOCK_PLAYERS
   const [activeTab, setActiveTab] = useState<SettingTab>('general')
   const [copied, setCopied] = useState(false)
 
@@ -126,11 +122,58 @@ export default function Arena() {
     }
   })
 
+  // WebSocket hook
+  const socket = useArenaSocket(arenaId, settings)
+  // Lit le pseudo depuis le bon endroit selon que l'utilisateur est connecté ou invité
+  const currentUsername = (() => {
+    try {
+      const authUser = localStorage.getItem('auth_user')
+      if (authUser) {
+        const u = JSON.parse(authUser)
+        if (u.username) return u.username
+      }
+    } catch {}
+    return localStorage.getItem('guest_username') || 'Joueur Anonyme'
+  })()
+
+  const players = socket.players.length > 0 ? socket.players : [
+    { id: 'self', name: currentUsername, isHost: true, isReady: true, score: 0, streak: 0, hasAnsweredCurrentRound: false }
+  ]
+
+  // Auto-navigate to FlashGuess when host starts game
+  useEffect(() => {
+    if (socket.phase === 'playing') {
+      const catDiffsStr = Object.entries(settings.categoryDifficulties)
+        .filter(([cat]) => settings.categories.includes(cat as Category))
+        .map(([cat, diffs]) => `${cat}:${(diffs ?? []).join('+')}`)
+        .join(',')
+
+      const params = new URLSearchParams({
+        categories: settings.categories.join(','),
+        difficulty: settings.difficulty,
+        rounds: settings.infiniteRounds ? 'infinite' : String(settings.roundCount),
+        time: String(settings.timePerRound),
+        maxPoints: String(settings.maxPoints),
+        infiniteRounds: String(settings.infiniteRounds),
+        pointsPerAnswer: String(settings.pointsPerAnswer),
+        catDiffs: catDiffsStr,
+      })
+      navigate(`/play/${arenaId}?${params.toString()}`, { state: { questions: socket.questions } })
+    }
+  }, [socket.phase, socket.questions, arenaId, settings, navigate])
+
+  // Redirect to lobby if arena is deleted by host
+  useEffect(() => {
+    if (socket.arenaDeleted) {
+      navigate('/')
+    }
+  }, [socket.arenaDeleted, navigate])
+
   /* ─── Derived: min points (at end of timer) = 10% of pointsPerAnswer ─── */
   const minPointsPerAnswer = Math.max(1, Math.round(settings.pointsPerAnswer * 0.1))
 
   useEffect(() => {
-    fetch(`http://localhost:3000/arenas/${arenaId}`)
+    fetch(`/arenas/${arenaId}`)
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data) setArenaName(data.name) })
       .catch(() => setArenaName('Mon Arène'))
@@ -140,59 +183,43 @@ export default function Arena() {
     setSettings(prev => {
       const has = prev.categories.includes(cat)
       if (has && prev.categories.length === 1) return prev
-      return { ...prev, categories: has ? prev.categories.filter(c => c !== cat) : [...prev.categories, cat] }
+      const updated = { ...prev, categories: has ? prev.categories.filter(c => c !== cat) : [...prev.categories, cat] }
+      if (socket.isHost) socket.updateSettings(updated)
+      return updated
     })
   }
 
-  const toggleCategoryDifficulty = (cat: Category, diff: Difficulty) => {
-    setSettings(prev => {
-      const current = prev.categoryDifficulties[cat] ?? ['facile', 'moyen', 'difficile']
-      const has = current.includes(diff)
-      let updated: Difficulty[]
-      if (has) {
-        if (current.length === 1) return prev // keep at least 1 difficulty
-        updated = current.filter(d => d !== diff)
-      } else {
-        updated = [...current, diff]
-      }
-      return {
-        ...prev,
-        categoryDifficulties: {
-          ...prev.categoryDifficulties,
-          [cat]: updated,
-        },
-      }
-    })
-  }
 
-  const setCategoryAllDifficulties = (cat: Category) => {
-    setSettings(prev => ({
-      ...prev,
-      categoryDifficulties: {
-        ...prev.categoryDifficulties,
-        [cat]: ['facile', 'moyen', 'difficile'],
-      },
-    }))
-  }
 
-  const startGame = useCallback(() => {
-    const catDiffsStr = Object.entries(settings.categoryDifficulties)
-      .filter(([cat]) => settings.categories.includes(cat as Category))
-      .map(([cat, diffs]) => `${cat}:${(diffs ?? []).join('+')}`)
-      .join(',')
+  const handleStartGame = useCallback(() => {
+    if (socket.isHost || socket.players.length <= 1) {
+      socket.startGame()
 
-    const params = new URLSearchParams({
-      categories: settings.categories.join(','),
-      difficulty: settings.difficulty,
-      rounds: settings.infiniteRounds ? 'infinite' : String(settings.roundCount),
-      time: String(settings.timePerRound),
-      maxPoints: String(settings.maxPoints),
-      infiniteRounds: String(settings.infiniteRounds),
-      pointsPerAnswer: String(settings.pointsPerAnswer),
-      catDiffs: catDiffsStr,
-    })
-    navigate(`/play/${arenaId}?${params.toString()}`)
-  }, [settings, arenaId, navigate])
+      // Fallback navigation if WS is disconnected or slow
+      setTimeout(() => {
+        if (socket.phase !== 'playing') {
+          const catDiffsStr = Object.entries(settings.categoryDifficulties)
+            .filter(([cat]) => settings.categories.includes(cat as Category))
+            .map(([cat, diffs]) => `${cat}:${(diffs ?? []).join('+')}`)
+            .join(',')
+
+          const params = new URLSearchParams({
+            categories: settings.categories.join(','),
+            difficulty: settings.difficulty,
+            rounds: settings.infiniteRounds ? 'infinite' : String(settings.roundCount),
+            time: String(settings.timePerRound),
+            maxPoints: String(settings.maxPoints),
+            infiniteRounds: String(settings.infiniteRounds),
+            pointsPerAnswer: String(settings.pointsPerAnswer),
+            catDiffs: catDiffsStr,
+          })
+          navigate(`/play/${arenaId}?${params.toString()}`)
+        }
+      }, 400)
+    } else {
+      socket.toggleReady()
+    }
+  }, [socket, settings, arenaId, navigate])
 
   const copyInviteLink = () => {
     const link = `${window.location.origin}/arena/${arenaId}`
@@ -387,95 +414,29 @@ export default function Arena() {
               <div className="tab-content fade-in" id="tab-content-categories">
                 <div className="settings-section">
                   <div className="settings-label-row">
-                    <h3 className="settings-label"><IconTarget /> Catégories & Difficultés</h3>
+                    <h3 className="settings-label"><IconTarget /> Catégories actives</h3>
                     <span className="settings-label-count">
                       {settings.categories.length}/{ALL_CATEGORIES.length} sélectionnées
                     </span>
                   </div>
 
-                  {/* Quick Preset Bar */}
-                  <div className="quick-diff-preset-bar">
-                    <span className="quick-diff-label">Définir toutes sur :</span>
-                    {[
-                      { key: 'facile', label: '🟢 Easy' },
-                      { key: 'moyen', label: '🟡 Normal' },
-                      { key: 'difficile', label: '🔴 Hard' },
-                      { key: 'all', label: '✨ Tous (All)' },
-                    ].map(preset => (
-                      <button
-                        key={preset.key}
-                        type="button"
-                        className="cat-diff-pill"
-                        onClick={() => {
-                          setSettings(prev => {
-                            const nextDiffs = { ...prev.categoryDifficulties }
-                            const targetDiffs = preset.key === 'all'
-                              ? ['facile', 'moyen', 'difficile'] as Difficulty[]
-                              : [preset.key as Difficulty]
-                            ALL_CATEGORIES.forEach(c => { nextDiffs[c] = targetDiffs })
-                            return { ...prev, categoryDifficulties: nextDiffs }
-                          })
-                        }}
-                      >
-                        {preset.label}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Per-Category Cards Grid */}
-                  <div className="category-diff-list">
+                  <div className="category-grid">
                     {ALL_CATEGORIES.map(cat => {
                       const isSelected = settings.categories.includes(cat)
-                      const currentDiffs = settings.categoryDifficulties[cat] ?? ['facile', 'moyen', 'difficile']
-                      const isAllSelected = currentDiffs.length === 3
-
                       return (
-                        <div key={cat} className={`category-card ${isSelected ? 'category-card--active' : ''}`}>
-                          <div className="category-card-header">
-                            <div className="category-card-title-group" onClick={() => toggleCategory(cat)}>
-                              <input
-                                type="checkbox"
-                                checked={isSelected}
-                                onChange={() => toggleCategory(cat)}
-                                style={{ accentColor: 'var(--color-accent)', cursor: 'pointer' }}
-                              />
-                              <span className="category-emoji">{CATEGORY_ICONS[cat]}</span>
-                              <span className="category-card-name">{CATEGORY_LABELS[cat]}</span>
-                            </div>
-                          </div>
-                          {isSelected && (
-                            <div className="category-card-diff-pills fade-in">
-                              {/* Difficulty toggles */}
-                              {(['facile', 'moyen', 'difficile'] as Difficulty[]).map(d => {
-                                const active = currentDiffs.includes(d)
-                                return (
-                                  <button
-                                    key={d}
-                                    type="button"
-                                    className={`cat-diff-pill ${active ? 'cat-diff-pill--active diff--' + d : ''}`}
-                                    onClick={() => toggleCategoryDifficulty(cat, d)}
-                                    id={`cat-diff-${cat}-${d}`}
-                                  >
-                                    {d === 'facile' ? '🟢 Easy' : d === 'moyen' ? '🟡 Normal' : '🔴 Hard'}
-                                  </button>
-                                )
-                              })}
-                              {/* All difficulties toggle */}
-                              <button
-                                type="button"
-                                className={`cat-diff-pill ${isAllSelected ? 'cat-diff-pill--active' : ''}`}
-                                onClick={() => setCategoryAllDifficulties(cat)}
-                                id={`cat-diff-${cat}-all`}
-                              >
-                                ✨ Tous
-                              </button>
-                            </div>
-                          )}
-                        </div>
+                        <button
+                          key={cat}
+                          type="button"
+                          className={`category-chip ${isSelected ? 'category-chip--active' : ''}`}
+                          onClick={() => toggleCategory(cat)}
+                        >
+                          <span className="category-emoji">{CATEGORY_ICONS[cat]}</span>
+                          <span>{CATEGORY_LABELS[cat]}</span>
+                        </button>
                       )
                     })}
                   </div>
-                  <p className="settings-hint">Au moins 1 catégorie requise.</p>
+                  <p className="settings-hint">Sélectionnez au moins 1 catégorie pour générer les questions de la partie.</p>
                 </div>
               </div>
             )}
@@ -797,15 +758,32 @@ export default function Arena() {
                   <IconTrophy /> {settings.maxPoints.toLocaleString('fr-FR')} pts max
                 </span>
               </div>
-              <button
-                className="btn-start-game"
-                onClick={startGame}
-                id="start-game"
-                disabled={readyCount < 1}
-              >
-                <IconZap />
-                Lancer la partie
-              </button>
+              <div className="footer-action-buttons">
+                {socket.isHost && (
+                  <button
+                    className="btn-delete-arena"
+                    onClick={() => {
+                      if (window.confirm('Voulez-vous vraiment supprimer cette arène ?')) {
+                        socket.deleteArena()
+                        navigate('/')
+                      }
+                    }}
+                    id="delete-arena"
+                    title="Supprimer l'arène"
+                  >
+                    <IconTrash />
+                    <span>Supprimer</span>
+                  </button>
+                )}
+                <button
+                  className={`btn-start-game ${(!socket.isHost && socket.players.length > 1) ? 'btn-ready-toggle' : ''}`}
+                  onClick={handleStartGame}
+                  id="start-game"
+                >
+                  <IconZap />
+                  {(socket.isHost || socket.players.length <= 1) ? 'Lancer la partie' : 'Changer statut Prêt'}
+                </button>
+              </div>
             </div>
           </div>
         </main>

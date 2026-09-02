@@ -1335,3 +1335,38 @@
   color: var(--color-text-muted);
   margin-right: auto;
 }
+
+/* ─── Delete Arena Button ─── */
+.footer-action-buttons {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-delete-arena {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 20px;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: var(--font-body);
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: var(--radius-lg, 12px);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-delete-arena:hover {
+  background: #ef4444;
+  color: white;
+  border-color: #ef4444;
+  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.3);
+}
+
+.btn-delete-arena svg {
+  width: 16px;
+  height: 16px;
+}

@@ -97,7 +97,7 @@ export default function LoginPage() {
     setLoginLoading(true)
 
     try {
-      const res = await fetch('http://localhost:3000/auth/login', {
+      const res = await fetch('/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: loginUsername, password: loginPassword }),
@@ -134,7 +134,7 @@ export default function LoginPage() {
 
     setRegLoading(true)
     try {
-      const res = await fetch('http://localhost:3000/auth/register', {
+      const res = await fetch('/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: regUsername, password: regPassword }),

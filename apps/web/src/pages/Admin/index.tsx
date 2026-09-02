@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import './Admin.css'
 
-const API = 'http://localhost:3000'
+const API = ''
 
 /* ─── Types ─────────────────────────────────────────────────── */
 interface ImportDetail {

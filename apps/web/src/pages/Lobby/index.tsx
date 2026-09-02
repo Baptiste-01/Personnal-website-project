@@ -4,10 +4,10 @@ import {
   IconGamepad, IconRefresh, IconZap, IconUser,
   IconInbox, IconAlertCircle, IconLogin,
   IconBookOpen, IconHeart, IconLock, IconChevronRight, IconTarget, IconTrophy, IconX,
-  IconInfinity, IconClock
+  IconInfinity
 } from '../../components/Icons'
-import { DIFFICULTY_LABELS, CATEGORY_LABELS, ALL_CATEGORIES, CATEGORY_ICONS, DEFAULT_CATEGORY_DIFFICULTIES } from '../../types'
-import type { Difficulty } from '../../types'
+import { DIFFICULTY_LABELS, CATEGORY_LABELS, ALL_CATEGORIES, CATEGORY_ICONS } from '../../types'
+import type { Difficulty, AuthUser, Category } from '../../types'
 import Slider from '../../components/Slider/Slider'
 import type { SlideItem } from '../../components/Slider/Slider'
 import './Lobby.css'
@@ -114,7 +114,7 @@ function CreateArenaModal({
 }) {
   const [name, setName] = useState('')
   const [difficulty, setDifficulty] = useState<Difficulty>('moyen')
-  const [categoryDifficulties, setCategoryDifficulties] = useState<Record<string, Difficulty[]>>(DEFAULT_CATEGORY_DIFFICULTIES)
+  const [categories, setCategories] = useState<Category[]>([...ALL_CATEGORIES])
   const [infiniteRounds, setInfiniteRounds] = useState(false)
   const [roundCount, setRoundCount] = useState(10)
   const [timePerRound, setTimePerRound] = useState(20)
@@ -130,28 +130,14 @@ function CreateArenaModal({
     return () => window.removeEventListener('keydown', handleKey)
   }, [onClose])
 
-  const handleGlobalDifficultyChange = (d: Difficulty | 'all') => {
-    if (d !== 'all') setDifficulty(d)
-    const targetDiffs = d === 'all' ? ['facile', 'moyen', 'difficile'] as Difficulty[] : [d]
-    setCategoryDifficulties(prev => {
-      const next = { ...prev }
-      Object.keys(next).forEach(k => { next[k] = targetDiffs })
-      return next
+  const toggleCat = (c: Category) => {
+    setCategories(prev => {
+      if (prev.includes(c)) {
+        if (prev.length === 1) return prev
+        return prev.filter(x => x !== c)
+      }
+      return [...prev, c]
     })
-  }
-
-  const toggleCategoryDiff = (cat: string, diff: Difficulty) => {
-    setCategoryDifficulties(prev => {
-      const current = prev[cat] ?? ['facile', 'moyen', 'difficile']
-      const has = current.includes(diff)
-      if (has && current.length === 1) return prev
-      const updated = has ? current.filter(d => d !== diff) : [...current, diff]
-      return { ...prev, [cat]: updated }
-    })
-  }
-
-  const setCategoryAllDiffs = (cat: string) => {
-    setCategoryDifficulties(prev => ({ ...prev, [cat]: ['facile', 'moyen', 'difficile'] }))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -160,6 +146,12 @@ function CreateArenaModal({
     if (!trimmed) { setError('Le nom de l\'arène est requis.'); return }
     setIsSubmitting(true)
     setError('')
+
+    const categoryDifficulties: Record<string, Difficulty[]> = {}
+    ALL_CATEGORIES.forEach(cat => {
+      categoryDifficulties[cat] = [difficulty]
+    })
+
     try {
       await onCreate({
         name: trimmed,
@@ -200,226 +192,103 @@ function CreateArenaModal({
               value={name}
               onChange={e => setName(e.target.value)}
               maxLength={40}
+              required
             />
-            <span className="modal-input-counter">{name.length}/40</span>
           </div>
 
-          {/* Preset / Multi-select pour toutes */}
+          {/* Difficulté */}
           <div className="modal-field">
-            <label className="modal-label">Niveaux de difficulté par défaut</label>
+            <label className="modal-label">Difficulté</label>
             <div className="modal-diff-row">
               {(['facile', 'moyen', 'difficile'] as Difficulty[]).map(d => (
                 <button
                   key={d}
                   type="button"
                   className={`modal-diff-btn ${difficulty === d ? 'modal-diff-btn--active ' + DIFFICULTY_COLOR[d] : ''}`}
-                  onClick={() => handleGlobalDifficultyChange(d)}
+                  onClick={() => setDifficulty(d)}
                   id={`modal-diff-${d}`}
                 >
                   {DIFFICULTY_LABELS[d]}
                 </button>
               ))}
-              <button
-                type="button"
-                className="modal-diff-btn"
-                onClick={() => handleGlobalDifficultyChange('all')}
-                id="modal-diff-all"
-              >
-                ✨ Tous
-              </button>
             </div>
           </div>
 
-          {/* Difficulté par catégorie */}
+          {/* Catégories */}
           <div className="modal-field">
-            <div className="settings-label-row">
-              <label className="modal-label">Difficultés par catégorie (sélectionnez 1, 2 ou toutes)</label>
-            </div>
-            <div className="category-diff-list">
+            <label className="modal-label">Catégories ({categories.length}/{ALL_CATEGORIES.length})</label>
+            <div className="modal-cat-grid">
               {ALL_CATEGORIES.map(cat => {
-                const currentDiffs = categoryDifficulties[cat] ?? ['facile', 'moyen', 'difficile']
-                const isAllSelected = currentDiffs.length === 3
+                const active = categories.includes(cat)
                 return (
-                  <div key={cat} className="category-card category-card--active">
-                    <div className="category-card-header">
-                      <div className="category-card-title-group">
-                        <span className="category-emoji">{CATEGORY_ICONS[cat]}</span>
-                        <span className="category-card-name">{CATEGORY_LABELS[cat]}</span>
-                      </div>
-                    </div>
-                    <div className="category-card-diff-pills">
-                      {(['facile', 'moyen', 'difficile'] as Difficulty[]).map(d => {
-                        const active = currentDiffs.includes(d)
-                        return (
-                          <button
-                            key={d}
-                            type="button"
-                            className={`cat-diff-pill ${active ? 'cat-diff-pill--active diff--' + d : ''}`}
-                            onClick={() => toggleCategoryDiff(cat, d)}
-                            id={`modal-cat-diff-${cat}-${d}`}
-                          >
-                            {d === 'facile' ? '🟢 Easy' : d === 'moyen' ? '🟡 Normal' : '🔴 Hard'}
-                          </button>
-                        )
-                      })}
-                      <button
-                        type="button"
-                        className={`cat-diff-pill ${isAllSelected ? 'cat-diff-pill--active' : ''}`}
-                        onClick={() => setCategoryAllDiffs(cat)}
-                        id={`modal-cat-diff-${cat}-all`}
-                      >
-                        ✨ Tous
-                      </button>
-                    </div>
-                  </div>
+                  <button
+                    key={cat}
+                    type="button"
+                    className={`modal-cat-pill ${active ? 'modal-cat-pill--active' : ''}`}
+                    onClick={() => toggleCat(cat)}
+                  >
+                    <span>{CATEGORY_ICONS[cat]}</span>
+                    <span>{CATEGORY_LABELS[cat]}</span>
+                  </button>
                 )
               })}
             </div>
           </div>
 
-          {/* Mode de manches */}
-          <div className="modal-field">
-            <label className="modal-label">Mode de manches</label>
-            <div className="modal-mode-switch">
-              <button
-                type="button"
-                className={`modal-mode-btn ${!infiniteRounds ? 'modal-mode-btn--active' : ''}`}
-                onClick={() => setInfiniteRounds(false)}
-                id="mode-fixed-rounds"
-              >
-                <IconZap /> Manches fixes
-              </button>
-              <button
-                type="button"
-                className={`modal-mode-btn ${infiniteRounds ? 'modal-mode-btn--active' : ''}`}
-                onClick={() => setInfiniteRounds(true)}
-                id="mode-infinite-rounds"
-              >
-                <IconInfinity /> Manches infinies
-              </button>
-            </div>
-          </div>
-
-          {/* Notice infini */}
-          {infiniteRounds && (
-            <div className="modal-infinite-notice fade-in">
-              <IconInfinity />
-              <span>Mode infini activé — Victoire au 1er joueur à <strong>{maxPoints} pts</strong></span>
-            </div>
-          )}
-
-          {/* Nombre de manches (si non infini) */}
-          {!infiniteRounds && (
-            <div className="modal-field fade-in">
-              <label className="modal-label">Nombre de manches</label>
+          {/* Configuration rapide */}
+          <div className="modal-grid-3">
+            <div className="modal-field">
+              <label className="modal-label">Manches</label>
               <div className="modal-options-pills">
-                {[5, 10, 15, 20, 30].map(n => (
+                {[5, 10, 20].map(n => (
                   <button
                     key={n}
                     type="button"
-                    className={`modal-option-pill ${roundCount === n ? 'modal-option-pill--active' : ''}`}
-                    onClick={() => setRoundCount(n)}
-                    id={`modal-rounds-${n}`}
+                    className={`modal-option-pill ${!infiniteRounds && roundCount === n ? 'modal-option-pill--active' : ''}`}
+                    onClick={() => { setInfiniteRounds(false); setRoundCount(n) }}
                   >
                     {n}
                   </button>
                 ))}
-              </div>
-              <div className="slider-control-group">
-                <div className="slider-input-row">
-                  <input
-                    type="range"
-                    min={1}
-                    max={50}
-                    step={1}
-                    value={roundCount}
-                    onChange={e => setRoundCount(Number(e.target.value))}
-                    className="settings-range-slider"
-                    id="modal-rounds-slider"
-                  />
-                  <span className="slider-val-badge">{roundCount} manche{roundCount > 1 ? 's' : ''}</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Temps par question */}
-          <div className="modal-field">
-            <label className="modal-label">Temps par question</label>
-            <div className="modal-options-pills">
-              {[5, 10, 15, 20, 30, 45, 60].map(t => (
                 <button
-                  key={t}
                   type="button"
-                  className={`modal-option-pill ${timePerRound === t ? 'modal-option-pill--active' : ''}`}
-                  onClick={() => setTimePerRound(t)}
-                  id={`modal-time-${t}`}
+                  className={`modal-option-pill ${infiniteRounds ? 'modal-option-pill--active' : ''}`}
+                  onClick={() => setInfiniteRounds(true)}
                 >
-                  <IconClock /> {t}s
+                  ∞
                 </button>
-              ))}
-            </div>
-            <div className="slider-control-group">
-              <div className="slider-input-row">
-                <input
-                  type="range"
-                  min={5}
-                  max={120}
-                  step={1}
-                  value={timePerRound}
-                  onChange={e => setTimePerRound(Number(e.target.value))}
-                  className="settings-range-slider"
-                  id="modal-time-slider"
-                />
-                <span className="slider-val-badge">{timePerRound}s</span>
               </div>
             </div>
-          </div>
 
-          {/* Score maximum (Limit of points) */}
-          <div className="modal-field">
-            <label className="modal-label">Score maximum (Limite de points)</label>
-            <div className="modal-pts-input-row">
-              <div className="modal-pts-input-group">
-                <input
-                  id="modal-max-points-input"
-                  type="number"
-                  min={100}
-                  max={99999}
-                  step={50}
-                  value={maxPoints}
-                  onChange={e => setMaxPoints(Math.max(100, Math.min(99999, Number(e.target.value) || 100)))}
-                  className="modal-pts-input"
-                />
-                <span className="modal-pts-unit">pts</span>
+            <div className="modal-field">
+              <label className="modal-label">Temps / Q</label>
+              <div className="modal-options-pills">
+                {[10, 15, 20, 30].map(t => (
+                  <button
+                    key={t}
+                    type="button"
+                    className={`modal-option-pill ${timePerRound === t ? 'modal-option-pill--active' : ''}`}
+                    onClick={() => setTimePerRound(t)}
+                  >
+                    {t}s
+                  </button>
+                ))}
               </div>
-              <div className="modal-options-pills" style={{ flex: 1 }}>
-                {[500, 1000, 2000, 5000].map(p => (
+            </div>
+
+            <div className="modal-field">
+              <label className="modal-label">Score Max</label>
+              <div className="modal-options-pills">
+                {[500, 1000, 2000].map(p => (
                   <button
                     key={p}
                     type="button"
                     className={`modal-option-pill ${maxPoints === p ? 'modal-option-pill--active' : ''}`}
                     onClick={() => setMaxPoints(p)}
-                    id={`modal-maxpts-${p}`}
                   >
                     {p >= 1000 ? `${p / 1000}k` : p}
                   </button>
                 ))}
-              </div>
-            </div>
-            <div className="slider-control-group">
-              <div className="slider-input-row">
-                <input
-                  type="range"
-                  min={100}
-                  max={10000}
-                  step={50}
-                  value={maxPoints}
-                  onChange={e => setMaxPoints(Number(e.target.value))}
-                  className="settings-range-slider"
-                  id="modal-maxpts-slider"
-                />
-                <span className="slider-val-badge">{maxPoints.toLocaleString('fr-FR')} pts</span>
               </div>
             </div>
           </div>
@@ -627,7 +496,7 @@ export default function Lobby() {
   const [showCreateModal, setShowCreateModal] = useState(false)
 
   const [isConnected, setIsConnected] = useState(false)
-  const [authUser, setAuthUser] = useState<any>(null)
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null)
   const [favorites, setFavorites] = useState<Set<string>>(new Set())
   const [activeRuleTab, setActiveRuleTab] = useState<'all' | 'favorites'>('all')
 
@@ -646,7 +515,7 @@ export default function Lobby() {
     if (manual) setIsRefreshing(true)
     else setFetchState('loading')
     try {
-      const res = await fetch('http://localhost:3000/arenas')
+      const res = await fetch('/arenas')
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data: ArenaItem[] = await res.json()
       setArenas(data)
@@ -661,7 +530,7 @@ export default function Lobby() {
   useEffect(() => { fetchArenas() }, [fetchArenas])
 
   const handleCreateArena = async (settings: CreateArenaSettings) => {
-    const res = await fetch('http://localhost:3000/arenas', {
+    const res = await fetch('/arenas', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

@@ -10,6 +10,7 @@
     "dev": "concurrently \"bun run dev:api\" \"bun run dev:web\"",
     "dev:api": "cd apps/api && bun --env-file=../../.env run --hot index.ts",
     "dev:web": "cd apps/web && bun run dev",
+    "multiplayer": "bun run scripts/start-multiplayer.ts",
     "build": "bun --filter \"*\" run build",
     "db:push": "cd packages/database && bun --env-file=../../.env run db:push",
     "db:studio": "cd packages/database && bun --env-file=../../.env run db:studio",

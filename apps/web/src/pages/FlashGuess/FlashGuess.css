@@ -229,3 +229,69 @@
   object-fit: contain;
   border-radius: var(--radius-md);
 }
+
+.fg-reveal-timer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  width: 100%;
+  max-width: 400px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.fg-countdown-notice {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 22px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.1);
+  border: 1px dashed rgba(56, 189, 248, 0.35);
+  border-radius: var(--radius-full);
+}
+
+.fg-reveal-timer-track {
+  width: 100%;
+  height: 6px;
+  background: var(--color-bg-card);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+}
+
+.fg-reveal-timer-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #38bdf8 0%, var(--color-accent) 100%);
+  border-radius: var(--radius-full);
+  transition: width 1s linear;
+}
+
+.fg-waiting-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 14px 24px;
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px dashed rgba(34, 197, 94, 0.4);
+  border-radius: var(--radius-xl, 14px);
+  font-size: 14px;
+  font-weight: 700;
+  color: #4ade80;
+  width: 100%;
+  max-width: 520px;
+}
+
+.fg-waiting-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(74, 222, 128, 0.25);
+  border-top-color: #4ade80;
+  border-radius: 50%;
+  animation: fgSpinner 0.8s linear infinite;
+}

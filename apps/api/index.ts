@@ -4,6 +4,7 @@ import { questionsRoute } from './routes/questions'
 import { arenasRoute } from './routes/arenas'
 import { importRoute } from './routes/import'
 import { authRoute } from './routes/auth'
+import { wsRoute } from './routes/ws'
 import prisma from './lib/prisma'
 
 /* ─── Graceful shutdown ──────────────────────────────────────── */
@@ -37,6 +38,7 @@ const app = new Elysia()
   .use(questionsRoute)
   .use(arenasRoute)
   .use(importRoute)
+  .use(wsRoute)
 
   /* Legacy alias /rooms → /arenas */
   .get('/rooms', async () => prisma.arena.findMany({ orderBy: { createdAt: 'asc' } }))
@@ -49,7 +51,7 @@ const app = new Elysia()
     return arena
   })
 
-  .listen(3000)
+  .listen({ port: 3000, hostname: '0.0.0.0' })
 
 console.log(`✅ Smik Party API running at ${app.server?.hostname}:${app.server?.port}`)
 console.log(`   → DB: postgresql (Prisma)`)
