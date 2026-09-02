@@ -1,5 +1,6 @@
 import Elysia from 'elysia'
 import prisma from '../lib/prisma'
+import { roomManager } from '../lib/roomManager'
 
 export const arenasRoute = new Elysia({ prefix: '/arenas' })
   .get('/', async () => {
@@ -60,5 +61,6 @@ export const arenasRoute = new Elysia({ prefix: '/arenas' })
       return { error: 'Arène introuvable' }
     }
     await prisma.arena.delete({ where: { id: params.id } })
+    roomManager.deleteRoom(params.id)
     return { success: true }
   })

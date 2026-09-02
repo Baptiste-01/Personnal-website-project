@@ -81,7 +81,7 @@ export function useArenaSocket(arenaId: string | undefined, initialSettings?: Pa
     console.log(`[Arena WS] Connexion → ${wsUrl} (arène: ${arenaId}, joueur: ${username}, id: ${userId})`)
 
     let isUnmounted = false
-    let reconnectTimeout: Timer | null = null
+    let reconnectTimeout: ReturnType<typeof setTimeout> | null = null
 
     const connect = () => {
       if (isUnmounted) return

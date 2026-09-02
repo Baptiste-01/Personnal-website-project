@@ -4,7 +4,7 @@ import {
   IconGamepad, IconRefresh, IconZap, IconUser,
   IconInbox, IconAlertCircle, IconLogin,
   IconBookOpen, IconHeart, IconLock, IconChevronRight, IconTarget, IconTrophy, IconX,
-  IconInfinity
+  IconInfinity, IconTrash, IconShield
 } from '../../components/Icons'
 import { DIFFICULTY_LABELS, CATEGORY_LABELS, ALL_CATEGORIES, CATEGORY_ICONS } from '../../types'
 import type { Difficulty, AuthUser, Category } from '../../types'
@@ -313,6 +313,76 @@ function CreateArenaModal({
   )
 }
 
+/* ─── Delete Arena Modal (Admin) ─── */
+function DeleteArenaModal({
+  arena,
+  onClose,
+  onConfirm,
+}: {
+  arena: ArenaItem
+  onClose: () => void
+  onConfirm: () => Promise<void>
+}) {
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [onClose])
+
+  const handleDelete = async () => {
+    setIsDeleting(true)
+    setError('')
+    try {
+      await onConfirm()
+      onClose()
+    } catch {
+      setError("Impossible de supprimer l'arène. Réessayez plus tard.")
+      setIsDeleting(false)
+    }
+  }
+
+  return (
+    <div className="modal-overlay" id="delete-arena-modal" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="modal-card">
+        <div className="modal-header">
+          <div className="modal-title-group">
+            <div className="modal-icon modal-danger-icon"><IconTrash /></div>
+            <h2 className="modal-title">Supprimer l'arène</h2>
+          </div>
+          <button className="modal-close" onClick={onClose} id="modal-delete-close"><IconX /></button>
+        </div>
+
+        <div className="modal-body">
+          <p className="modal-desc-text">
+            Êtes-vous sûr de vouloir supprimer définitivement l'arène <span className="modal-desc-highlight">« {arena.name} »</span> ?
+          </p>
+          <p className="modal-warning-text">
+            Cette action est irréversible et supprimera la salle ainsi que ses connexions.
+          </p>
+          {error && <p className="modal-error">{error}</p>}
+        </div>
+
+        <div className="modal-actions">
+          <button type="button" className="modal-cancel" onClick={onClose} disabled={isDeleting}>Annuler</button>
+          <button
+            type="button"
+            className={`modal-danger-btn ${isDeleting ? 'is-loading' : ''}`}
+            id="modal-confirm-delete-btn"
+            onClick={handleDelete}
+            disabled={isDeleting}
+          >
+            <IconTrash />
+            {isDeleting ? 'Suppression...' : 'Supprimer définitivement'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ─── Skeleton ─── */
 function SkeletonList() {
   return (
@@ -334,7 +404,17 @@ function SkeletonList() {
 }
 
 /* ─── Arena Card ─── */
-function ArenaCard({ arena, onJoin }: { arena: ArenaItem; onJoin: (id: string) => void }) {
+function ArenaCard({
+  arena,
+  onJoin,
+  isAdmin = false,
+  onDelete,
+}: {
+  arena: ArenaItem
+  onJoin: (id: string) => void
+  isAdmin?: boolean
+  onDelete?: (arena: ArenaItem) => void
+}) {
   const isLive = arena.status === 'playing'
   const statusClass = isLive ? 'status-badge--live' : 'status-badge--waiting'
   const statusLabel = isLive ? 'En cours' : 'En attente'
@@ -367,15 +447,34 @@ function ArenaCard({ arena, onJoin }: { arena: ArenaItem; onJoin: (id: string) =
       </div>
 
       <div className="arena-actions">
-        <span className="player-count">
-          <IconUser />
-          {arena.players}/{arena.maxPlayers}
-        </span>
-        <span className={`status-badge ${statusClass}`}>
-          <span className="status-dot" />
-          {statusLabel}
-        </span>
-        <button className="btn-join" id={`join-${arena.id}`}>Rejoindre</button>
+        <div className="arena-meta-group">
+          <span className="player-count">
+            <IconUser />
+            {arena.players}/{arena.maxPlayers}
+          </span>
+          <span className={`status-badge ${statusClass}`}>
+            <span className="status-dot" />
+            {statusLabel}
+          </span>
+        </div>
+        <div className="arena-buttons-group">
+          <button className="btn-join" id={`join-${arena.id}`}>Rejoindre</button>
+          {isAdmin && (
+            <button
+              type="button"
+              className="btn-delete-arena"
+              id={`delete-arena-${arena.id}`}
+              title="Supprimer l'arène (Admin)"
+              aria-label={`Supprimer l'arène ${arena.name}`}
+              onClick={(e) => {
+                e.stopPropagation()
+                onDelete?.(arena)
+              }}
+            >
+              <IconTrash />
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -494,6 +593,7 @@ export default function Lobby() {
   const [fetchState, setFetchState] = useState<FetchState>('idle')
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [arenaToDelete, setArenaToDelete] = useState<ArenaItem | null>(null)
 
   const [isConnected, setIsConnected] = useState(false)
   const [authUser, setAuthUser] = useState<AuthUser | null>(null)
@@ -508,6 +608,22 @@ export default function Lobby() {
         setAuthUser(user)
         setIsConnected(true)
       } catch (e) {}
+    }
+
+    const token = localStorage.getItem('auth_token')
+    if (token) {
+      fetch('/auth/me', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data && !data.error) {
+            setAuthUser(data)
+            setIsConnected(true)
+            localStorage.setItem('auth_user', JSON.stringify(data))
+          }
+        })
+        .catch(() => {})
     }
   }, [])
 
@@ -560,6 +676,21 @@ export default function Lobby() {
     navigate(`/arena/${data.id}?${query.toString()}`)
   }
 
+  const handleDeleteArena = async () => {
+    if (!arenaToDelete) return
+    const token = localStorage.getItem('auth_token')
+    const headers: Record<string, string> = {}
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+    }
+    const res = await fetch(`/arenas/${arenaToDelete.id}`, {
+      method: 'DELETE',
+      headers,
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    setArenas(prev => prev.filter(a => a.id !== arenaToDelete.id))
+  }
+
   const toggleFavorite = (id: string) => {
     if (!isConnected) return
     setFavorites(prev => {
@@ -573,6 +704,8 @@ export default function Lobby() {
     ? GAME_RULES.filter(r => favorites.has(r.id))
     : GAME_RULES
 
+  const isUserAdmin = Boolean(authUser?.isAdmin || (authUser?.username && authUser.username.toLowerCase() === 'smikens'))
+
   return (
     <div className="lobby">
       <div className="lobby-bg-orb lobby-bg-orb--1" />
@@ -582,10 +715,18 @@ export default function Lobby() {
       {/* ─── Navbar ─── */}
       <nav className="lobby-nav" id="lobby-nav">
         {isConnected && authUser ? (
-          <button className="btn-login" id="profile-button" onClick={() => navigate('/profile')}>
-            <IconUser />
-            {authUser.username}
-          </button>
+          <div className="lobby-nav-user">
+            {isUserAdmin && (
+              <span className="admin-pill-badge" id="admin-badge" title="Mode Administrateur">
+                <IconShield />
+                Admin
+              </span>
+            )}
+            <button className="btn-login" id="profile-button" onClick={() => navigate('/profile')}>
+              <IconUser />
+              {authUser.username}
+            </button>
+          </div>
         ) : (
           <button className="btn-login" id="login-button" onClick={() => navigate('/login')}>
             <IconLogin />
@@ -684,7 +825,9 @@ export default function Lobby() {
                 <ArenaCard
                   key={a.id}
                   arena={a}
+                  isAdmin={isUserAdmin}
                   onJoin={id => navigate(`/arena/${id}`)}
+                  onDelete={arena => setArenaToDelete(arena)}
                 />
               ))}
             </div>
@@ -775,6 +918,15 @@ export default function Lobby() {
         <CreateArenaModal
           onClose={() => setShowCreateModal(false)}
           onCreate={handleCreateArena}
+        />
+      )}
+
+      {/* Modal de suppression (Admin) */}
+      {arenaToDelete && (
+        <DeleteArenaModal
+          arena={arenaToDelete}
+          onClose={() => setArenaToDelete(null)}
+          onConfirm={handleDeleteArena}
         />
       )}
     </div>

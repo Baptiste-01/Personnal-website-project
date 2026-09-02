@@ -159,6 +159,7 @@ export interface AuthUser {
   username: string
   avatarUrl?: string | null
   bio?: string | null
+  isAdmin?: boolean
   level: number
   xp: number
   totalPoints: number
