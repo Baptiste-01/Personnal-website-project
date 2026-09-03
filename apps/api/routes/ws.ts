@@ -242,6 +242,7 @@ export const wsRoute = new Elysia().ws('/ws', {
       ws.send(msg)
 
       if (allAnswered) {
+        room.phase = 'reveal'
         const revealMsg = JSON.stringify({
           type: 'start_reveal',
           arenaId: targetArenaId,
@@ -257,6 +258,7 @@ export const wsRoute = new Elysia().ws('/ws', {
       const room = roomManager.getRoom(targetArenaId)
       if (!room) return
 
+      room.phase = 'reveal'
       const currentQ = room.questions[room.currentRound]
       const playersList = roomManager.getPlayersList(room)
 
@@ -278,13 +280,19 @@ export const wsRoute = new Elysia().ws('/ws', {
       const room = roomManager.getRoom(targetArenaId)
       if (!room) return
 
-      const caller = room.players.get(ws.id)
-      const allAnswered = Array.from(room.players.values()).every(p => p.hasAnsweredCurrentRound)
-      // Only reject if caller is known to be non-host AND not all answered in a multi-player room
-      if (caller && !caller.isHost && !allAnswered && room.players.size > 1) {
+      // If already transitioned to playing in a multi-player room, ignore duplicate next_round calls
+      if (room.players.size > 1 && room.phase === 'playing') {
         return
       }
 
+      const caller = room.players.get(ws.id)
+      const allAnswered = Array.from(room.players.values()).every(p => p.hasAnsweredCurrentRound)
+      // Only reject if caller is known to be non-host AND not in reveal / not all answered in a multi-player room
+      if (caller && !caller.isHost && !allAnswered && room.phase !== 'reveal' && room.players.size > 1) {
+        return
+      }
+
+      room.phase = 'playing'
       room.currentRound += 1
       room.firstAnswerTimestamp = null
       room.roundStartTime = Date.now()
@@ -301,6 +309,36 @@ export const wsRoute = new Elysia().ws('/ws', {
       })
       ws.publish(`arena_${targetArenaId}`, msg)
       ws.send(msg)
+    }
+
+    else if (type === 'return_to_lobby') {
+      const room = roomManager.getRoom(targetArenaId)
+      if (room) {
+        room.phase = 'lobby'
+        room.currentRound = 0
+        room.questions = []
+        room.firstAnswerTimestamp = null
+        room.roundStartTime = null
+
+        for (const p of room.players.values()) {
+          p.hasAnsweredCurrentRound = false
+          p.score = 0
+          p.streak = 0
+          p.isReady = p.isHost
+        }
+
+        const msg = JSON.stringify({
+          type: 'room_state',
+          arenaId: targetArenaId,
+          players: roomManager.getPlayersList(room),
+          settings: room.settings,
+          phase: 'lobby',
+          currentRound: 0,
+          questions: [],
+        })
+        ws.publish(`arena_${targetArenaId}`, msg)
+        ws.send(msg)
+      }
     }
 
     else if (type === 'delete_arena') {

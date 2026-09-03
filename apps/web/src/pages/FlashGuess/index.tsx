@@ -74,7 +74,7 @@ export default function FlashGuess() {
   useEffect(() => {
     if (socket.questions && socket.questions.length > 0) {
       setQuestions(socket.questions)
-      setPhase('playing')
+      setPhase(prev => (prev === 'loading' ? 'playing' : prev))
       return
     }
 
@@ -96,7 +96,7 @@ export default function FlashGuess() {
           .then((data: Question[]) => {
             if (data && data.length > 0) {
               setQuestions(data)
-              setPhase('playing')
+              setPhase(prev => (prev === 'loading' ? 'playing' : prev))
             }
           })
           .catch(() => {})
@@ -122,32 +122,33 @@ export default function FlashGuess() {
   const questionIndex = questions.length > 0 ? (round % questions.length) : 0
   const currentQ = questions[questionIndex] ?? null
 
+  const lastHandledRevealRef = useRef<number>(0)
+
   const handleTimeUp = useCallback(() => {
     setPhase('reveal')
     setFeedback(prev => (prev === 'correct' ? 'correct' : 'wrong'))
-    socket.triggerReveal()
+    setRevealCountdown(5)
+    lastHandledRevealRef.current = Date.now()
+    if (socket.connected) {
+      socket.triggerReveal()
+    }
   }, [socket])
-
-  const handleTimeUpRef = useRef(handleTimeUp)
-  useEffect(() => {
-    handleTimeUpRef.current = handleTimeUp
-  }, [handleTimeUp])
 
   // Timer countdown per round
   useEffect(() => {
     if (phase !== 'playing') return
     const t = setInterval(() => {
-      setTimeLeft(prev => {
-        if (prev <= 0) {
-          clearInterval(t)
-          handleTimeUpRef.current()
-          return 0
-        }
-        return prev - 1
-      })
+      setTimeLeft(prev => Math.max(0, prev - 1))
     }, 1000)
     return () => clearInterval(t)
   }, [phase, round])
+
+  // Trigger reveal when time runs out
+  useEffect(() => {
+    if (phase === 'playing' && timeLeft === 0) {
+      handleTimeUp()
+    }
+  }, [phase, timeLeft, handleTimeUp])
 
   // Focus input on new round
   useEffect(() => {
@@ -159,9 +160,11 @@ export default function FlashGuess() {
 
   // Listen to WebSocket revealEvent broadcast (when all answer or timer finishes)
   useEffect(() => {
-    if (socket.revealEvent) {
+    if (socket.revealEvent && socket.revealEvent.timestamp > lastHandledRevealRef.current) {
+      lastHandledRevealRef.current = socket.revealEvent.timestamp
       setPhase('reveal')
       setFeedback(prev => (prev === 'correct' ? 'correct' : 'wrong'))
+      setRevealCountdown(5)
     }
   }, [socket.revealEvent])
 
@@ -184,27 +187,21 @@ export default function FlashGuess() {
     setPhase('playing')
   }, [isWinCondition, socket, timePerRound])
 
-  const nextRoundRef = useRef(nextRound)
-  useEffect(() => {
-    nextRoundRef.current = nextRound
-  }, [nextRound])
-
   // Automatic 5-second countdown on reveal before advancing
   useEffect(() => {
     if (phase !== 'reveal') return
-    setRevealCountdown(5)
     const t = setInterval(() => {
-      setRevealCountdown(prev => {
-        if (prev <= 0) {
-          clearInterval(t)
-          nextRoundRef.current()
-          return 0
-        }
-        return prev - 1
-      })
+      setRevealCountdown(prev => Math.max(0, prev - 1))
     }, 1000)
     return () => clearInterval(t)
-  }, [phase])
+  }, [phase, round])
+
+  // Trigger next round when reveal countdown completes
+  useEffect(() => {
+    if (phase === 'reveal' && revealCountdown === 0) {
+      nextRound()
+    }
+  }, [phase, revealCountdown, nextRound])
 
   const checkAnswer = () => {
     if (!currentQ || phase !== 'playing' || hasAnsweredThisRound) return
@@ -225,7 +222,9 @@ export default function FlashGuess() {
 
       // In solo mode or when all players in room answered, transition to reveal immediately
       if (!socket.connected || socket.players.length <= 1) {
+        lastHandledRevealRef.current = Date.now()
         setPhase('reveal')
+        setRevealCountdown(5)
       }
     } else {
       socket.submitAnswer(answer, score)
@@ -267,6 +266,13 @@ export default function FlashGuess() {
     }
   }, [socket.players, currentUserId, currentUsername])
 
+  const handleReturnToLobby = () => {
+    if (socket.connected) {
+      socket.returnToLobby()
+    }
+    navigate(`/arena/${arenaId}`)
+  }
+
   const timerPct = (timeLeft / timePerRound) * 100
   const timerColor = timeLeft > timePerRound * 0.5 ? 'var(--color-status-live)' : timeLeft > timePerRound * 0.25 ? 'var(--color-status-waiting)' : '#ef4444'
 
@@ -276,7 +282,7 @@ export default function FlashGuess() {
     <div className="fg" id="flashguess-page">
       {/* Top bar */}
       <header className="fg-topbar">
-        <button className="fg-back" onClick={() => navigate(`/arena/${arenaId}`)}><IconArrowLeft /><span>Retour</span></button>
+        <button className="fg-back" onClick={handleReturnToLobby}><IconArrowLeft /><span>Retour</span></button>
         <div className="fg-topbar-center"><div className="fg-topbar-icon"><IconGamepad /></div><h1 className="fg-topbar-title">FlashGuess</h1></div>
         <div className="fg-topbar-score">Score: <strong>{score} / {maxPoints} pts</strong></div>
       </header>
@@ -437,11 +443,11 @@ export default function FlashGuess() {
               </h2>
               <p className="fg-results-score">Score final : <strong>{score} points</strong></p>
               <p className="fg-results-detail">
-                {roundScores.filter(s => s > 0).length} / {roundScores.length} réponses correctes
+                {roundScores.filter(s => s > 0).length} / {!isInfinite && score < maxPoints ? displayTotalRounds : (round + 1)} {roundScores.filter(s => s > 0).length > 1 ? 'bonnes réponses' : 'bonne réponse'}
               </p>
               <div className="fg-results-actions">
                 <button className="fg-replay-btn" onClick={() => window.location.reload()} id="replay">Rejouer</button>
-                <button className="fg-leave-btn" onClick={() => navigate('/')} id="leave">Retour au lobby</button>
+                <button className="fg-leave-btn" onClick={handleReturnToLobby} id="leave">Retour au lobby</button>
               </div>
             </div>
           )}

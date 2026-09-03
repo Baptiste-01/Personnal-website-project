@@ -232,6 +232,7 @@ export function useArenaSocket(arenaId: string | undefined, initialSettings?: Pa
   }, [arenaId])
 
   const nextRound = useCallback(() => {
+    setRevealEvent(null)
     if (socketRef.current?.readyState === WebSocket.OPEN) {
       socketRef.current.send(JSON.stringify({ type: 'next_round', arenaId }))
     }
@@ -240,6 +241,12 @@ export function useArenaSocket(arenaId: string | undefined, initialSettings?: Pa
   const deleteArena = useCallback(() => {
     if (socketRef.current?.readyState === WebSocket.OPEN) {
       socketRef.current.send(JSON.stringify({ type: 'delete_arena', arenaId }))
+    }
+  }, [arenaId])
+
+  const returnToLobby = useCallback(() => {
+    if (socketRef.current?.readyState === WebSocket.OPEN) {
+      socketRef.current.send(JSON.stringify({ type: 'return_to_lobby', arenaId }))
     }
   }, [arenaId])
 
@@ -261,5 +268,6 @@ export function useArenaSocket(arenaId: string | undefined, initialSettings?: Pa
     triggerReveal,
     nextRound,
     deleteArena,
+    returnToLobby,
   }
 }
