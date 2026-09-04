@@ -5,6 +5,36 @@
   padding: 2rem 1rem;
 }
 
+/* Top Nav */
+.admin-top-nav {
+  max-width: 800px;
+  margin: 0 auto 1.5rem;
+  display: flex;
+  align-items: center;
+}
+
+.admin-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--font-body);
+  color: var(--color-text-secondary);
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.admin-back-btn:hover {
+  color: var(--color-text-primary);
+  background: var(--color-bg-card-hover);
+  border-color: var(--color-border-hover);
+}
+
 /* Header */
 .admin-header {
   max-width: 800px;

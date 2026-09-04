@@ -6,8 +6,9 @@ import {
   IconBookOpen, IconHeart, IconLock, IconChevronRight, IconTarget, IconTrophy, IconX,
   IconInfinity, IconTrash, IconShield
 } from '../../components/Icons'
-import { DIFFICULTY_LABELS, CATEGORY_LABELS, ALL_CATEGORIES, CATEGORY_ICONS } from '../../types'
+import { DIFFICULTY_LABELS, getCategoryLabel, getCategoryIcon } from '../../types'
 import type { Difficulty, AuthUser, Category } from '../../types'
+import { useCategories } from '../../hooks/useCategories'
 import Slider from '../../components/Slider/Slider'
 import type { SlideItem } from '../../components/Slider/Slider'
 import './Lobby.css'
@@ -39,6 +40,7 @@ interface GameRule {
   roundCount: number
   timePerRound: number
   infiniteRounds?: boolean
+  categories?: string[]
 }
 
 /* ─── Static game rules catalog ─── */
@@ -98,6 +100,7 @@ interface CreateArenaSettings {
   name: string
   difficulty: Difficulty
   categoryDifficulties: Record<string, Difficulty[]>
+  categories: string[]
   infiniteRounds: boolean
   roundCount: number
   timePerRound: number
@@ -106,22 +109,36 @@ interface CreateArenaSettings {
 
 /* ─── Create Arena Modal ─── */
 function CreateArenaModal({
+  availableCategories,
   onClose,
   onCreate,
+  initialRule,
 }: {
+  availableCategories: string[]
   onClose: () => void
   onCreate: (settings: CreateArenaSettings) => Promise<void>
+  initialRule?: GameRule | null
 }) {
-  const [name, setName] = useState('')
-  const [difficulty, setDifficulty] = useState<Difficulty>('moyen')
-  const [categories, setCategories] = useState<Category[]>([...ALL_CATEGORIES])
-  const [infiniteRounds, setInfiniteRounds] = useState(false)
-  const [roundCount, setRoundCount] = useState(10)
-  const [timePerRound, setTimePerRound] = useState(20)
-  const [maxPoints, setMaxPoints] = useState(1000)
+  const [name, setName] = useState(initialRule ? `Arène ${initialRule.name}` : '')
+  const [difficulty, setDifficulty] = useState<Difficulty>(initialRule?.difficulty ?? 'moyen')
+  const [categories, setCategories] = useState<Category[]>(() =>
+    initialRule?.categories && initialRule.categories.length > 0
+      ? [...initialRule.categories]
+      : [...availableCategories]
+  )
+  const [infiniteRounds, setInfiniteRounds] = useState(initialRule?.infiniteRounds ?? false)
+  const [roundCount, setRoundCount] = useState(initialRule?.roundCount && initialRule.roundCount > 0 ? initialRule.roundCount : 10)
+  const [timePerRound, setTimePerRound] = useState(initialRule?.timePerRound ?? 20)
+  const [maxPoints, setMaxPoints] = useState(initialRule?.pointsTotal ?? 1000)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (categories.length === 0 && availableCategories.length > 0) {
+      setCategories([...availableCategories])
+    }
+  }, [availableCategories])
 
   useEffect(() => {
     inputRef.current?.focus()
@@ -148,7 +165,7 @@ function CreateArenaModal({
     setError('')
 
     const categoryDifficulties: Record<string, Difficulty[]> = {}
-    ALL_CATEGORIES.forEach(cat => {
+    categories.forEach(cat => {
       categoryDifficulties[cat] = [difficulty]
     })
 
@@ -157,6 +174,7 @@ function CreateArenaModal({
         name: trimmed,
         difficulty,
         categoryDifficulties,
+        categories,
         infiniteRounds,
         roundCount,
         timePerRound,
@@ -216,9 +234,9 @@ function CreateArenaModal({
 
           {/* Catégories */}
           <div className="modal-field">
-            <label className="modal-label">Catégories ({categories.length}/{ALL_CATEGORIES.length})</label>
+            <label className="modal-label">Catégories ({categories.length}/{availableCategories.length})</label>
             <div className="modal-cat-grid">
-              {ALL_CATEGORIES.map(cat => {
+              {availableCategories.map(cat => {
                 const active = categories.includes(cat)
                 return (
                   <button
@@ -227,8 +245,8 @@ function CreateArenaModal({
                     className={`modal-cat-pill ${active ? 'modal-cat-pill--active' : ''}`}
                     onClick={() => toggleCat(cat)}
                   >
-                    <span>{CATEGORY_ICONS[cat]}</span>
-                    <span>{CATEGORY_LABELS[cat]}</span>
+                    <span>{getCategoryIcon(cat)}</span>
+                    <span>{getCategoryLabel(cat)}</span>
                   </button>
                 )
               })}
@@ -486,15 +504,23 @@ function GameRuleCard({
   isConnected,
   isFavorite,
   onToggleFavorite,
+  onSelectRule,
 }: {
   rule: GameRule
   isConnected: boolean
   isFavorite: boolean
   onToggleFavorite: (id: string) => void
+  onSelectRule?: (rule: GameRule) => void
 }) {
   const isInfinite = rule.infiniteRounds || rule.roundCount === 0
   return (
-    <div className={`game-rule-card ${isFavorite ? 'game-rule-card--fav' : ''}`} id={`rule-${rule.id}`}>
+    <div
+      className={`game-rule-card ${isFavorite ? 'game-rule-card--fav' : ''}`}
+      id={`rule-${rule.id}`}
+      onClick={() => onSelectRule?.(rule)}
+      style={{ cursor: 'pointer' }}
+      title="Cliquer pour créer une arène avec ce mode"
+    >
       <div className="game-rule-header">
         <div className="game-rule-name-row">
           <h3 className="game-rule-name">{rule.name}</h3>
@@ -505,7 +531,10 @@ function GameRuleCard({
         {isConnected ? (
           <button
             className={`btn-fav ${isFavorite ? 'btn-fav--active' : ''}`}
-            onClick={() => onToggleFavorite(rule.id)}
+            onClick={(e) => {
+              e.stopPropagation()
+              onToggleFavorite(rule.id)
+            }}
             title={isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris'}
             id={`fav-${rule.id}`}
           >
@@ -589,10 +618,12 @@ const LOBBY_SLIDES: SlideItem[] = [
 /* ─── Main Lobby ─── */
 export default function Lobby() {
   const navigate = useNavigate()
+  const { categories: availableCategories } = useCategories()
   const [arenas, setArenas] = useState<ArenaItem[]>([])
   const [fetchState, setFetchState] = useState<FetchState>('idle')
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [selectedRuleForModal, setSelectedRuleForModal] = useState<GameRule | null>(null)
   const [arenaToDelete, setArenaToDelete] = useState<ArenaItem | null>(null)
 
   const [isConnected, setIsConnected] = useState(false)
@@ -653,6 +684,7 @@ export default function Lobby() {
         name: settings.name,
         difficulty: settings.difficulty,
         gameMode: 'flashguess',
+        categories: settings.categories,
         infiniteRounds: settings.infiniteRounds,
         roundCount: settings.roundCount,
         timePerRound: settings.timePerRound,
@@ -667,6 +699,7 @@ export default function Lobby() {
 
     const query = new URLSearchParams({
       difficulty: settings.difficulty,
+      categories: settings.categories.join(','),
       rounds: settings.infiniteRounds ? 'infinite' : String(settings.roundCount),
       time: String(settings.timePerRound),
       maxPoints: String(settings.maxPoints),
@@ -700,9 +733,23 @@ export default function Lobby() {
     })
   }
 
+  const categoryRules: GameRule[] = availableCategories.map(cat => ({
+    id: `cat-${cat}`,
+    name: `${getCategoryIcon(cat)} Spécial ${getCategoryLabel(cat)}`,
+    description: `Session 100% axée sur le thème "${getCategoryLabel(cat)}".`,
+    pointsTotal: 1000,
+    difficulty: 'moyen',
+    roundCount: 10,
+    timePerRound: 20,
+    infiniteRounds: false,
+    categories: [cat],
+  }))
+
+  const allRules = [...GAME_RULES, ...categoryRules]
+
   const displayedRules = activeRuleTab === 'favorites'
-    ? GAME_RULES.filter(r => favorites.has(r.id))
-    : GAME_RULES
+    ? allRules.filter(r => favorites.has(r.id))
+    : allRules
 
   const isUserAdmin = Boolean(authUser?.isAdmin || (authUser?.username && authUser.username.toLowerCase() === 'smikens'))
 
@@ -717,10 +764,15 @@ export default function Lobby() {
         {isConnected && authUser ? (
           <div className="lobby-nav-user">
             {isUserAdmin && (
-              <span className="admin-pill-badge" id="admin-badge" title="Mode Administrateur">
+              <button
+                className="admin-pill-badge"
+                id="admin-button"
+                onClick={() => navigate('/admin')}
+                title="Accéder au panneau d'administration"
+              >
                 <IconShield />
                 Admin
-              </span>
+              </button>
             )}
             <button className="btn-login" id="profile-button" onClick={() => navigate('/profile')}>
               <IconUser />
@@ -891,6 +943,10 @@ export default function Lobby() {
                   isConnected={isConnected}
                   isFavorite={favorites.has(rule.id)}
                   onToggleFavorite={toggleFavorite}
+                  onSelectRule={r => {
+                    setSelectedRuleForModal(r)
+                    setShowCreateModal(true)
+                  }}
                 />
               ))}
               {activeRuleTab === 'all' && (
@@ -916,7 +972,12 @@ export default function Lobby() {
       {/* Modal de création */}
       {showCreateModal && (
         <CreateArenaModal
-          onClose={() => setShowCreateModal(false)}
+          availableCategories={availableCategories}
+          initialRule={selectedRuleForModal}
+          onClose={() => {
+            setShowCreateModal(false)
+            setSelectedRuleForModal(null)
+          }}
           onCreate={handleCreateArena}
         />
       )}

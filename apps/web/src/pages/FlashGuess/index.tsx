@@ -28,18 +28,24 @@ export default function FlashGuess() {
   const rawRounds = searchParams.get('rounds')
   const totalRounds = isInfinite ? Infinity : (rawRounds && !isNaN(Number(rawRounds)) ? Number(rawRounds) : 10)
   
-  const rawTime = searchParams.get('time')
-  const timePerRound = Math.max(5, (rawTime && !isNaN(Number(rawTime)) ? Number(rawTime) : 20))
-  
-  const rawMaxPts = searchParams.get('maxPoints')
-  const maxPoints = rawMaxPts && !isNaN(Number(rawMaxPts)) ? Number(rawMaxPts) : 1000
-  
-  const rawPtsAns = searchParams.get('pointsPerAnswer')
-  const pointsPerAnswer = rawPtsAns && !isNaN(Number(rawPtsAns)) ? Number(rawPtsAns) : 100
-  
   const catDiffsParam = searchParams.get('catDiffs')
 
   const socket = useArenaSocket(arenaId)
+
+  const rawTime = searchParams.get('time')
+  const timePerRound = (socket.settings?.timePerRound && typeof socket.settings.timePerRound === 'number')
+    ? socket.settings.timePerRound
+    : Math.max(5, (rawTime && !isNaN(Number(rawTime)) ? Number(rawTime) : 20))
+
+  const rawMaxPts = searchParams.get('maxPoints')
+  const maxPoints = (socket.settings?.maxPoints && typeof socket.settings.maxPoints === 'number')
+    ? socket.settings.maxPoints
+    : (rawMaxPts && !isNaN(Number(rawMaxPts)) ? Number(rawMaxPts) : 1000)
+
+  const rawPtsAns = searchParams.get('pointsPerAnswer')
+  const pointsPerAnswer = (socket.settings?.pointsPerAnswer && typeof socket.settings.pointsPerAnswer === 'number')
+    ? socket.settings.pointsPerAnswer
+    : (rawPtsAns && !isNaN(Number(rawPtsAns)) ? Number(rawPtsAns) : 100)
 
   const [questions, setQuestions] = useState<Question[]>(() => (
     socket.questions && socket.questions.length > 0
@@ -60,7 +66,6 @@ export default function FlashGuess() {
   const [answer, setAnswer] = useState('')
   const [feedback, setFeedback] = useState<'none' | 'correct' | 'wrong'>('none')
   const [score, setScore] = useState(0)
-  const [streak, setStreak] = useState(0)
   const [roundScores, setRoundScores] = useState<number[]>([])
   const [showHint, setShowHint] = useState(false)
   const [modalImage, setModalImage] = useState<string | null>(null)
@@ -209,25 +214,25 @@ export default function FlashGuess() {
     const isCorrect = currentQ.acceptedAnswers.some(a => normalize(a) === normalized) || normalize(currentQ.answer) === normalized
 
     if (isCorrect) {
-      const streakMultiplier = streak >= 5 ? 2.0 : streak >= 3 ? 1.5 : 1.0
-      const speedBonus = Math.round((timeLeft / timePerRound) * (pointsPerAnswer * 0.5))
-      const roundPts = Math.round((pointsPerAnswer + speedBonus) * streakMultiplier)
-      const newScore = score + roundPts
-      setScore(newScore)
-      setStreak(prev => prev + 1)
-      setRoundScores(prev => [...prev, roundPts])
       setFeedback('correct')
       setHasAnsweredThisRound(true)
-      socket.submitAnswer(answer, newScore)
 
-      // In solo mode or when all players in room answered, transition to reveal immediately
+      // In solo mode, calculate points immediately
       if (!socket.connected || socket.players.length <= 1) {
+        const roundPts = pointsPerAnswer
+        const newScore = score + roundPts
+        setScore(newScore)
+        setRoundScores(prev => [...prev, roundPts])
+        socket.submitAnswer(answer, newScore)
         lastHandledRevealRef.current = Date.now()
         setPhase('reveal')
         setRevealCountdown(5)
+      } else {
+        // In multiplayer, submit answer to server for relative timing calculation
+        socket.submitAnswer(answer)
       }
     } else {
-      socket.submitAnswer(answer, score)
+      socket.submitAnswer(answer)
       setFeedback('wrong')
       setAnswer('')
       setTimeout(() => { if (phase === 'playing') setFeedback('none') }, 400)
@@ -256,15 +261,27 @@ export default function FlashGuess() {
     return { currentUserId: guestId, currentUsername: guestName }
   })()
 
+  // Sync round score with WS answer result in multiplayer
+  useEffect(() => {
+    if (socket.latestAnswerResult) {
+      const isSelf =
+        socket.latestAnswerResult.playerId === currentUserId ||
+        socket.latestAnswerResult.playerName === currentUsername
+      if (isSelf && socket.latestAnswerResult.isCorrect) {
+        setRoundScores(prev => [...prev, socket.latestAnswerResult!.pointsAwarded])
+      }
+    }
+  }, [socket.latestAnswerResult, currentUserId, currentUsername])
+
   // Sync score with WS player state
   useEffect(() => {
     if (socket.players && socket.players.length > 0) {
       const selfP = socket.players.find(p => p.id === currentUserId || p.name === currentUsername)
-      if (selfP && typeof selfP.score === 'number' && selfP.score > score) {
+      if (selfP && typeof selfP.score === 'number' && selfP.score !== score) {
         setScore(selfP.score)
       }
     }
-  }, [socket.players, currentUserId, currentUsername])
+  }, [socket.players, currentUserId, currentUsername, score])
 
   const handleReturnToLobby = () => {
     if (socket.connected) {
@@ -302,7 +319,6 @@ export default function FlashGuess() {
                     <span className="fg-player-name">{p.name} {isSelf ? '(Vous)' : ''}</span>
                     <span className="fg-player-score">{p.score} pts</span>
                   </div>
-                  {p.streak >= 3 && <span className="fg-streak-badge">x{p.streak}</span>}
                 </div>
               )
             })}
@@ -314,17 +330,12 @@ export default function FlashGuess() {
                   <span className="fg-player-name">{currentUsername} (Vous)</span>
                   <span className="fg-player-score">{score} pts</span>
                 </div>
-                {streak >= 3 && <span className="fg-streak-badge">x{streak}</span>}
               </div>
             )}
           </div>
 
-          <div className="fg-sidebar-footer">
-            <div className="fg-stat-box">
-              <span className="fg-stat-label">SÉRIE</span>
-              <span className="fg-stat-value fg-stat-value--streak">⚡ {streak}</span>
-            </div>
-            <div className="fg-stat-box">
+          <div className="fg-stats">
+            <div className="fg-stat">
               <span className="fg-stat-label">MANCHE</span>
               <span className="fg-stat-value">
                 {isInfinite ? `${round + 1} (∞)` : `${Math.min(round + 1, displayTotalRounds)}/${displayTotalRounds}`}

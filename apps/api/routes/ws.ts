@@ -44,7 +44,12 @@ export const wsRoute = new Elysia().ws('/ws', {
         avatarUrl,
       })
 
-      console.log(`[WS Server] Joueur "${player.name}" (${player.id}) a rejoint l'arène ${targetArenaId}`)
+      // If player is host and provided settings, sync to room.settings
+      if (player.isHost && settings && Object.keys(settings).length > 0) {
+        room.settings = { ...room.settings, ...settings }
+      }
+
+      console.log(`[WS Server] Joueur "${player.name}" (${player.id}) a rejoint l'arène ${targetArenaId} (Host: ${player.isHost})`)
 
       const playersList = roomManager.getPlayersList(room)
 
@@ -106,15 +111,26 @@ export const wsRoute = new Elysia().ws('/ws', {
         return
       }
 
-      const categories = room.settings.categories
+      const categories = room.settings.categories || []
       const count = room.settings.infiniteRounds ? 50 : room.settings.roundCount
+      const catDiffs = room.settings.categoryDifficulties
+
+      let whereClause: any = { category: { in: categories } }
+      if (catDiffs && Object.keys(catDiffs).length > 0 && categories.length > 0) {
+        const orConditions = categories.map(cat => {
+          const diffs = catDiffs[cat]
+          if (diffs && diffs.length > 0 && diffs.length < 3) {
+            return { category: cat, difficulty: { in: diffs } }
+          }
+          return { category: cat }
+        })
+        whereClause = { OR: orConditions }
+      }
 
       let dbQuestions: any[] = []
       try {
         dbQuestions = await prisma.question.findMany({
-          where: {
-            category: { in: categories },
-          },
+          where: whereClause,
           take: count * 2,
         })
       } catch (err) {
@@ -198,29 +214,13 @@ export const wsRoute = new Elysia().ws('/ws', {
           room.firstAnswerTimestamp = now
           pointsAwarded = room.settings.pointsPerAnswer
         } else {
-          const delayMs = now - room.firstAnswerTimestamp
-          const totalRoundTimeMs = room.settings.timePerRound * 1000
-          const minPts = Math.max(1, Math.round(room.settings.pointsPerAnswer * 0.1))
-          const timeRatio = Math.min(1, delayMs / totalRoundTimeMs)
-          pointsAwarded = Math.round(
-            room.settings.pointsPerAnswer - (room.settings.pointsPerAnswer - minPts) * timeRatio
-          )
+          const delayMs = Math.max(0, now - room.firstAnswerTimestamp)
+          const secondsAfter = Math.max(1, Math.ceil(delayMs / 1000))
+          const penaltyRatio = Math.min(1, secondsAfter * 0.1)
+          pointsAwarded = Math.max(0, Math.round(room.settings.pointsPerAnswer * (1 - penaltyRatio)))
         }
 
-        player.streak += 1
-        const streakMultiplier = player.streak >= 5 ? 2.0 : player.streak >= 3 ? 1.5 : 1.0
-        pointsAwarded = Math.round(pointsAwarded * streakMultiplier)
-        
-        if (typeof payload?.score === 'number' && payload.score > 0) {
-          player.score = payload.score
-        } else {
-          player.score += pointsAwarded
-        }
-      } else {
-        if (typeof payload?.score === 'number' && payload.score > 0) {
-          player.score = payload.score
-        }
-        player.streak = 0
+        player.score += pointsAwarded
       }
 
       // Check if all players in room have answered
@@ -234,7 +234,6 @@ export const wsRoute = new Elysia().ws('/ws', {
         playerName: player.name,
         isCorrect,
         pointsAwarded,
-        streak: player.streak,
         allAnswered,
         players: playersList,
       })

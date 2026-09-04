@@ -34,6 +34,7 @@ export interface QuestionItem {
 
 export interface ArenaRoom {
   id: string
+  hostId: string | null
   players: Map<string, RoomPlayer> // socketId -> RoomPlayer
   settings: RoomSettings
   phase: 'lobby' | 'playing' | 'reveal' | 'results'
@@ -72,6 +73,7 @@ class RoomManager {
     if (!room) {
       room = {
         id: arenaId,
+        hostId: null,
         players: new Map(),
         settings: { ...DEFAULT_SETTINGS, ...initialSettings },
         phase: 'lobby',
@@ -99,6 +101,11 @@ class RoomManager {
       this.disconnectTimeouts.delete(playerInfo.id)
     }
 
+    // Le premier joueur qui rejoint devient l'hôte permanent de la salle
+    if (!room.hostId) {
+      room.hostId = playerInfo.id
+    }
+
     // Vérifie si le joueur existe déjà dans la salle (reconnexion)
     let existingPlayer: RoomPlayer | undefined
     for (const [sId, p] of room.players.entries()) {
@@ -109,15 +116,15 @@ class RoomManager {
       }
     }
 
-    const isFirstPlayer = room.players.size === 0
+    const isHost = playerInfo.id === room.hostId
 
     const player: RoomPlayer = {
       id: playerInfo.id,
       socketId,
       name: playerInfo.name || existingPlayer?.name || 'Joueur Anonyme',
       avatarUrl: playerInfo.avatarUrl ?? existingPlayer?.avatarUrl,
-      isHost: existingPlayer ? existingPlayer.isHost : isFirstPlayer,
-      isReady: existingPlayer ? existingPlayer.isReady : isFirstPlayer,
+      isHost,
+      isReady: isHost ? true : (existingPlayer ? existingPlayer.isReady : false),
       score: existingPlayer ? existingPlayer.score : 0,
       streak: existingPlayer ? existingPlayer.streak : 0,
       hasAnsweredCurrentRound: existingPlayer ? existingPlayer.hasAnsweredCurrentRound : false,
@@ -140,17 +147,7 @@ class RoomManager {
       const player = room.players.get(socketId)
       if (player) {
         room.players.delete(socketId)
-
-        // Si l'hôte est parti et qu'il reste d'autres joueurs actifs
-        if (player.isHost && room.players.size > 0) {
-          const nextPlayer = room.players.values().next().value
-          if (nextPlayer) {
-            nextPlayer.isHost = true
-          }
-        }
-
         const isRoomEmpty = room.players.size === 0
-
         return { room, removedPlayer: player, isRoomEmpty }
       }
     }

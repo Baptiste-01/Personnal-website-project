@@ -2,27 +2,28 @@
 
 export type Difficulty = 'facile' | 'moyen' | 'difficile' | 'easy' | 'normal' | 'hard'
 
-export type Category =
-  | 'geographie'
-  | 'histoire'
-  | 'sciences'
-  | 'cinema'
-  | 'musique'
-  | 'sport'
-  | 'litterature'
-  | 'gastronomie'
+export type Category = string
 
-export const ALL_CATEGORIES: Category[] = [
+export const DEFAULT_CATEGORIES: string[] = [
   'geographie', 'histoire', 'sciences', 'cinema',
   'musique', 'sport', 'litterature', 'gastronomie',
 ]
 
-export const CATEGORY_ICONS: Record<Category, string> = {
+export const ALL_CATEGORIES: string[] = DEFAULT_CATEGORIES
+
+export const CATEGORY_ICONS: Record<string, string> = {
   geographie: '🌍', histoire: '📜', sciences: '🔬', cinema: '🎬',
   musique: '🎵', sport: '⚽', litterature: '📚', gastronomie: '🍽️',
+  drapeau: '🚩', drapeaux: '🚩', flags: '🚩', flag: '🚩',
+  capitale: '🏛️', capitales: '🏛️', capitals: '🏛️',
+  manga: '🎌', mangas: '🎌', anime: '🎌',
+  'jeux-video': '🎮', 'jeux video': '🎮', gaming: '🎮', jeux: '🎮',
+  nature: '🌿', animaux: '🐾', espace: '🚀',
+  art: '🎨', arts: '🎨', technologie: '💻', informatique: '💻', tech: '💻',
+  series: '📺', 'séries': '📺', tv: '📺', politique: '🏛️',
 }
 
-export const CATEGORY_LABELS: Record<Category, string> = {
+export const CATEGORY_LABELS: Record<string, string> = {
   geographie: 'Géographie',
   histoire: 'Histoire',
   sciences: 'Sciences',
@@ -31,6 +32,36 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   sport: 'Sport',
   litterature: 'Littérature',
   gastronomie: 'Gastronomie',
+  drapeau: 'Drapeaux',
+  drapeaux: 'Drapeaux',
+  capitale: 'Capitales',
+  capitales: 'Capitales',
+  manga: 'Manga',
+  mangas: 'Manga & Anime',
+  'jeux-video': 'Jeux Vidéo',
+  'jeux video': 'Jeux Vidéo',
+  informatique: 'Informatique',
+  technologie: 'Technologie',
+  animaux: 'Animaux',
+  espace: 'Espace',
+  art: 'Art & Culture',
+}
+
+export function getCategoryLabel(cat: string): string {
+  const lower = cat.toLowerCase().trim()
+  if (CATEGORY_LABELS[lower]) return CATEGORY_LABELS[lower]
+  return cat
+    .replace(/[-_]/g, ' ')
+    .replace(/\b\w/g, c => c.toUpperCase())
+}
+
+export function getCategoryIcon(cat: string): string {
+  const lower = cat.toLowerCase().trim()
+  if (CATEGORY_ICONS[lower]) return CATEGORY_ICONS[lower]
+  for (const [k, icon] of Object.entries(CATEGORY_ICONS)) {
+    if (lower.includes(k)) return icon
+  }
+  return '🏷️'
 }
 
 export const DIFFICULTY_LABELS: Record<Difficulty, string> = {

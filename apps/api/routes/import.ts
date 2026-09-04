@@ -119,7 +119,9 @@ export const importRoute = new Elysia({ prefix: '/admin' })
 
           try {
             const existing = await prisma.question.findFirst({
-              where: { text: questionText },
+              where: imageUrl
+                ? { imageUrl, category }
+                : { text: questionText, category },
             })
 
             if (existing) {

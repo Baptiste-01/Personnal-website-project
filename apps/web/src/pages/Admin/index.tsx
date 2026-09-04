@@ -1,4 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { getCategoryIcon, getCategoryLabel } from '../../types'
 import './Admin.css'
 
 const API = ''
@@ -35,17 +37,6 @@ interface StatsResponse {
   breakdown: StatBreakdown[]
 }
 
-/* ─── Category emoji map ─────────────────────────────────────── */
-const CAT_EMOJI: Record<string, string> = {
-  geographie: '🌍',
-  histoire: '📜',
-  sciences: '🔬',
-  cinema: '🎬',
-  musique: '🎵',
-  sport: '⚽',
-  litterature: '📚',
-  gastronomie: '🍽️',
-}
 
 /* ─── Format size ─────────────────────────────────────────────── */
 function formatSize(bytes: number): string {
@@ -55,6 +46,7 @@ function formatSize(bytes: number): string {
 
 /* ─── Component ──────────────────────────────────────────────── */
 export default function Admin() {
+  const navigate = useNavigate()
   const [file, setFile] = useState<File | null>(null)
   const [dragOver, setDragOver] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -145,6 +137,13 @@ export default function Admin() {
   /* ─── Render ─────────────────────────────────────────────────── */
   return (
     <main className="admin-page">
+      {/* Top Nav */}
+      <div className="admin-top-nav">
+        <button className="admin-back-btn" onClick={() => navigate('/')}>
+          ← Retour à l'accueil
+        </button>
+      </div>
+
       {/* Header */}
       <header className="admin-header">
         <div className="admin-header-icon">📊</div>
@@ -173,7 +172,7 @@ export default function Admin() {
             <div className="stats-grid">
               {Object.entries(statsByCategory).map(([cat, { total, details }]) => (
                 <div className="stats-item" key={cat}>
-                  <span className="stats-item-cat">{CAT_EMOJI[cat] ?? '❓'} {cat}</span>
+                  <span className="stats-item-cat">{getCategoryIcon(cat)} {getCategoryLabel(cat)}</span>
                   <span className="stats-item-count">{total}</span>
                   <span className="stats-item-detail">
                     {details.map(d => {
@@ -277,7 +276,7 @@ export default function Admin() {
             {result.details.map(d => (
               <div className="sheet-row" key={d.sheet}>
                 <span className="sheet-name">
-                  {CAT_EMOJI[d.sheet] ?? '📄'} {d.sheet}
+                  {getCategoryIcon(d.sheet)} {getCategoryLabel(d.sheet)}
                 </span>
                 <span className="sheet-counts">
                   <span style={{ color: '#10b981' }}>+{d.inserted}</span>

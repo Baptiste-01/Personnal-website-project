@@ -6,10 +6,12 @@ import {
   IconCopy, IconWifi, IconUsers, IconTarget, IconTrash,
 } from '../../components/Icons'
 import {
-  CATEGORY_LABELS, DIFFICULTY_LABELS, ALL_CATEGORIES, CATEGORY_ICONS, DEFAULT_CATEGORY_DIFFICULTIES
+  DIFFICULTY_LABELS, DEFAULT_CATEGORIES, DEFAULT_CATEGORY_DIFFICULTIES,
+  getCategoryLabel, getCategoryIcon
 } from '../../types'
 import type { Category, Difficulty, GameSettings } from '../../types'
 import { useArenaSocket } from '../../hooks/useArenaSocket'
+import { useCategories } from '../../hooks/useCategories'
 import './Arena.css'
 
 const TIME_OPTIONS = [5, 10, 15, 20, 30, 45, 60]
@@ -67,14 +69,15 @@ function PlayerCard({ player, index }: { player: PlayerEntry; index: number }) {
 }
 
 /* ─── Toggle Switch ─── */
-function Toggle({ checked, onChange, id }: { checked: boolean; onChange: (v: boolean) => void; id: string }) {
+function Toggle({ checked, onChange, id, disabled }: { checked: boolean; onChange: (v: boolean) => void; id: string; disabled?: boolean }) {
   return (
     <button
       id={id}
+      disabled={disabled}
       role="switch"
       aria-checked={checked}
       className={`toggle-switch ${checked ? 'toggle-switch--on' : ''}`}
-      onClick={() => onChange(!checked)}
+      onClick={() => { if (!disabled) onChange(!checked) }}
     >
       <span className="toggle-thumb" />
     </button>
@@ -86,6 +89,7 @@ export default function Arena() {
   const { arenaId } = useParams<{ arenaId: string }>()
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
+  const { categories: availableCategories } = useCategories()
   const [arenaName, setArenaName] = useState('Chargement...')
   const [activeTab, setActiveTab] = useState<SettingTab>('general')
   const [copied, setCopied] = useState(false)
@@ -97,6 +101,7 @@ export default function Arena() {
     const time = searchParams.get('time')
     const maxPts = searchParams.get('maxPoints')
     const catDiffsStr = searchParams.get('catDiffs')
+    const catsParam = searchParams.get('categories')
 
     const initialCatDiffs: Record<string, Difficulty[]> = { ...DEFAULT_CATEGORY_DIFFICULTIES }
     if (catDiffsStr) {
@@ -110,7 +115,7 @@ export default function Arena() {
     }
 
     return {
-      categories: ['geographie', 'histoire', 'sciences', 'cinema', 'musique', 'sport', 'litterature', 'gastronomie'],
+      categories: catsParam ? catsParam.split(',').filter(Boolean) : [...DEFAULT_CATEGORIES],
       difficulty: diff ?? 'facile',
       difficulties: ['facile', 'moyen', 'difficile'],
       categoryDifficulties: initialCatDiffs,
@@ -140,27 +145,42 @@ export default function Arena() {
     { id: 'self', name: currentUsername, isHost: true, isReady: true, score: 0, streak: 0, hasAnsweredCurrentRound: false }
   ]
 
+  // Sync settings from server for guest players
+  useEffect(() => {
+    if (!socket.isHost && socket.settings && Object.keys(socket.settings).length > 0) {
+      setSettings(prev => ({
+        ...prev,
+        ...socket.settings,
+        categoryDifficulties: socket.settings.categoryDifficulties || prev.categoryDifficulties,
+      }))
+    }
+  }, [socket.settings, socket.isHost])
+
   // Auto-navigate to FlashGuess when host starts game
   useEffect(() => {
     if (socket.phase === 'playing') {
-      const catDiffsStr = Object.entries(settings.categoryDifficulties)
-        .filter(([cat]) => settings.categories.includes(cat as Category))
+      const effectiveSettings = socket.settings && Object.keys(socket.settings).length > 0
+        ? { ...settings, ...socket.settings }
+        : settings
+
+      const catDiffsStr = Object.entries(effectiveSettings.categoryDifficulties || {})
+        .filter(([cat]) => (effectiveSettings.categories || []).includes(cat as Category))
         .map(([cat, diffs]) => `${cat}:${(diffs ?? []).join('+')}`)
         .join(',')
 
       const params = new URLSearchParams({
-        categories: settings.categories.join(','),
-        difficulty: settings.difficulty,
-        rounds: settings.infiniteRounds ? 'infinite' : String(settings.roundCount),
-        time: String(settings.timePerRound),
-        maxPoints: String(settings.maxPoints),
-        infiniteRounds: String(settings.infiniteRounds),
-        pointsPerAnswer: String(settings.pointsPerAnswer),
+        categories: (effectiveSettings.categories || []).join(','),
+        difficulty: effectiveSettings.difficulty || 'facile',
+        rounds: effectiveSettings.infiniteRounds ? 'infinite' : String(effectiveSettings.roundCount || 10),
+        time: String(effectiveSettings.timePerRound || 20),
+        maxPoints: String(effectiveSettings.maxPoints || 1000),
+        infiniteRounds: String(effectiveSettings.infiniteRounds || false),
+        pointsPerAnswer: String(effectiveSettings.pointsPerAnswer || 100),
         catDiffs: catDiffsStr,
       })
       navigate(`/play/${arenaId}?${params.toString()}`, { state: { questions: socket.questions } })
     }
-  }, [socket.phase, socket.questions, arenaId, settings, navigate])
+  }, [socket.phase, socket.questions, socket.settings, arenaId, settings, navigate])
 
   // Redirect to lobby if arena is deleted by host
   useEffect(() => {
@@ -169,9 +189,6 @@ export default function Arena() {
     }
   }, [socket.arenaDeleted, navigate])
 
-  /* ─── Derived: min points (at end of timer) = 10% of pointsPerAnswer ─── */
-  const minPointsPerAnswer = Math.max(1, Math.round(settings.pointsPerAnswer * 0.1))
-
   useEffect(() => {
     fetch(`/arenas/${arenaId}`)
       .then(r => r.ok ? r.json() : null)
@@ -179,14 +196,79 @@ export default function Arena() {
       .catch(() => setArenaName('Mon Arène'))
   }, [arenaId])
 
-  const toggleCategory = (cat: Category) => {
+  const isHostDisabled = !socket.isHost && socket.players.length > 1
+
+  const updateGameSettings = (updater: Partial<GameSettings> | ((prev: GameSettings) => GameSettings)) => {
+    if (isHostDisabled) return
     setSettings(prev => {
-      const has = prev.categories.includes(cat)
-      if (has && prev.categories.length === 1) return prev
-      const updated = { ...prev, categories: has ? prev.categories.filter(c => c !== cat) : [...prev.categories, cat] }
-      if (socket.isHost) socket.updateSettings(updated)
+      const updated = typeof updater === 'function' ? updater(prev) : { ...prev, ...updater }
+      if (socket.isHost || socket.players.length <= 1) {
+        socket.updateSettings(updated)
+      }
       return updated
     })
+  }
+
+  const toggleCategory = (cat: Category) => {
+    if (isHostDisabled) return
+    updateGameSettings(prev => {
+      const has = prev.categories.includes(cat)
+      if (has && prev.categories.length === 1) return prev
+      return { ...prev, categories: has ? prev.categories.filter(c => c !== cat) : [...prev.categories, cat] }
+    })
+  }
+
+  const toggleCategoryDifficulty = (cat: Category, diff: Difficulty) => {
+    if (isHostDisabled) return
+
+    const currentDiffs = settings.categoryDifficulties?.[cat] || ['facile', 'moyen', 'difficile']
+    let nextDiffs: Difficulty[]
+
+    if (currentDiffs.includes(diff)) {
+      // Don't remove if it's the only selected difficulty
+      if (currentDiffs.length === 1) return
+      nextDiffs = currentDiffs.filter(d => d !== diff)
+    } else {
+      nextDiffs = [...currentDiffs, diff]
+    }
+
+    updateGameSettings(prev => ({
+      ...prev,
+      categoryDifficulties: {
+        ...(prev.categoryDifficulties || {}),
+        [cat]: nextDiffs,
+      },
+    }))
+  }
+
+  const toggleAllCategoryDifficulties = (cat: Category) => {
+    if (isHostDisabled) return
+    const currentDiffs = settings.categoryDifficulties?.[cat] || []
+    const nextDiffs: Difficulty[] = currentDiffs.length === 3 ? ['facile'] : ['facile', 'moyen', 'difficile']
+    updateGameSettings(prev => ({
+      ...prev,
+      categoryDifficulties: {
+        ...(prev.categoryDifficulties || {}),
+        [cat]: nextDiffs,
+      },
+    }))
+  }
+
+  const setAllCategoriesDifficulty = (diff: Difficulty | 'mixte') => {
+    if (isHostDisabled) return
+    const diffList: Difficulty[] = diff === 'mixte'
+      ? ['facile', 'moyen', 'difficile']
+      : [diff]
+
+    const updatedCatDiffs: Record<string, Difficulty[]> = { ...(settings.categoryDifficulties || {}) }
+    availableCategories.forEach(cat => {
+      updatedCatDiffs[cat] = diffList
+    })
+
+    updateGameSettings(prev => ({
+      ...prev,
+      categoryDifficulties: updatedCatDiffs,
+    }))
   }
 
 
@@ -348,6 +430,12 @@ export default function Arena() {
               </div>
             </div>
 
+            {isHostDisabled && (
+              <div className="host-managed-banner fade-in">
+                🔒 Seul l'hôte de la salle peut modifier les règles de la partie.
+              </div>
+            )}
+
             {/* Tab bar */}
             <div className="settings-tabs" id="settings-tabs" role="tablist">
               {TABS.map(tab => (
@@ -376,8 +464,9 @@ export default function Arena() {
                     {(['facile', 'moyen', 'difficile'] as Difficulty[]).map(d => (
                       <button
                         key={d}
+                        disabled={isHostDisabled}
                         className={`difficulty-btn ${settings.difficulty === d ? 'difficulty-btn--active' : ''}`}
-                        onClick={() => setSettings(prev => ({ ...prev, difficulty: d }))}
+                        onClick={() => updateGameSettings({ difficulty: d })}
                         id={`difficulty-${d}`}
                       >
                         <span className="diff-emoji">
@@ -397,6 +486,7 @@ export default function Arena() {
                     {[2, 4, 6, 8, 10].map(n => (
                       <button
                         key={n}
+                        disabled={isHostDisabled}
                         className={`option-pill`}
                         id={`max-players-${n}`}
                         onClick={() => {}} /* TODO: wire to arena state */
@@ -416,27 +506,122 @@ export default function Arena() {
                   <div className="settings-label-row">
                     <h3 className="settings-label"><IconTarget /> Catégories actives</h3>
                     <span className="settings-label-count">
-                      {settings.categories.length}/{ALL_CATEGORIES.length} sélectionnées
+                      {settings.categories.length}/{availableCategories.length} sélectionnées
                     </span>
                   </div>
 
                   <div className="category-grid">
-                    {ALL_CATEGORIES.map(cat => {
+                    {availableCategories.map(cat => {
                       const isSelected = settings.categories.includes(cat)
                       return (
                         <button
                           key={cat}
                           type="button"
+                          disabled={isHostDisabled}
                           className={`category-chip ${isSelected ? 'category-chip--active' : ''}`}
                           onClick={() => toggleCategory(cat)}
                         >
-                          <span className="category-emoji">{CATEGORY_ICONS[cat]}</span>
-                          <span>{CATEGORY_LABELS[cat]}</span>
+                          <span className="category-emoji">{getCategoryIcon(cat)}</span>
+                          <span>{getCategoryLabel(cat)}</span>
                         </button>
                       )
                     })}
                   </div>
                   <p className="settings-hint">Sélectionnez au moins 1 catégorie pour générer les questions de la partie.</p>
+                </div>
+
+                {/* ── Per-Category Difficulty Section ── */}
+                <div className="settings-section" style={{ marginTop: '1.25rem' }}>
+                  <div className="settings-label-row">
+                    <h3 className="settings-label"><IconShield /> Difficulté par catégorie</h3>
+                  </div>
+
+                  {/* Quick Preset bar */}
+                  <div className="quick-diff-preset-bar">
+                    <span className="quick-diff-label">Appliquer à toutes :</span>
+                    <button
+                      type="button"
+                      disabled={isHostDisabled}
+                      className="cat-diff-pill diff--facile"
+                      onClick={() => setAllCategoriesDifficulty('facile')}
+                    >
+                      🟢 Facile
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isHostDisabled}
+                      className="cat-diff-pill diff--moyen"
+                      onClick={() => setAllCategoriesDifficulty('moyen')}
+                    >
+                      🟡 Moyen
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isHostDisabled}
+                      className="cat-diff-pill diff--difficile"
+                      onClick={() => setAllCategoriesDifficulty('difficile')}
+                    >
+                      🔴 Difficile
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isHostDisabled}
+                      className="cat-diff-pill diff--mixte"
+                      onClick={() => setAllCategoriesDifficulty('mixte')}
+                    >
+                      ✨ Mixte
+                    </button>
+                  </div>
+
+                  {/* List of active categories with their difficulty pickers */}
+                  <div className="category-diff-list">
+                    {availableCategories.filter(cat => settings.categories.includes(cat)).map(cat => {
+                      const currentDiffs = settings.categoryDifficulties?.[cat] || ['facile', 'moyen', 'difficile']
+                      const isAllSelected = currentDiffs.length === 3
+
+                      return (
+                        <div key={cat} className="category-card category-card--active fade-in">
+                          <div className="category-card-header">
+                            <div className="category-card-title-group">
+                              <span className="category-emoji">{getCategoryIcon(cat)}</span>
+                              <span className="category-card-name">{getCategoryLabel(cat)}</span>
+                            </div>
+                            <span className="category-diff-badge-count">
+                              {currentDiffs.length === 3 ? '✨ 3/3 niveaux' : `${currentDiffs.length}/3 niveau${currentDiffs.length > 1 ? 'x' : ''}`}
+                            </span>
+                          </div>
+                          <div className="category-card-diff-pills">
+                            {(['facile', 'moyen', 'difficile'] as Difficulty[]).map(d => {
+                              const isActive = currentDiffs.includes(d)
+                              const emoji = d === 'facile' ? '🟢' : d === 'moyen' ? '🟡' : '🔴'
+                              const label = d === 'facile' ? 'Facile' : d === 'moyen' ? 'Moyen' : 'Difficile'
+                              return (
+                                <button
+                                  key={d}
+                                  type="button"
+                                  disabled={isHostDisabled}
+                                  className={`cat-diff-pill ${isActive ? `cat-diff-pill--active diff--${d}` : ''}`}
+                                  onClick={() => toggleCategoryDifficulty(cat, d)}
+                                  title={`${isActive ? 'Désactiver' : 'Activer'} ${label}`}
+                                >
+                                  {emoji} {label}
+                                </button>
+                              )
+                            })}
+                            <button
+                              type="button"
+                              disabled={isHostDisabled}
+                              className={`cat-diff-pill ${isAllSelected ? 'cat-diff-pill--active diff--mixte' : ''}`}
+                              onClick={() => toggleAllCategoryDifficulties(cat)}
+                              title="Activer/Désactiver tous les niveaux"
+                            >
+                              ✨ Tous
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
               </div>
             )}
@@ -456,8 +641,9 @@ export default function Arena() {
                     </div>
                     <Toggle
                       id="toggle-infinite"
+                      disabled={isHostDisabled}
                       checked={settings.infiniteRounds}
-                      onChange={v => setSettings(prev => ({ ...prev, infiniteRounds: v }))}
+                      onChange={v => updateGameSettings({ infiniteRounds: v })}
                     />
                   </div>
 
@@ -477,8 +663,9 @@ export default function Arena() {
                       {ROUND_OPTIONS.map(n => (
                         <button
                           key={n}
+                          disabled={isHostDisabled}
                           className={`option-pill ${settings.roundCount === n ? 'option-pill--active' : ''}`}
-                          onClick={() => setSettings(prev => ({ ...prev, roundCount: n }))}
+                          onClick={() => updateGameSettings({ roundCount: n })}
                           id={`rounds-${n}`}
                         >
                           {n}
@@ -489,11 +676,12 @@ export default function Arena() {
                       <div className="slider-input-row">
                         <input
                           type="range"
+                          disabled={isHostDisabled}
                           min={1}
                           max={50}
                           step={1}
                           value={settings.roundCount}
-                          onChange={e => setSettings(prev => ({ ...prev, roundCount: Number(e.target.value) }))}
+                          onChange={e => updateGameSettings({ roundCount: Number(e.target.value) })}
                           className="settings-range-slider"
                           id="rounds-slider"
                         />
@@ -510,8 +698,9 @@ export default function Arena() {
                     {TIME_OPTIONS.map(t => (
                       <button
                         key={t}
+                        disabled={isHostDisabled}
                         className={`option-pill ${settings.timePerRound === t ? 'option-pill--active' : ''}`}
-                        onClick={() => setSettings(prev => ({ ...prev, timePerRound: t }))}
+                        onClick={() => updateGameSettings({ timePerRound: t })}
                         id={`time-${t}`}
                       >
                         <IconClock /> {t}s
@@ -522,11 +711,12 @@ export default function Arena() {
                     <div className="slider-input-row">
                       <input
                         type="range"
+                        disabled={isHostDisabled}
                         min={5}
                         max={120}
                         step={1}
                         value={settings.timePerRound}
-                        onChange={e => setSettings(prev => ({ ...prev, timePerRound: Number(e.target.value) }))}
+                        onChange={e => updateGameSettings({ timePerRound: Number(e.target.value) })}
                         className="settings-range-slider"
                         id="time-slider"
                       />
@@ -554,13 +744,14 @@ export default function Arena() {
                       <input
                         id="input-max-points"
                         type="number"
+                        disabled={isHostDisabled}
                         min={100}
                         max={99999}
                         step={50}
                         value={settings.maxPoints}
                         onChange={e => {
                           const v = Math.max(100, Math.min(99999, Number(e.target.value) || 100))
-                          setSettings(prev => ({ ...prev, maxPoints: v }))
+                          updateGameSettings({ maxPoints: v })
                         }}
                         className="pts-input"
                       />
@@ -570,8 +761,9 @@ export default function Arena() {
                       {[500, 1000, 2000, 5000].map(p => (
                         <button
                           key={p}
+                          disabled={isHostDisabled}
                           className={`pts-preset-btn ${settings.maxPoints === p ? 'pts-preset-btn--active' : ''}`}
-                          onClick={() => setSettings(prev => ({ ...prev, maxPoints: p }))}
+                          onClick={() => updateGameSettings({ maxPoints: p })}
                           id={`maxpts-${p}`}
                         >
                           {p >= 1000 ? `${p / 1000}k` : p}
@@ -583,11 +775,12 @@ export default function Arena() {
                     <div className="slider-input-row">
                       <input
                         type="range"
+                        disabled={isHostDisabled}
                         min={100}
                         max={10000}
                         step={50}
                         value={settings.maxPoints}
-                        onChange={e => setSettings(prev => ({ ...prev, maxPoints: Number(e.target.value) }))}
+                        onChange={e => updateGameSettings({ maxPoints: Number(e.target.value) })}
                         className="settings-range-slider"
                         id="maxpts-slider"
                       />
@@ -600,21 +793,21 @@ export default function Arena() {
                 <div className="settings-section">
                   <h3 className="settings-label"><IconZap /> Points par bonne réponse</h3>
                   <p className="settings-hint">
-                    Le <strong>1er joueur à trouver</strong> reçoit ce montant en entier.
-                    Les joueurs suivants reçoivent moins — proportionnellement au délai après la 1ère réponse.
+                    Le <strong>1er joueur</strong> à trouver la bonne réponse reçoit 100% des points. Les joueurs suivants perdent 10% par seconde écoulée après lui (ex: -10% dès 0.1s, -20% après 1s, etc.).
                   </p>
                   <div className="pts-input-row">
                     <div className="pts-input-group">
                       <input
                         id="input-points-per-answer"
                         type="number"
+                        disabled={isHostDisabled}
                         min={10}
                         max={10000}
                         step={10}
                         value={settings.pointsPerAnswer}
                         onChange={e => {
                           const v = Math.max(10, Math.min(10000, Number(e.target.value) || 10))
-                          setSettings(prev => ({ ...prev, pointsPerAnswer: v }))
+                          updateGameSettings({ pointsPerAnswer: v })
                         }}
                         className="pts-input"
                       />
@@ -624,8 +817,9 @@ export default function Arena() {
                       {[50, 100, 200, 500].map(p => (
                         <button
                           key={p}
+                          disabled={isHostDisabled}
                           className={`pts-preset-btn ${settings.pointsPerAnswer === p ? 'pts-preset-btn--active' : ''}`}
-                          onClick={() => setSettings(prev => ({ ...prev, pointsPerAnswer: p }))}
+                          onClick={() => updateGameSettings({ pointsPerAnswer: p })}
                           id={`ppa-${p}`}
                         >
                           {p}
@@ -637,11 +831,12 @@ export default function Arena() {
                     <div className="slider-input-row">
                       <input
                         type="range"
+                        disabled={isHostDisabled}
                         min={10}
                         max={1000}
                         step={10}
                         value={settings.pointsPerAnswer}
-                        onChange={e => setSettings(prev => ({ ...prev, pointsPerAnswer: Number(e.target.value) }))}
+                        onChange={e => updateGameSettings({ pointsPerAnswer: Number(e.target.value) })}
                         className="settings-range-slider"
                         id="ppa-slider"
                       />
@@ -650,95 +845,13 @@ export default function Arena() {
                   </div>
                 </div>
 
-                {/* ── Relative-decay preview ── */}
+                {/* ── Points preview ── */}
                 <div className="points-preview">
-                  <div className="points-preview-title">Décroissance relative à la 1ère réponse</div>
+                  <div className="points-preview-title">Système de points multijoueur</div>
                   <p className="pts-decay-desc">
-                    Dès que le 1er joueur répond, un chrono relatif démarre.
-                    Plus un joueur met du temps <em>après lui</em>, moins il gagne de points.
-                    Répondre en même temps = score identique.
+                    🥇 <strong>1er joueur</strong> : 100% ({settings.pointsPerAnswer} pts)<br />
+                    ⏱️ <strong>Joueurs suivants</strong> : -10% par seconde de retard après le 1er (ex. 0.1s = -10%, 1.2s = -20%, 2.5s = -30%).
                   </p>
-
-                  {/* Players-in-a-race visualisation */}
-                  <div className="pts-race-wrap" id="pts-race-wrap">
-
-                    {/* Header row */}
-                    <div className="pts-race-header">
-                      <span className="pts-race-header-left">
-                        <span className="pts-race-axis-label">← Même moment que le 1er</span>
-                      </span>
-                      <span className="pts-race-axis-label pts-race-axis-right">Répond plus tard →</span>
-                    </div>
-
-                    {/* Decay bar */}
-                    <div className="pts-decay-bar" style={{ marginBottom: 36 }}>
-                      <div className="pts-decay-gradient" />
-                      {[0, 0.25, 0.5, 0.75, 1].map(t => {
-                        const pts = Math.round(
-                          settings.pointsPerAnswer - (settings.pointsPerAnswer - minPointsPerAnswer) * t
-                        )
-                        const delaySec = Math.round(settings.timePerRound * t)
-                        return (
-                          <div key={t} className="pts-decay-marker" style={{ left: `${t * 100}%` }}>
-                            <div className="pts-decay-dot" />
-                            <div className="pts-decay-marker-pts">+{pts}</div>
-                            <div className="pts-decay-marker-time">
-                              {t === 0 ? '0s après' : `+${delaySec}s`}
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-
-                    <div className="pts-decay-labels">
-                      <span>Simultané au 1er joueur</span>
-                      <span>Juste avant la fin du chrono</span>
-                    </div>
-                  </div>
-
-                  {/* Breakdown table – "example race" with 4 fake players */}
-                  <div className="pts-breakdown">
-                    <div className="pts-breakdown-row pts-breakdown-row--head">
-                      <span>Joueur</span>
-                      <span>Délai après le 1er</span>
-                      <span>Points</span>
-                    </div>
-
-                    {[
-                      { label: '🥇 Joueur 1', t: 0,    badge: '1er à répondre', isFirst: true  },
-                      { label: '🥈 Joueur 2', t: 0.25, badge: null,             isFirst: false },
-                      { label: '🥉 Joueur 3', t: 0.55, badge: null,             isFirst: false },
-                      { label: '4️⃣  Joueur 4', t: 0.9,  badge: null,             isFirst: false },
-                    ].map(({ label, t, isFirst }) => {
-                      const delaySec = Math.round(settings.timePerRound * t)
-                      const pts = Math.round(
-                        settings.pointsPerAnswer - (settings.pointsPerAnswer - minPointsPerAnswer) * t
-                      )
-                      return (
-                        <div
-                          key={label}
-                          className={`pts-breakdown-row pts-breakdown-row--3col ${isFirst ? 'pts-breakdown-row--first' : ''}`}
-                        >
-                          <span className="pts-bd-time">{label}</span>
-                          <span className="pts-bd-delay">
-                            {isFirst
-                              ? <span className="pts-bd-badge">⚡ Instantané</span>
-                              : `+${delaySec}s après`}
-                          </span>
-                          <span className="pts-bd-pts">
-                            +{pts.toLocaleString('fr-FR')} pts
-                            {isFirst && <span className="pts-bd-star">★ max</span>}
-                          </span>
-                        </div>
-                      )
-                    })}
-
-                    <div className="pts-breakdown-row pts-breakdown-row--3col pts-breakdown-row--min">
-                      <span className="pts-bd-time">Minimum garanti</span>
-                      <span className="pts-bd-delay">peu importe le délai</span>
-                      <span className="pts-bd-pts">+{minPointsPerAnswer} pts</span>
-                    </div>
-                  </div>
                 </div>
               </div>
             )}
