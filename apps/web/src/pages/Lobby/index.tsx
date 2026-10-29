@@ -10,6 +10,8 @@ import { DIFFICULTY_LABELS, CATEGORY_LABELS, ALL_CATEGORIES, CATEGORY_ICONS, DEF
 import type { Difficulty } from '../../types'
 import Slider from '../../components/Slider/Slider'
 import type { SlideItem } from '../../components/Slider/Slider'
+import AudioThemeControls from '../../components/AudioThemeControls'
+import { soundManager } from '../../utils/sound'
 import './Lobby.css'
 
 /* ─── Types ─── */
@@ -188,7 +190,7 @@ function CreateArenaModal({
         </div>
 
         <form className="modal-form" onSubmit={handleSubmit}>
-          {/* Nom */}
+          {/* Arena Name */}
           <div className="modal-field">
             <label className="modal-label" htmlFor="arena-name-input">Nom de l'arène</label>
             <input
@@ -204,7 +206,7 @@ function CreateArenaModal({
             <span className="modal-input-counter">{name.length}/40</span>
           </div>
 
-          {/* Preset / Multi-select pour toutes */}
+          {/* Difficulty Presets */}
           <div className="modal-field">
             <label className="modal-label">Niveaux de difficulté par défaut</label>
             <div className="modal-diff-row">
@@ -230,7 +232,7 @@ function CreateArenaModal({
             </div>
           </div>
 
-          {/* Difficulté par catégorie */}
+          {/* Difficulty per category */}
           <div className="modal-field">
             <div className="settings-label-row">
               <label className="modal-label">Difficultés par catégorie (sélectionnez 1, 2 ou toutes)</label>
@@ -277,7 +279,7 @@ function CreateArenaModal({
             </div>
           </div>
 
-          {/* Mode de manches */}
+          {/* Round mode */}
           <div className="modal-field">
             <label className="modal-label">Mode de manches</label>
             <div className="modal-mode-switch">
@@ -300,7 +302,7 @@ function CreateArenaModal({
             </div>
           </div>
 
-          {/* Notice infini */}
+          {/* Infinite rounds notice */}
           {infiniteRounds && (
             <div className="modal-infinite-notice fade-in">
               <IconInfinity />
@@ -308,7 +310,7 @@ function CreateArenaModal({
             </div>
           )}
 
-          {/* Nombre de manches (si non infini) */}
+          {/* Round count (if not infinite) */}
           {!infiniteRounds && (
             <div className="modal-field fade-in">
               <label className="modal-label">Nombre de manches</label>
@@ -343,7 +345,7 @@ function CreateArenaModal({
             </div>
           )}
 
-          {/* Temps par question */}
+          {/* Time per round */}
           <div className="modal-field">
             <label className="modal-label">Temps par question</label>
             <div className="modal-options-pills">
@@ -692,6 +694,7 @@ export default function Lobby() {
   }
 
   const toggleFavorite = (id: string) => {
+    soundManager.playClick()
     if (!isConnected) return
     setFavorites(prev => {
       const next = new Set(prev)
@@ -712,6 +715,7 @@ export default function Lobby() {
 
       {/* ─── Navbar ─── */}
       <nav className="lobby-nav" id="lobby-nav">
+        <AudioThemeControls />
         {isConnected && authUser ? (
           <button className="btn-login" id="profile-button" onClick={() => navigate('/profile')}>
             <IconUser />
@@ -901,7 +905,7 @@ export default function Lobby() {
         <p className="lobby-footer-text">Smik Party — Projet open source</p>
       </footer>
 
-      {/* Modal de création */}
+      {/* Create Arena Modal */}
       {showCreateModal && (
         <CreateArenaModal
           onClose={() => setShowCreateModal(false)}

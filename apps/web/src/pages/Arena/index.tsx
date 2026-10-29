@@ -9,6 +9,8 @@ import {
   CATEGORY_LABELS, DIFFICULTY_LABELS, ALL_CATEGORIES, CATEGORY_ICONS, DEFAULT_CATEGORY_DIFFICULTIES
 } from '../../types'
 import type { Category, Difficulty, GameSettings } from '../../types'
+import AudioThemeControls from '../../components/AudioThemeControls'
+import { soundManager } from '../../utils/sound'
 import './Arena.css'
 
 const TIME_OPTIONS = [5, 10, 15, 20, 30, 45, 60]
@@ -176,6 +178,7 @@ export default function Arena() {
   }
 
   const startGame = useCallback(() => {
+    soundManager.playClick()
     const catDiffsStr = Object.entries(settings.categoryDifficulties)
       .filter(([cat]) => settings.categories.includes(cat as Category))
       .map(([cat, diffs]) => `${cat}:${(diffs ?? []).join('+')}`)
@@ -195,6 +198,7 @@ export default function Arena() {
   }, [settings, arenaId, navigate])
 
   const copyInviteLink = () => {
+    soundManager.playClick()
     const link = `${window.location.origin}/arena/${arenaId}`
     navigator.clipboard.writeText(link).then(() => {
       setCopied(true)
@@ -223,6 +227,7 @@ export default function Arena() {
         </div>
 
         <div className="arena-topbar-right">
+          <AudioThemeControls compact />
           <div className="arena-online-badge">
             <IconWifi />
             <span>{players.length} connecté{players.length > 1 ? 's' : ''}</span>
@@ -338,7 +343,7 @@ export default function Arena() {
               ))}
             </div>
 
-            {/* ── Tab: Général ── */}
+            {/* ── Tab: General ── */}
             {activeTab === 'general' && (
               <div className="tab-content fade-in" id="tab-content-general">
                 <div className="settings-section">
@@ -382,7 +387,7 @@ export default function Arena() {
               </div>
             )}
 
-            {/* ── Tab: Catégories ── */}
+            {/* ── Tab: Categories ── */}
             {activeTab === 'categories' && (
               <div className="tab-content fade-in" id="tab-content-categories">
                 <div className="settings-section">
@@ -480,7 +485,7 @@ export default function Arena() {
               </div>
             )}
 
-            {/* ── Tab: Chrono ── */}
+            {/* ── Tab: Timer ── */}
             {activeTab === 'timer' && (
               <div className="tab-content fade-in" id="tab-content-timer">
 

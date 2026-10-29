@@ -1,4 +1,4 @@
-import { Elysia } from 'elysia'
+﻿import { Elysia } from 'elysia'
 import { cors } from '@elysiajs/cors'
 import { questionsRoute } from './routes/questions'
 import { arenasRoute } from './routes/arenas'

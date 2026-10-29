@@ -156,7 +156,7 @@ export default function Admin() {
 
       <div className="admin-content">
 
-        {/* ── Stats DB ─────────────────────────────────────────── */}
+        {/* ── Database Stats ─────────────────────────────────── */}
         <section className="admin-card" aria-label="Statistiques base de données">
           <h2 className="admin-card-title">
             🗄️ Base de données
@@ -187,7 +187,7 @@ export default function Admin() {
           )}
         </section>
 
-        {/* ── Upload ───────────────────────────────────────────── */}
+        {/* ── File Upload Section ────────────────────────────── */}
         <section className="admin-card" aria-label="Import de fichier Excel">
           <h2 className="admin-card-title">📂 Importer un fichier</h2>
 

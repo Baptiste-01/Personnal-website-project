@@ -90,7 +90,7 @@ export default function LoginPage() {
     setRegError('')
   }, [tab])
 
-  /* ── Connexion ── */
+  /* ── Login handler ── */
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoginError('')
@@ -118,7 +118,7 @@ export default function LoginPage() {
     }
   }
 
-  /* ── Inscription ── */
+  /* ── Register handler ── */
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
     setRegError('')
@@ -187,7 +187,7 @@ export default function LoginPage() {
           </button>
         </div>
 
-        {/* ── Connexion ── */}
+        {/* ── Login Form ── */}
         {tab === 'login' && (
           <form className="login-form" onSubmit={handleLogin} id="login-form">
             <div className="login-field">
@@ -253,7 +253,7 @@ export default function LoginPage() {
           </form>
         )}
 
-        {/* ── Inscription ── */}
+        {/* ── Register Form ── */}
         {tab === 'register' && (
           <form className="login-form" onSubmit={handleRegister} id="register-form">
             <div className="login-field">

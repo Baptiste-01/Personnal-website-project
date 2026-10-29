@@ -10,12 +10,14 @@
     "dev": "concurrently \"bun run dev:api\" \"bun run dev:web\"",
     "dev:api": "cd apps/api && bun --env-file=../../.env run --hot index.ts",
     "dev:web": "cd apps/web && bun run dev",
-    "build": "bun --filter \"*\" run build",
+    "build": "cd apps/web && bun run build",
+    "db:generate": "cd packages/database && bun x prisma generate",
     "db:push": "cd packages/database && bun --env-file=../../.env run db:push",
+    "db:seed": "cd packages/database && bun --env-file=../../.env run db:seed",
     "db:studio": "cd packages/database && bun --env-file=../../.env run db:studio",
-    "docker:up": "docker-compose up -d",
-    "docker:down": "docker-compose down",
-    "docker:status": "docker-compose ps"
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:status": "docker compose ps"
   },
   "devDependencies": {
     "concurrently": "^9.2.1",

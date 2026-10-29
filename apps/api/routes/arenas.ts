@@ -1,4 +1,4 @@
-import Elysia from 'elysia'
+﻿import Elysia from 'elysia'
 import prisma from '../lib/prisma'
 
 export const arenasRoute = new Elysia({ prefix: '/arenas' })

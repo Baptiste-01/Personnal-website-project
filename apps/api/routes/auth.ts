@@ -13,13 +13,13 @@ function sessionExpiresAt(): Date {
 }
 
 function generateToken(): string {
-  // 48 bytes aléatoires → 96 chars hex
+  // 48 random bytes → 96 hex chars
   const arr = new Uint8Array(48)
   crypto.getRandomValues(arr)
   return Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('')
 }
 
-/** Valide le format d'un pseudo : 3-20 chars, lettres/chiffres/tirets/underscores */
+/** Validate username format: 3-20 chars, letters/digits/hyphens/underscores */
 function isValidUsername(username: string): boolean {
   return /^[a-zA-Z0-9_-]{3,20}$/.test(username)
 }
@@ -27,11 +27,11 @@ function isValidUsername(username: string): boolean {
 /* ─── Route ─── */
 export const authRoute = new Elysia({ prefix: '/auth' })
 
-  /* ── Inscription ──────────────────────────────── */
+  /* ── Registration ──────────────────────────────── */
   .post('/register', async ({ body, set }) => {
     const { username, password } = body as { username?: string; password?: string }
 
-    // Validation champs
+    // Field validation
     if (!username || !password) {
       set.status = 400
       return { error: 'Pseudo et mot de passe requis.' }
@@ -45,9 +45,7 @@ export const authRoute = new Elysia({ prefix: '/auth' })
       return { error: 'Le mot de passe doit faire au moins 6 caractères.' }
     }
 
-    // Vérification unicité pseudo (insensible à la casse)
-    console.log('DEBUG prisma keys:', Object.keys(prisma))
-    console.log('DEBUG prisma.user:', !!prisma.user)
+    // Check username uniqueness (case-insensitive)
     const existing = await prisma.user.findFirst({
       where: { username: { equals: username, mode: 'insensitive' } },
     })
@@ -56,7 +54,7 @@ export const authRoute = new Elysia({ prefix: '/auth' })
       return { error: 'Ce pseudo est déjà utilisé.' }
     }
 
-    // Création du compte
+    // Account creation
     const passwordHash = await bcrypt.hash(password, SALT_ROUNDS)
     const user = await prisma.user.create({
       data: {
@@ -66,7 +64,7 @@ export const authRoute = new Elysia({ prefix: '/auth' })
       },
     })
 
-    // Création de la session
+    // Session creation
     const token = generateToken()
     await prisma.session.create({
       data: {
@@ -89,7 +87,7 @@ export const authRoute = new Elysia({ prefix: '/auth' })
     }
   })
 
-  /* ── Connexion ────────────────────────────────── */
+  /* ── Login ────────────────────────────────────── */
   .post('/login', async ({ body, set }) => {
     const { username, password } = body as { username?: string; password?: string }
 
@@ -113,7 +111,7 @@ export const authRoute = new Elysia({ prefix: '/auth' })
       return { error: 'Pseudo ou mot de passe incorrect.' }
     }
 
-    // Nouvelle session
+    // New session
     const token = generateToken()
     await prisma.session.create({
       data: {
@@ -139,7 +137,7 @@ export const authRoute = new Elysia({ prefix: '/auth' })
     }
   })
 
-  /* ── Déconnexion ──────────────────────────────── */
+  /* ── Logout ───────────────────────────────────── */
   .post('/logout', async ({ headers, set }) => {
     const token = (headers['authorization'] ?? '').replace('Bearer ', '')
     if (!token) {
@@ -150,7 +148,7 @@ export const authRoute = new Elysia({ prefix: '/auth' })
     return { success: true }
   })
 
-  /* ── Moi (profil courant) ─────────────────────── */
+  /* ── Current Profile (Me) ─────────────────────── */
   .get('/me', async ({ headers, set }) => {
     const token = (headers['authorization'] ?? '').replace('Bearer ', '')
     if (!token) {

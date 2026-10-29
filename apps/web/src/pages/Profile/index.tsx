@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { IconUser, IconTrophy, IconStar, IconGamepad, IconLogOut, IconChevronLeft } from '../../components/Icons'
 import './Profile.css'
