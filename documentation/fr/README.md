@@ -37,3 +37,4 @@ Chaque commit/étape de développement fait l'objet d'une fiche normalisée (`Ob
 
 | **17** | 2026-10-29 | `Workspace` | [Tache_17_2026-10-29.md](file:///c:/Users/bapti/Desktop/Moi/Projet-Perso/Personnal-website-project/documentation/fr/Tache_17_2026-10-29.md) | Expérience Utilisateur & Design Sonore (Web Audio, Confetti, Thèmes, Podium) |
 | **18** | 2026-11-02 | `Workspace` | [Tache_18_2026-11-02.md](file:///c:/Users/bapti/Desktop/Moi/Projet-Perso/Personnal-website-project/documentation/fr/Tache_18_2026-11-02.md) | Sous-catégories par tags Excel & Responsivité mobile de l'Arène |
+| **19** | 2026-11-02 | `Workspace` | [Tache_19_2026-11-02.md](file:///c:/Users/bapti/Desktop/Moi/Projet-Perso/Personnal-website-project/documentation/fr/Tache_19_2026-11-02.md) | Suppression des faux comptes & Gestion dynamique de la limite de joueurs |

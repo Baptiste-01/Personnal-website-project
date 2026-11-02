@@ -437,6 +437,16 @@
   border: 1px solid rgba(245, 158, 11, 0.15);
 }
 
+.status-badge--full {
+  background: rgba(239, 68, 68, 0.1);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.status-badge--full .status-dot {
+  background: #f87171;
+}
+
 .status-dot {
   width: 5px;
   height: 5px;
@@ -478,6 +488,17 @@
 }
 
 .btn-join:active { transform: translateY(0); }
+
+.btn-join--disabled,
+.btn-join:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+  background: var(--color-bg-card);
+  color: var(--color-text-muted);
+  box-shadow: none;
+  border: 1px solid var(--color-border);
+}
 
 /* ─── Empty state ─── */
 .empty-state {

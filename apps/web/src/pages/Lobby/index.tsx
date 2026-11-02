@@ -105,6 +105,7 @@ interface CreateArenaSettings {
   roundCount: number
   timePerRound: number
   maxPoints: number
+  maxPlayers: number
 }
 
 /* ─── Create Arena Modal ─── */
@@ -122,6 +123,7 @@ function CreateArenaModal({
   const [roundCount, setRoundCount] = useState(10)
   const [timePerRound, setTimePerRound] = useState(20)
   const [maxPoints, setMaxPoints] = useState(1000)
+  const [maxPlayers, setMaxPlayers] = useState(8)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
@@ -172,6 +174,7 @@ function CreateArenaModal({
         roundCount,
         timePerRound,
         maxPoints,
+        maxPlayers,
       })
     } catch {
       setError('Impossible de créer l\'arène. Le serveur est-il démarré ?')
@@ -427,6 +430,58 @@ function CreateArenaModal({
             </div>
           </div>
 
+          {/* Player limit */}
+          <div className="modal-field">
+            <div className="settings-label-row">
+              <label className="modal-label">Limite de joueurs</label>
+              <span className="modal-input-counter">
+                {maxPlayers === 0 ? 'Illimité (∞)' : `${maxPlayers} joueur${maxPlayers > 1 ? 's' : ''}`}
+              </span>
+            </div>
+            <div className="modal-options-pills">
+              <button
+                type="button"
+                className={`modal-option-pill ${maxPlayers === 0 ? 'modal-option-pill--active' : ''}`}
+                onClick={() => setMaxPlayers(0)}
+                id="modal-maxplayers-0"
+              >
+                ∞ Illimité
+              </button>
+              {[2, 4, 6, 8, 10, 16, 20].map(n => (
+                <button
+                  key={n}
+                  type="button"
+                  className={`modal-option-pill ${maxPlayers === n ? 'modal-option-pill--active' : ''}`}
+                  onClick={() => setMaxPlayers(n)}
+                  id={`modal-maxplayers-${n}`}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+            {maxPlayers > 0 ? (
+              <div className="slider-control-group" style={{ marginTop: '8px' }}>
+                <div className="slider-input-row">
+                  <input
+                    type="range"
+                    min={2}
+                    max={50}
+                    step={1}
+                    value={Math.min(50, Math.max(2, maxPlayers))}
+                    onChange={e => setMaxPlayers(Number(e.target.value))}
+                    className="settings-range-slider"
+                    id="modal-maxplayers-slider"
+                  />
+                  <span className="slider-val-badge">{maxPlayers} joueur{maxPlayers > 1 ? 's' : ''}</span>
+                </div>
+              </div>
+            ) : (
+              <p className="settings-hint" style={{ marginTop: '6px' }}>
+                Aucune restriction : un nombre infini de participants peuvent rejoindre la partie.
+              </p>
+            )}
+          </div>
+
           {error && <p className="modal-error">{error}</p>}
 
           <div className="modal-actions">
@@ -470,13 +525,19 @@ function SkeletonList() {
 /* ─── Arena Card ─── */
 function ArenaCard({ arena, onJoin }: { arena: ArenaItem; onJoin: (id: string) => void }) {
   const isLive = arena.status === 'playing'
-  const statusClass = isLive ? 'status-badge--live' : 'status-badge--waiting'
-  const statusLabel = isLive ? 'En cours' : 'En attente'
+  const isFull = arena.maxPlayers > 0 && arena.players >= arena.maxPlayers
+  const statusClass = isLive ? 'status-badge--live' : isFull ? 'status-badge--full' : 'status-badge--waiting'
+  const statusLabel = isLive ? 'En cours' : isFull ? 'Complet' : 'En attente'
   const isInfinite = arena.infiniteRounds || arena.roundCount === 0
   const roundsDisplay = isInfinite ? '∞ manches' : `${arena.roundCount ?? 10} manches`
 
   return (
-    <div className="arena-card" id={`arena-${arena.id}`} onClick={() => onJoin(arena.id)}>
+    <div
+      className={`arena-card ${isFull ? 'arena-card--full' : ''}`}
+      id={`arena-${arena.id}`}
+      onClick={() => { if (!isFull) onJoin(arena.id) }}
+      style={{ cursor: isFull ? 'not-allowed' : 'pointer' }}
+    >
       <div className="arena-card-left">
         <div className="arena-card-top">
           <span className="arena-name">{arena.name}</span>
@@ -503,13 +564,20 @@ function ArenaCard({ arena, onJoin }: { arena: ArenaItem; onJoin: (id: string) =
       <div className="arena-actions">
         <span className="player-count">
           <IconUser />
-          {arena.players}/{arena.maxPlayers}
+          {arena.players}/{arena.maxPlayers === 0 ? '∞' : arena.maxPlayers}
         </span>
         <span className={`status-badge ${statusClass}`}>
           <span className="status-dot" />
           {statusLabel}
         </span>
-        <button className="btn-join" id={`join-${arena.id}`}>Rejoindre</button>
+        <button
+          className={`btn-join ${isFull ? 'btn-join--disabled' : ''}`}
+          id={`join-${arena.id}`}
+          disabled={isFull}
+          title={isFull ? 'Cette arène est complète' : 'Rejoindre'}
+        >
+          {isFull ? 'Complet' : 'Rejoindre'}
+        </button>
       </div>
     </div>
   )
@@ -675,6 +743,7 @@ export default function Lobby() {
         roundCount: settings.roundCount,
         timePerRound: settings.timePerRound,
         maxPoints: settings.maxPoints,
+        maxPlayers: settings.maxPlayers,
         tags: settings.tags ?? [],
       }),
     })
@@ -690,6 +759,7 @@ export default function Lobby() {
       time: String(settings.timePerRound),
       maxPoints: String(settings.maxPoints),
       infiniteRounds: String(settings.infiniteRounds),
+      maxPlayers: String(settings.maxPlayers),
       catDiffs: catDiffsStr,
       ...(settings.tags && settings.tags.length > 0 ? { tags: settings.tags.join(',') } : {}),
     })

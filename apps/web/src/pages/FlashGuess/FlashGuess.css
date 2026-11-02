@@ -253,6 +253,14 @@
   padding: 0 10px;
 }
 
+.fg-podium--solo {
+  justify-content: center;
+}
+
+.fg-podium--solo .fg-podium-step {
+  max-width: 180px;
+}
+
 .fg-podium-step {
   flex: 1;
   display: flex;

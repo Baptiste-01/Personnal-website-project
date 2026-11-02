@@ -36,6 +36,7 @@ Each commit/task is documented following a standardized format (`Objective`, `Ac
 | **16** | 2026-09-01 | `9878d54` | [Task_16_2026-09-01.md](file:///c:/Users/bapti/Desktop/Moi/Projet-Perso/Personnal-website-project/documentation/en/Task_16_2026-09-01.md) | Question image & media support |
 | **17** | 2026-10-29 | `Workspace` | [Task_17_2026-10-29.md](file:///c:/Users/bapti/Desktop/Moi/Projet-Perso/Personnal-website-project/documentation/en/Task_17_2026-10-29.md) | User experience & sound design (Web Audio, Confetti, Themes, Podium) |
 | **18** | 2026-11-02 | `Workspace` | [Task_18_2026-11-02.md](file:///c:/Users/bapti/Desktop/Moi/Projet-Perso/Personnal-website-project/documentation/en/Task_18_2026-11-02.md) | Excel Subcategory Tags & Mobile Responsive Arena |
+| **19** | 2026-11-02 | `Workspace` | [Task_19_2026-11-02.md](file:///c:/Users/bapti/Desktop/Moi/Projet-Perso/Personnal-website-project/documentation/en/Task_19_2026-11-02.md) | Removal of Fake Accounts & Dynamic Player Limit Management |
 
 ---
 

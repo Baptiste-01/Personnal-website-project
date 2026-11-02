@@ -16,7 +16,7 @@ import './Arena.css'
 const TIME_OPTIONS = [5, 10, 15, 20, 30, 45, 60]
 const ROUND_OPTIONS = [5, 10, 15, 20, 30]
 
-/* ─── Mock players (replace with WebSocket state) ─── */
+/* ─── Real Player Entry ─── */
 interface PlayerEntry {
   id: string
   name: string
@@ -25,11 +25,17 @@ interface PlayerEntry {
   score: number
 }
 
-const MOCK_PLAYERS: PlayerEntry[] = [
-  { id: 'p1', name: 'Vous', isHost: true, isReady: true, score: 0 },
-  { id: 'p2', name: 'Alex_Pro', isHost: false, isReady: true, score: 0 },
-  { id: 'p3', name: 'Marie42', isHost: false, isReady: false, score: 0 },
-]
+function getInitialUser(): PlayerEntry[] {
+  try {
+    const raw = localStorage.getItem('auth_user')
+    if (raw) {
+      const u = JSON.parse(raw)
+      const name = u.displayName || u.username || 'Vous'
+      return [{ id: u.id || 'p1', name, isHost: true, isReady: true, score: 0 }]
+    }
+  } catch {}
+  return [{ id: 'p1', name: 'Vous', isHost: true, isReady: true, score: 0 }]
+}
 
 /* ─── Settings Tabs ─── */
 type SettingTab = 'general' | 'categories' | 'timer' | 'points'
@@ -92,7 +98,15 @@ export default function Arena() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const [arenaName, setArenaName] = useState('Chargement...')
-  const players = MOCK_PLAYERS
+  const [players] = useState<PlayerEntry[]>(getInitialUser)
+  const [maxPlayers, setMaxPlayers] = useState<number>(() => {
+    const p = searchParams.get('maxPlayers')
+    if (p !== null) {
+      const parsed = Number(p)
+      if (!Number.isNaN(parsed)) return parsed
+    }
+    return 8
+  })
   const [activeTab, setActiveTab] = useState<SettingTab>('general')
   const [copied, setCopied] = useState(false)
 
@@ -235,9 +249,29 @@ const minPointsPerAnswer = Math.max(1, Math.round(settings.pointsPerAnswer * 0.1
 useEffect(() => {
   fetch(`http://localhost:3000/arenas/${arenaId}`)
     .then(r => r.ok ? r.json() : null)
-    .then(data => { if (data) setArenaName(data.name) })
+    .then(data => {
+      if (data) {
+        if (data.name) setArenaName(data.name)
+        if (typeof data.maxPlayers === 'number') {
+          setMaxPlayers(data.maxPlayers)
+        }
+      }
+    })
     .catch(() => setArenaName('Mon Arène'))
 }, [arenaId])
+
+const handleMaxPlayersChange = (val: number) => {
+  soundManager.playClick()
+  const cleanVal = Math.max(0, val)
+  setMaxPlayers(cleanVal)
+  if (arenaId) {
+    fetch(`http://localhost:3000/arenas/${arenaId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ maxPlayers: cleanVal }),
+    }).catch(() => {})
+  }
+}
 
 const toggleCategory = (cat: Category) => {
   setSettings(prev => {
@@ -298,11 +332,12 @@ const startGame = useCallback(() => {
     maxPoints: String(settings.maxPoints),
     infiniteRounds: String(settings.infiniteRounds),
     pointsPerAnswer: String(settings.pointsPerAnswer),
+    maxPlayers: String(maxPlayers),
     catDiffs: catDiffsStr,
     ...(catTagsStr ? { catTags: catTagsStr } : {}),
   })
   navigate(`/play/${arenaId}?${params.toString()}`)
-}, [settings, arenaId, navigate])
+}, [settings, arenaId, navigate, maxPlayers])
 
 const copyInviteLink = () => {
   soundManager.playClick()
@@ -371,7 +406,7 @@ return (
           <div className="sidebar-count-badge">
             <span className="sidebar-count-num">{players.length}</span>
             <span className="sidebar-count-sep">/</span>
-            <span className="sidebar-count-max">8</span>
+            <span className="sidebar-count-max">{maxPlayers === 0 ? '∞' : maxPlayers}</span>
           </div>
         </div>
 
@@ -380,7 +415,7 @@ return (
           <div className="ready-progress-bar">
             <div
               className="ready-progress-fill"
-              style={{ width: `${(readyCount / players.length) * 100}%` }}
+              style={{ width: `${players.length > 0 ? (readyCount / players.length) * 100 : 0}%` }}
             />
           </div>
           <span className="ready-progress-label">
@@ -393,12 +428,26 @@ return (
             <PlayerCard key={p.id} player={p} index={i} />
           ))}
           {/* Empty slots */}
-          {Array.from({ length: Math.max(0, 3 - players.length) }).map((_, i) => (
-            <div key={`slot-${i}`} className="ap-slot">
+          {maxPlayers === 0 ? (
+            <div className="ap-slot">
               <div className="ap-slot-icon"><IconUser /></div>
-              <span className="ap-slot-label">En attente...</span>
+              <span className="ap-slot-label">En attente d'autres joueurs...</span>
             </div>
-          ))}
+          ) : (
+            <>
+              {Array.from({ length: Math.min(3, Math.max(0, maxPlayers - players.length)) }).map((_, i) => (
+                <div key={`slot-${i}`} className="ap-slot">
+                  <div className="ap-slot-icon"><IconUser /></div>
+                  <span className="ap-slot-label">En attente...</span>
+                </div>
+              ))}
+              {maxPlayers - players.length > 3 && (
+                <div className="ap-slot ap-slot--more">
+                  <span className="ap-slot-label">+{maxPlayers - players.length - 3} places restantes</span>
+                </div>
+              )}
+            </>
+          )}
         </div>
 
         {/* Invite section */}
@@ -439,6 +488,10 @@ return (
               <div className="summary-chip summary-chip--pts">
                 <IconTrophy />
                 {settings.maxPoints} pts max
+              </div>
+              <div className="summary-chip summary-chip--players">
+                <IconUsers />
+                {maxPlayers === 0 ? 'Illimité' : `${maxPlayers} joueurs max`}
               </div>
             </div>
           </div>
@@ -485,21 +538,62 @@ return (
               </div>
 
               <div className="settings-section">
-                <h3 className="settings-label">
-                  <IconUsers /> Joueurs max
-                </h3>
-                <div className="option-pills">
-                  {[2, 4, 6, 8, 10].map(n => (
+                <div className="settings-label-row">
+                  <h3 className="settings-label">
+                    <IconUsers /> Joueurs max
+                  </h3>
+                  <span className="settings-label-count">
+                    {maxPlayers === 0 ? 'Aucune limite (∞)' : `${maxPlayers} joueur${maxPlayers > 1 ? 's' : ''}`}
+                  </span>
+                </div>
+
+                <div className="option-pills option-pills--wrap">
+                  <button
+                    type="button"
+                    className={`option-pill ${maxPlayers === 0 ? 'option-pill--active' : ''}`}
+                    id="max-players-unlimited"
+                    onClick={() => handleMaxPlayersChange(0)}
+                  >
+                    <IconInfinity />
+                    <span>Illimité</span>
+                  </button>
+                  {[2, 4, 6, 8, 10, 16, 20].map(n => (
                     <button
                       key={n}
-                      className={`option-pill`}
+                      type="button"
+                      className={`option-pill ${maxPlayers === n ? 'option-pill--active' : ''}`}
                       id={`max-players-${n}`}
-                      onClick={() => { }} /* TODO: wire to arena state */
+                      onClick={() => handleMaxPlayersChange(n)}
                     >
                       {n}
                     </button>
                   ))}
                 </div>
+
+                {maxPlayers > 0 ? (
+                  <div className="slider-control-group fade-in" style={{ marginTop: '12px' }}>
+                    <div className="slider-input-row">
+                      <input
+                        type="range"
+                        min={2}
+                        max={50}
+                        step={1}
+                        value={Math.min(50, Math.max(2, maxPlayers))}
+                        onChange={e => handleMaxPlayersChange(Number(e.target.value))}
+                        className="settings-range-slider"
+                        id="max-players-slider"
+                      />
+                      <span className="slider-val-badge">
+                        {maxPlayers} joueur{maxPlayers > 1 ? 's' : ''} max
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="infinite-info-banner fade-in" style={{ marginTop: '12px' }}>
+                    <IconInfinity />
+                    <span>Aucune limite de participants : tous les joueurs peuvent rejoindre librement l'arène.</span>
+                  </div>
+                )}
               </div>
             </div>
           )}

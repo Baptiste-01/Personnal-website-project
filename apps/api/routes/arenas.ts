@@ -31,7 +31,7 @@ export const arenasRoute = new Elysia({ prefix: '/arenas' })
     const created = await prisma.arena.create({
       data: {
         name: data.name,
-        maxPlayers: data.maxPlayers ?? 20,
+        maxPlayers: typeof data.maxPlayers === 'number' ? data.maxPlayers : 0,
         gameMode: data.gameMode ?? 'flashguess',
         difficulty: data.difficulty ?? 'facile',
         categories: data.categories ?? ['geographie', 'histoire', 'sciences'],

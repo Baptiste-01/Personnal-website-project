@@ -130,6 +130,7 @@ export interface GameSettings {
   maxPoints: number
   infiniteRounds: boolean
   pointsPerAnswer: number   // points for the 1st (fastest) correct answer
+  maxPlayers?: number
 }
 
 export interface Arena {

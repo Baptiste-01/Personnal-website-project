@@ -37,6 +37,17 @@ export default function FlashGuess() {
   const catTagsParam = searchParams.get('catTags')
   const tagsParam = searchParams.get('tags')
 
+  const playerName = (() => {
+    try {
+      const raw = localStorage.getItem('auth_user')
+      if (raw) {
+        const u = JSON.parse(raw)
+        return u.displayName || u.username || 'Vous'
+      }
+    } catch {}
+    return 'Vous'
+  })()
+
   const [questions, setQuestions] = useState<Question[]>([])
   const [phase, setPhase] = useState<Phase>('loading')
   const [round, setRound] = useState(0)
@@ -349,20 +360,8 @@ export default function FlashGuess() {
               </h2>
               <p className="fg-results-score">Score final : <strong>{score} points</strong></p>
 
-              {/* Dynamic Podium */}
-              <div className="fg-podium">
-                {/* 2nd Place */}
-                <div className="fg-podium-step fg-podium-step--2">
-                  <div className="fg-podium-player">
-                    <div className="fg-podium-avatar">
-                      <IconUser />
-                    </div>
-                    <span className="fg-podium-name">Alex_Pro</span>
-                    <span className="fg-podium-score">{Math.max(200, Math.round(score * 0.75))} pts</span>
-                  </div>
-                  <div className="fg-podium-block">2</div>
-                </div>
-
+              {/* Dynamic Podium (Solo or Real Players) */}
+              <div className="fg-podium fg-podium--solo">
                 {/* 1st Place */}
                 <div className="fg-podium-step fg-podium-step--1">
                   <div className="fg-podium-player">
@@ -370,22 +369,10 @@ export default function FlashGuess() {
                       <span className="fg-podium-crown">👑</span>
                       <IconUser />
                     </div>
-                    <span className="fg-podium-name">Vous</span>
+                    <span className="fg-podium-name">{playerName}</span>
                     <span className="fg-podium-score" style={{ color: '#facc15' }}>{score} pts</span>
                   </div>
                   <div className="fg-podium-block">1</div>
-                </div>
-
-                {/* 3rd Place */}
-                <div className="fg-podium-step fg-podium-step--3">
-                  <div className="fg-podium-player">
-                    <div className="fg-podium-avatar">
-                      <IconUser />
-                    </div>
-                    <span className="fg-podium-name">Marie42</span>
-                    <span className="fg-podium-score">{Math.max(100, Math.round(score * 0.5))} pts</span>
-                  </div>
-                  <div className="fg-podium-block">3</div>
                 </div>
               </div>
 
