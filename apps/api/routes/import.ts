@@ -88,6 +88,7 @@ export const importRoute = new Elysia({ prefix: '/admin' })
       for (const sheetName of workbook.SheetNames) {
         const category = sheetName.toLowerCase().trim()
         const sheet = workbook.Sheets[sheetName]
+        if (!sheet) continue
         const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet)
 
         const result: ImportResult = {
@@ -101,7 +102,9 @@ export const importRoute = new Elysia({ prefix: '/admin' })
         const sheetTagsSet = new Set<string>()
 
         for (let i = 0; i < rows.length; i++) {
-          const raw = normaliseRow(rows[i])
+          const rowData = rows[i]
+          if (!rowData) continue
+          const raw = normaliseRow(rowData)
           const rowNum = i + 2 // +2 because row 1 = headers
 
           const questionText = raw.question?.trim()
@@ -129,14 +132,54 @@ export const importRoute = new Elysia({ prefix: '/admin' })
           }
 
           try {
-            const existing = await prisma.question.findFirst({
-              where: { text: questionText },
-            })
+            let existing = null
+
+            if (imageUrl) {
+              // 1. Match par catégorie et URL d'image identique
+              existing = await prisma.question.findFirst({
+                where: {
+                  category: { equals: category, mode: 'insensitive' },
+                  imageUrl,
+                },
+              })
+
+              // 2. Si non trouvée par URL (ex: changement d'URL), match par catégorie + question + réponse
+              if (!existing) {
+                existing = await prisma.question.findFirst({
+                  where: {
+                    category: { equals: category, mode: 'insensitive' },
+                    text: { equals: questionText, mode: 'insensitive' },
+                    answer: { equals: answer, mode: 'insensitive' },
+                  },
+                })
+              }
+            } else {
+              // 3. Question textuelle sans image : match par catégorie + texte (sur questions sans image)
+              existing = await prisma.question.findFirst({
+                where: {
+                  category: { equals: category, mode: 'insensitive' },
+                  text: { equals: questionText, mode: 'insensitive' },
+                  OR: [{ imageUrl: null }, { imageUrl: '' }],
+                },
+              })
+
+              // Fallback si l'image a été retirée : match par catégorie + texte + réponse
+              if (!existing) {
+                existing = await prisma.question.findFirst({
+                  where: {
+                    category: { equals: category, mode: 'insensitive' },
+                    text: { equals: questionText, mode: 'insensitive' },
+                    answer: { equals: answer, mode: 'insensitive' },
+                  },
+                })
+              }
+            }
 
             if (existing) {
               await prisma.question.update({
                 where: { id: existing.id },
                 data: {
+                  text: questionText,
                   answer,
                   acceptedAnswers,
                   hint,
