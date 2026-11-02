@@ -2,27 +2,50 @@
 
 export type Difficulty = 'facile' | 'moyen' | 'difficile' | 'easy' | 'normal' | 'hard'
 
-export type Category =
-  | 'geographie'
-  | 'histoire'
-  | 'sciences'
-  | 'cinema'
-  | 'musique'
-  | 'sport'
-  | 'litterature'
-  | 'gastronomie'
+export type Category = string
 
-export const ALL_CATEGORIES: Category[] = [
-  'geographie', 'histoire', 'sciences', 'cinema',
-  'musique', 'sport', 'litterature', 'gastronomie',
-]
-
-export const CATEGORY_ICONS: Record<Category, string> = {
-  geographie: '🌍', histoire: '📜', sciences: '🔬', cinema: '🎬',
-  musique: '🎵', sport: '⚽', litterature: '📚', gastronomie: '🍽️',
+export interface CategoryTag {
+  name: string
+  count: number
 }
 
-export const CATEGORY_LABELS: Record<Category, string> = {
+export interface CategoryInfo {
+  id: string
+  name: string
+  icon: string
+  count: number
+  tags: CategoryTag[]
+}
+
+export const ALL_CATEGORIES: string[] = [
+  'mythologie', 'capitale', 'geographie', 'histoire', 'sciences', 'cinema',
+  'musique', 'sport', 'litterature', 'gastronomie', 'drapeau',
+]
+
+export const CATEGORY_ICONS: Record<string, string> = {
+  mythologie: '🏛️',
+  capitale: '🌍',
+  capitales: '🌍',
+  drapeau: '🚩',
+  drapeaux: '🚩',
+  geographie: '🗺️',
+  histoire: '📜',
+  sciences: '🔬',
+  cinema: '🎬',
+  musique: '🎵',
+  sport: '⚽',
+  litterature: '📚',
+  gastronomie: '🍽️',
+  warframe: '⚔️',
+  'anime & manga': '🎌',
+}
+
+export const CATEGORY_LABELS: Record<string, string> = {
+  mythologie: 'Mythologie & Légendes',
+  capitale: 'Capitales',
+  capitales: 'Capitales',
+  drapeau: 'Drapeaux',
+  drapeaux: 'Drapeaux',
   geographie: 'Géographie',
   histoire: 'Histoire',
   sciences: 'Sciences',
@@ -31,6 +54,8 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   sport: 'Sport',
   litterature: 'Littérature',
   gastronomie: 'Gastronomie',
+  warframe: 'Warframe',
+  'anime & manga': 'Anime & Manga',
 }
 
 export const DIFFICULTY_LABELS: Record<Difficulty, string> = {
@@ -81,6 +106,7 @@ export interface Question {
   imageUrl?: string | null
   category: Category
   difficulty: Difficulty
+  tags?: string[]
 }
 
 export interface Player {
@@ -97,6 +123,8 @@ export interface GameSettings {
   difficulty: Difficulty
   difficulties?: Difficulty[]
   categoryDifficulties: Record<string, Difficulty[]>
+  categoryTags: Record<string, string[]> // category id -> selected tag names (empty = all questions)
+  tags?: string[]
   roundCount: number
   timePerRound: number
   maxPoints: number
@@ -115,6 +143,8 @@ export interface Arena {
   difficulties?: Difficulty[]
   categories: Category[]
   categoryDifficulties?: Record<string, Difficulty[]>
+  categoryTags?: Record<string, string[]>
+  tags?: string[]
   roundCount?: number
   timePerRound?: number
   maxPoints?: number
@@ -124,6 +154,8 @@ export interface Arena {
 export const ALL_DIFFICULTIES: Difficulty[] = ['facile', 'moyen', 'difficile']
 
 export const DEFAULT_CATEGORY_DIFFICULTIES: Record<string, Difficulty[]> = {
+  mythologie: ['facile', 'moyen', 'difficile'],
+  capitale: ['facile', 'moyen', 'difficile'],
   geographie: ['facile', 'moyen', 'difficile'],
   histoire: ['facile', 'moyen', 'difficile'],
   sciences: ['facile', 'moyen', 'difficile'],
@@ -135,10 +167,12 @@ export const DEFAULT_CATEGORY_DIFFICULTIES: Record<string, Difficulty[]> = {
 }
 
 export const DEFAULT_GAME_SETTINGS: GameSettings = {
-  categories: ['geographie', 'histoire', 'sciences', 'cinema', 'musique'],
+  categories: ['mythologie', 'capitale', 'geographie', 'histoire', 'sciences'],
   difficulty: 'facile',
   difficulties: ['facile', 'moyen', 'difficile'],
   categoryDifficulties: DEFAULT_CATEGORY_DIFFICULTIES,
+  categoryTags: {},
+  tags: [],
   roundCount: 10,
   timePerRound: 20,
   maxPoints: 1000,

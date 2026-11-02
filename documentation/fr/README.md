@@ -35,4 +35,5 @@ Chaque commit/étape de développement fait l'objet d'une fiche normalisée (`Ob
 | **15** | 2026-09-01 | `d5318dc` | [Tache_15_2026-09-01.md](file:///c:/Users/bapti/Desktop/Moi/Projet-Perso/Personnal-website-project/documentation/Tache_15_2026-09-01.md) | Système de niveaux de difficulté par catégorie |
 | **16** | 2026-09-01 | `9878d54` | [Tache_16_2026-09-01.md](file:///c:/Users/bapti/Desktop/Moi/Projet-Perso/Personnal-website-project/documentation/Tache_16_2026-09-01.md) | Support des images et illustrations dans les questions |
 
-| **17** | 2026-10-29 | `Workspace` | [Tache_17_2026-10-29.md](file:///c:/Users/bapti/Desktop/Moi/Projet-Perso/Personnal-website-project/documentation/Tache_17_2026-10-29.md) | Expérience Utilisateur & Design Sonore (Web Audio, Confetti, Thèmes, Podium) |
+| **17** | 2026-10-29 | `Workspace` | [Tache_17_2026-10-29.md](file:///c:/Users/bapti/Desktop/Moi/Projet-Perso/Personnal-website-project/documentation/fr/Tache_17_2026-10-29.md) | Expérience Utilisateur & Design Sonore (Web Audio, Confetti, Thèmes, Podium) |
+| **18** | 2026-11-02 | `Workspace` | [Tache_18_2026-11-02.md](file:///c:/Users/bapti/Desktop/Moi/Projet-Perso/Personnal-website-project/documentation/fr/Tache_18_2026-11-02.md) | Sous-catégories par tags Excel & Responsivité mobile de l'Arène |

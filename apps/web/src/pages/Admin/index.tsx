@@ -33,6 +33,7 @@ interface StatBreakdown {
 interface StatsResponse {
   total: number
   breakdown: StatBreakdown[]
+  topTags?: { tag: string; count: number }[]
 }
 
 /* ─── Category emoji map ─────────────────────────────────────── */
@@ -183,6 +184,34 @@ export default function Admin() {
                   </span>
                 </div>
               ))}
+            </div>
+          )}
+
+          {stats?.topTags && stats.topTags.length > 0 && (
+            <div style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px solid var(--color-border)' }}>
+              <p style={{ fontSize: '0.8125rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem', fontWeight: 600 }}>
+                🏷️ Tags disponibles ({stats.topTags.length}) :
+              </p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                {stats.topTags.map(({ tag, count }) => (
+                  <span
+                    key={tag}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      padding: '3px 9px',
+                      borderRadius: '999px',
+                      fontSize: '11px',
+                      background: 'rgba(124, 58, 237, 0.15)',
+                      border: '1px solid rgba(139, 92, 246, 0.3)',
+                      color: '#c4b5fd',
+                    }}
+                  >
+                    #{tag} <span style={{ opacity: 0.7 }}>({count})</span>
+                  </span>
+                ))}
+              </div>
             </div>
           )}
         </section>
@@ -352,6 +381,11 @@ export default function Admin() {
                 <tr>
                   <td><strong>image_url</strong> (ou image)</td>
                   <td>https://... (URL de la photo/illustration de la question)</td>
+                  <td><span className="optional">Optionnel</span></td>
+                </tr>
+                <tr>
+                  <td><strong>tags</strong> (ou tag)</td>
+                  <td>Grec, Mythologie (séparés par des virgules)</td>
                   <td><span className="optional">Optionnel</span></td>
                 </tr>
               </tbody>

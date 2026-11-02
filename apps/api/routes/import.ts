@@ -1,4 +1,4 @@
-﻿import Elysia from 'elysia'
+import Elysia from 'elysia'
 import * as XLSX from 'xlsx'
 import prisma from '../lib/prisma'
 
@@ -13,6 +13,7 @@ interface ExcelRow {
   difficulté?: string
   difficulte?: string
   imageUrl?: string
+  tags?: string
 }
 
 interface ImportResult {
@@ -35,6 +36,7 @@ function normaliseRow(raw: Record<string, unknown>): ExcelRow {
     else if (k === 'indice') row.indice = v
     else if (k === 'difficulté' || k === 'difficulte') row.difficulté = v
     else if (k === 'image' || k === 'image_url' || k === 'imageurl' || k === 'image url' || k === 'photo' || k === 'illustration' || k === 'image_link') row.imageUrl = v
+    else if (k === 'tags' || k === 'tag') row.tags = v
   }
   return row
 }
@@ -96,6 +98,8 @@ export const importRoute = new Elysia({ prefix: '/admin' })
           errors: [],
         }
 
+        const sheetTagsSet = new Set<string>()
+
         for (let i = 0; i < rows.length; i++) {
           const raw = normaliseRow(rows[i])
           const rowNum = i + 2 // +2 because row 1 = headers
@@ -116,6 +120,13 @@ export const importRoute = new Elysia({ prefix: '/admin' })
           const difficulty = validateDifficulty(raw.difficulté)
           const hint = raw.indice ?? null
           const imageUrl = raw.imageUrl?.trim() || null
+          const tags = raw.tags
+            ? raw.tags.split(/[,;]/).map(s => s.trim()).filter(Boolean)
+            : []
+
+          for (const t of tags) {
+            sheetTagsSet.add(t)
+          }
 
           try {
             const existing = await prisma.question.findFirst({
@@ -125,13 +136,21 @@ export const importRoute = new Elysia({ prefix: '/admin' })
             if (existing) {
               await prisma.question.update({
                 where: { id: existing.id },
-                data: { answer, acceptedAnswers, hint, category, difficulty, imageUrl },
+                data: {
+                  answer,
+                  acceptedAnswers,
+                  hint,
+                  category,
+                  difficulty,
+                  imageUrl,
+                  ...(tags.length > 0 ? { tags } : {}),
+                },
               })
               result.updated++
               totalUpdated++
             } else {
               await prisma.question.create({
-                data: { text: questionText, answer, acceptedAnswers, hint, category, difficulty, imageUrl },
+                data: { text: questionText, answer, acceptedAnswers, hint, category, difficulty, imageUrl, tags },
               })
               result.inserted++
               totalInserted++
@@ -140,6 +159,33 @@ export const importRoute = new Elysia({ prefix: '/admin' })
             result.errors.push(`Ligne ${rowNum}: erreur DB — ${String(err)}`)
             result.skipped++
             totalSkipped++
+          }
+        }
+
+        // Register or sync category & tags
+        if (result.inserted > 0 || result.updated > 0) {
+          try {
+            const slug = category.replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || category
+            const existingCat = await prisma.category.findUnique({ where: { slug } })
+            const sheetTags = Array.from(sheetTagsSet)
+            if (existingCat) {
+              await prisma.category.update({
+                where: { slug },
+                data: {
+                  tags: Array.from(new Set([...existingCat.tags, ...sheetTags])),
+                },
+              })
+            } else {
+              await prisma.category.create({
+                data: {
+                  slug,
+                  name: sheetName.trim(),
+                  tags: sheetTags,
+                },
+              })
+            }
+          } catch (e) {
+            console.error('Failed to sync Category from import:', e)
           }
         }
 
@@ -165,6 +211,8 @@ export const importRoute = new Elysia({ prefix: '/admin' })
   /** GET /admin/template — download the Excel template */
   .get('/template', () => {
     const CATEGORIES = [
+      'Mythologie & Légendes',
+      'Capitale',
       'geographie',
       'histoire',
       'sciences',
@@ -175,24 +223,38 @@ export const importRoute = new Elysia({ prefix: '/admin' })
       'gastronomie',
     ]
 
-    const HEADERS = ['question', 'réponse', 'réponses_acceptées', 'indice', 'difficulté', 'image_url']
+    const HEADERS = ['question', 'réponse', 'réponses_acceptées', 'indice', 'difficulté', 'image_url', 'tags']
 
     const EXAMPLES: Record<string, string[][]> = {
+      'Mythologie & Légendes': [
+        ["Dans la mythologie grecque, qui est le roi des dieux et le maître de la foudre ?", 'Zeus', 'zeus', 'Réside sur l\'Olympe', 'easy', '', 'Grec'],
+        ["Dans la mythologie grecque, qui est la déesse de la sagesse et de la stratégie militaire ?", 'Athéna', 'athena,athéna', 'Fille de Zeus', 'easy', '', 'Grec'],
+        ["Dans la mythologie romaine, qui est le souverain des dieux, équivalent de Zeus ?", 'Jupiter', 'jupiter', 'Dieu du ciel et de la foudre', 'easy', '', 'Romain'],
+        ["Dans la mythologie romaine, qui est le dieu de la guerre ?", 'Mars', 'mars', 'Père de Romulus et Rémus', 'easy', '', 'Romain'],
+        ["Dans la mythologie nordique, quel dieu brandit le redoutable marteau Mjöllnir ?", 'Thor', 'thor', 'Dieu du tonnerre', 'easy', '', 'Nordique'],
+        ["Dans la mythologie égyptienne, qui est le dieu du Soleil créateur de l'univers ?", 'Râ', 'ra,râ', 'Barque solaire', 'easy', '', 'Égyptien'],
+      ],
+      Capitale: [
+        ["Quelle est la capitale de la France ?", 'Paris', 'paris', 'Ville lumière', 'easy', '', 'Europe'],
+        ["Quelle est la capitale de l'Allemagne ?", 'Berlin', 'berlin', 'Porte de Brandebourg', 'easy', '', 'Europe'],
+        ["Quelle est la capitale du Japon ?", 'Tokyo', 'tokyo', 'Île de Honshu', 'easy', '', 'Asie'],
+        ["Quelle est la capitale du Sénégal ?", 'Dakar', 'dakar', 'Pointe des Almadies', 'easy', '', 'Afrique'],
+      ],
       geographie: [
-        ['Quelle est la capitale de la France ?', 'Paris', 'paris,Paris', 'Ville lumière', 'easy', ''],
-        ['Quel est ce célèbre monument de Paris ?', 'Tour Eiffel', 'tour eiffel,eiffel', 'Construite en 1889', 'easy', 'https://images.unsplash.com/photo-1511739001486-6bfe10ce785f?w=600&auto=format&fit=crop'],
-        ["Quel est le plus petit pays du monde ?", 'Vatican', 'vatican,le vatican', 'Enclave dans Rome', 'normal', ''],
-        ["Quelle est la capitale de la Mongolie ?", 'Oulan-Bator', 'oulan-bator,ulaanbaatar', 'Asie centrale', 'hard', ''],
+        ['Quelle est la capitale de la France ?', 'Paris', 'paris,Paris', 'Ville lumière', 'easy', '', 'France,Capitale'],
+        ['Quel est ce célèbre monument de Paris ?', 'Tour Eiffel', 'tour eiffel,eiffel', 'Construite en 1889', 'easy', 'https://images.unsplash.com/photo-1511739001486-6bfe10ce785f?w=600&auto=format&fit=crop', 'France,Monument'],
+        ["Quel est le plus petit pays du monde ?", 'Vatican', 'vatican,le vatican', 'Enclave dans Rome', 'normal', '', 'Europe,Vatican'],
+        ["Quelle est la capitale de la Mongolie ?", 'Oulan-Bator', 'oulan-bator,ulaanbaatar', 'Asie centrale', 'hard', '', 'Asie,Capitale'],
       ],
       histoire: [
-        ["Qui a peint ce célèbre chef-d'œuvre ?", 'Leonard de Vinci', 'leonard de vinci,da vinci,vinci', 'Exposé au Louvre', 'easy', 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec/Mona_Lisa_%28Leonardo_da_Vinci%29.jpg/300px-Mona_Lisa_%28Leonardo_da_Vinci%29.jpg'],
-        ["En quelle année a débuté la Révolution française ?", '1789', '1789', 'Prise de la Bastille', 'facile', ''],
-        ["En quelle année le mur de Berlin est-il tombé ?", '1989', '1989', 'Fin de la guerre froide', 'normal', ''],
+        ["Qui a peint ce célèbre chef-d'œuvre ?", 'Leonard de Vinci', 'leonard de vinci,da vinci,vinci', 'Exposé au Louvre', 'easy', 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec/Mona_Lisa_%28Leonardo_da_Vinci%29.jpg/300px-Mona_Lisa_%28Leonardo_da_Vinci%29.jpg', 'Art,Renaissance'],
+        ["En quelle année a débuté la Révolution française ?", '1789', '1789', 'Prise de la Bastille', 'facile', '', 'France,Révolution'],
+        ["En quelle année le mur de Berlin est-il tombé ?", '1989', '1989', 'Fin de la guerre froide', 'normal', '', 'Europe,Guerre froide'],
       ],
       sciences: [
-        ["Quelle est cette planète aux spectaculaires anneaux ?", 'Saturne', 'saturne,saturn', '6e planète du système solaire', 'easy', 'https://images.unsplash.com/photo-1614728894747-a83421e2b9c9?w=600&auto=format&fit=crop'],
-        ["Quel est le symbole chimique de l'eau ?", 'H2O', 'h2o', 'Deux éléments', 'easy', ''],
-        ["Quel est le plus grand organe du corps humain ?", 'Peau', 'peau,la peau', 'Recouvre tout le corps', 'medium', ''],
+        ["Quelle est cette planète aux spectaculaires anneaux ?", 'Saturne', 'saturne,saturn', '6e planète du système solaire', 'easy', 'https://images.unsplash.com/photo-1614728894747-a83421e2b9c9?w=600&auto=format&fit=crop', 'Astronomie,Planète'],
+        ["Quel est le symbole chimique de l'eau ?", 'H2O', 'h2o', 'Deux éléments', 'easy', '', 'Chimie'],
+        ["Quel est le plus grand organe du corps humain ?", 'Peau', 'peau,la peau', 'Recouvre tout le corps', 'medium', '', 'Biologie,Corps humain'],
       ],
     }
 
@@ -204,7 +266,7 @@ export const importRoute = new Elysia({ prefix: '/admin' })
       const sheet = XLSX.utils.aoa_to_sheet(data)
 
       // Auto-width columns
-      sheet['!cols'] = [{ wch: 50 }, { wch: 25 }, { wch: 35 }, { wch: 30 }, { wch: 12 }, { wch: 50 }]
+      sheet['!cols'] = [{ wch: 50 }, { wch: 25 }, { wch: 35 }, { wch: 30 }, { wch: 12 }, { wch: 50 }, { wch: 25 }]
 
       XLSX.utils.book_append_sheet(workbook, sheet, cat)
     }
@@ -219,7 +281,7 @@ export const importRoute = new Elysia({ prefix: '/admin' })
     })
   })
 
-  /** GET /admin/stats — question count per category */
+  /** GET /admin/stats — question count per category and top tags */
   .get('/stats', async () => {
     const counts = await prisma.question.groupBy({
       by: ['category', 'difficulty'],
@@ -229,5 +291,27 @@ export const importRoute = new Elysia({ prefix: '/admin' })
 
     const total = await prisma.question.count()
 
-    return { total, breakdown: counts.map(c => ({ category: c.category, difficulty: c.difficulty, count: c._count.id })) }
+    const allQuestions = await prisma.question.findMany({
+      select: { tags: true },
+    })
+    const tagCounts: Record<string, number> = {}
+    for (const q of allQuestions) {
+      if (Array.isArray(q.tags)) {
+        for (const t of q.tags) {
+          const trimmed = t.trim()
+          if (trimmed) {
+            tagCounts[trimmed] = (tagCounts[trimmed] ?? 0) + 1
+          }
+        }
+      }
+    }
+    const topTags = Object.entries(tagCounts)
+      .map(([tag, count]) => ({ tag, count }))
+      .sort((a, b) => b.count - a.count)
+
+    return {
+      total,
+      breakdown: counts.map(c => ({ category: c.category, difficulty: c.difficulty, count: c._count.id })),
+      topTags,
+    }
   })

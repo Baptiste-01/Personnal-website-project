@@ -8,6 +8,7 @@ import AudioThemeControls from '../../components/AudioThemeControls'
 import { soundManager } from '../../utils/sound'
 import { triggerVictoryConfetti, triggerStreakConfetti } from '../../utils/confetti'
 import type { Question, Category, Difficulty } from '../../types'
+import { CATEGORY_ICONS, CATEGORY_LABELS } from '../../types'
 import './FlashGuess.css'
 
 /** Remove accents and lowercase for matching */
@@ -33,6 +34,8 @@ export default function FlashGuess() {
   const maxPoints = Number(searchParams.get('maxPoints') ?? '1000')
   const pointsPerAnswer = Number(searchParams.get('pointsPerAnswer') ?? '100')
   const catDiffsParam = searchParams.get('catDiffs')
+  const catTagsParam = searchParams.get('catTags')
+  const tagsParam = searchParams.get('tags')
 
   const [questions, setQuestions] = useState<Question[]>([])
   const [phase, setPhase] = useState<Phase>('loading')
@@ -56,12 +59,18 @@ export default function FlashGuess() {
     const fetchCount = isInfinite ? 30 : Math.min(50, totalRounds)
     const params = new URLSearchParams({
       count: String(fetchCount),
+      categories: categories.join(','),
     })
     if (catDiffsParam) {
       params.set('catDiffs', catDiffsParam)
     } else {
-      params.set('categories', categories.join(','))
       params.set('difficulty', difficulty)
+    }
+    if (catTagsParam) {
+      params.set('catTags', catTagsParam)
+    }
+    if (tagsParam) {
+      params.set('tags', tagsParam)
     }
     fetch(`http://localhost:3000/questions?${params}`)
       .then(r => r.json())
@@ -253,6 +262,18 @@ export default function FlashGuess() {
 
               {/* Question */}
               <div className={`fg-prompt ${phase === 'reveal' ? 'fg-prompt--reveal' : ''}`}>
+                <div className="fg-question-meta">
+                  <span className="fg-cat-badge">
+                    {CATEGORY_ICONS[currentQ.category] ?? '🏷️'} {CATEGORY_LABELS[currentQ.category] ?? currentQ.category}
+                  </span>
+                  {currentQ.tags && currentQ.tags.length > 0 && (
+                    <div className="fg-tags-row">
+                      {currentQ.tags.map(tag => (
+                        <span key={tag} className="fg-tag-badge">#{tag}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 <p className="fg-prompt-text">{currentQ.text}</p>
 
                 {currentQ.imageUrl && (

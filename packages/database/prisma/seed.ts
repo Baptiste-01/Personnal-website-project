@@ -1,4 +1,4 @@
-﻿import prisma from '../../../apps/api/lib/prisma'
+import prisma from '../../../apps/api/lib/prisma'
 
 const questions = [
   // ── Geographie - Facile ──

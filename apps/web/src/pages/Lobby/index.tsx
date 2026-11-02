@@ -100,6 +100,7 @@ interface CreateArenaSettings {
   name: string
   difficulty: Difficulty
   categoryDifficulties: Record<string, Difficulty[]>
+  tags?: string[]
   infiniteRounds: boolean
   roundCount: number
   timePerRound: number
@@ -674,6 +675,7 @@ export default function Lobby() {
         roundCount: settings.roundCount,
         timePerRound: settings.timePerRound,
         maxPoints: settings.maxPoints,
+        tags: settings.tags ?? [],
       }),
     })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -689,6 +691,7 @@ export default function Lobby() {
       maxPoints: String(settings.maxPoints),
       infiniteRounds: String(settings.infiniteRounds),
       catDiffs: catDiffsStr,
+      ...(settings.tags && settings.tags.length > 0 ? { tags: settings.tags.join(',') } : {}),
     })
     navigate(`/arena/${data.id}?${query.toString()}`)
   }

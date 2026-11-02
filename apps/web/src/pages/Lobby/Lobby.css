@@ -1005,14 +1005,16 @@
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(4, 8, 16, 0.72);
-  backdrop-filter: blur(6px);
+  background: rgba(4, 8, 16, 0.75);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 100;
-  padding: 24px;
+  padding: 16px;
   animation: overlayIn 0.2s ease-out;
+  overflow-y: auto;
 }
 
 @keyframes overlayIn {
@@ -1022,13 +1024,18 @@
 
 .modal-card {
   width: 100%;
-  max-width: 500px;
+  max-width: 520px;
+  max-height: calc(100dvh - 32px);
+  max-height: calc(100vh - 32px);
+  display: flex;
+  flex-direction: column;
   background: var(--color-bg-secondary);
   border: 1px solid var(--color-border-hover);
   border-radius: var(--radius-2xl);
-  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(59, 130, 246, 0.1);
+  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(59, 130, 246, 0.15);
   animation: modalSlide 0.3s cubic-bezier(0.34, 1.4, 0.64, 1);
   overflow: hidden;
+  margin: auto;
 }
 
 @keyframes modalSlide {
@@ -1040,7 +1047,10 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 22px 24px 0;
+  padding: 18px 22px 14px;
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+  background: var(--color-bg-secondary);
 }
 
 .modal-title-group {
@@ -1095,8 +1105,12 @@
 .modal-form {
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  padding: 22px 24px 24px;
+  gap: 18px;
+  padding: 18px 22px 22px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  flex: 1;
+  min-height: 0;
 }
 
 .modal-field {
@@ -1513,7 +1527,15 @@
 .modal-actions {
   display: flex;
   gap: 10px;
-  margin-top: 4px;
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid var(--color-border);
+  position: sticky;
+  bottom: -22px;
+  margin-bottom: -22px;
+  background: var(--color-bg-secondary);
+  padding-bottom: 16px;
+  z-index: 5;
 }
 
 .modal-cancel {
@@ -1603,5 +1625,68 @@
   .game-rules-grid { grid-template-columns: 1fr; }
   .games-more-link { align-self: center; }
 
-  .modal-diff-row { flex-direction: column; }
+  /* Modal responsiveness */
+  .modal-overlay {
+    padding: 8px;
+  }
+
+  .modal-card {
+    max-height: calc(100dvh - 16px);
+    max-height: calc(100vh - 16px);
+    border-radius: var(--radius-xl);
+  }
+
+  .modal-header {
+    padding: 14px 16px 12px;
+  }
+
+  .modal-title {
+    font-size: 17px;
+  }
+
+  .modal-form {
+    padding: 14px 16px 16px;
+    gap: 16px;
+  }
+
+  .modal-diff-row {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+  }
+
+  .category-card-diff-pills {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 4px;
+  }
+
+  .modal-mode-switch {
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .modal-pts-input-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .modal-pts-input-group {
+    width: 100%;
+  }
+
+  .modal-actions {
+    flex-direction: column-reverse;
+    gap: 8px;
+    bottom: -16px;
+    margin-bottom: -16px;
+    padding-bottom: 12px;
+  }
+
+  .modal-cancel,
+  .modal-submit {
+    width: 100%;
+    justify-content: center;
+  }
 }

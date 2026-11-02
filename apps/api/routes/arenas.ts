@@ -1,4 +1,4 @@
-﻿import Elysia from 'elysia'
+import Elysia from 'elysia'
 import prisma from '../lib/prisma'
 
 export const arenasRoute = new Elysia({ prefix: '/arenas' })
@@ -20,6 +20,7 @@ export const arenasRoute = new Elysia({ prefix: '/arenas' })
       gameMode?: string
       difficulty?: string
       categories?: string[]
+      tags?: string[]
     }
 
     if (!data.name) {
@@ -34,6 +35,7 @@ export const arenasRoute = new Elysia({ prefix: '/arenas' })
         gameMode: data.gameMode ?? 'flashguess',
         difficulty: data.difficulty ?? 'facile',
         categories: data.categories ?? ['geographie', 'histoire', 'sciences'],
+        tags: data.tags ?? [],
       },
     })
 
