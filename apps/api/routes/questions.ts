@@ -2,7 +2,7 @@ import Elysia from 'elysia'
 import prisma from '../lib/prisma'
 
 /** Fisher-Yates shuffle */
-function shuffle<T>(arr: T[]): T[] {
+export function shuffle<T>(arr: T[]): T[] {
   const copy = [...arr]
   for (let i = copy.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1))
@@ -11,7 +11,7 @@ function shuffle<T>(arr: T[]): T[] {
   return copy
 }
 
-const DIFFICULTY_MAP: Record<string, string> = {
+export const DIFFICULTY_MAP: Record<string, string> = {
   easy: 'facile',
   facile: 'facile',
   normal: 'moyen',
@@ -21,13 +21,13 @@ const DIFFICULTY_MAP: Record<string, string> = {
   difficile: 'difficile',
 }
 
-function normalizeDifficulty(d: string | undefined): string | undefined {
+export function normalizeDifficulty(d: string | undefined): string | undefined {
   if (!d) return undefined
   const lower = d.toLowerCase().trim()
   return DIFFICULTY_MAP[lower] ?? lower
 }
 
-function buildWhereClause(query: Record<string, string | undefined>) {
+export function buildWhereClause(query: Record<string, string | undefined>) {
   const catDiffsStr = query.catDiffs
   const catTagsStr = query.catTags
 

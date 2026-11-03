@@ -15,3 +15,7 @@ tmp/
 
 # ─── Templates locaux (non versionnés) ───
 _templates/
+
+# ─── Outils portables locaux ───
+tools/
+*.exe

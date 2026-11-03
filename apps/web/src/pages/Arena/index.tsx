@@ -8,34 +8,15 @@ import {
 import {
   CATEGORY_LABELS, DIFFICULTY_LABELS, ALL_CATEGORIES, CATEGORY_ICONS, DEFAULT_CATEGORY_DIFFICULTIES
 } from '../../types'
-import type { Category, Difficulty, GameSettings, CategoryInfo } from '../../types'
+import type { Category, Difficulty, GameSettings, CategoryInfo, PlayerSummary } from '../../types'
 import AudioThemeControls from '../../components/AudioThemeControls'
 import { soundManager } from '../../utils/sound'
+import { useArenaSocket } from '../../hooks/useArenaSocket'
+import { API_URL } from '../../utils/config'
 import './Arena.css'
 
 const TIME_OPTIONS = [5, 10, 15, 20, 30, 45, 60]
 const ROUND_OPTIONS = [5, 10, 15, 20, 30]
-
-/* ─── Real Player Entry ─── */
-interface PlayerEntry {
-  id: string
-  name: string
-  isHost: boolean
-  isReady: boolean
-  score: number
-}
-
-function getInitialUser(): PlayerEntry[] {
-  try {
-    const raw = localStorage.getItem('auth_user')
-    if (raw) {
-      const u = JSON.parse(raw)
-      const name = u.displayName || u.username || 'Vous'
-      return [{ id: u.id || 'p1', name, isHost: true, isReady: true, score: 0 }]
-    }
-  } catch {}
-  return [{ id: 'p1', name: 'Vous', isHost: true, isReady: true, score: 0 }]
-}
 
 /* ─── Settings Tabs ─── */
 type SettingTab = 'general' | 'categories' | 'timer' | 'points'
@@ -48,10 +29,20 @@ const TABS: { id: SettingTab; label: string; icon: React.ReactNode }[] = [
 ]
 
 /* ─── Player Card ─── */
-function PlayerCard({ player, index }: { player: PlayerEntry; index: number }) {
+function PlayerCard({
+  player,
+  index,
+  isSelf,
+  onToggleReady,
+}: {
+  player: PlayerSummary
+  index: number
+  isSelf: boolean
+  onToggleReady: () => void
+}) {
   return (
     <div
-      className={`ap-card ${player.isHost ? 'ap-card--host' : ''} ${player.isReady ? 'ap-card--ready' : 'ap-card--waiting'}`}
+      className={`ap-card ${player.isHost ? 'ap-card--host' : ''} ${player.isReady ? 'ap-card--ready' : 'ap-card--waiting'} ${isSelf ? 'ap-card--self' : ''}`}
       id={`player-card-${player.id}`}
       style={{ animationDelay: `${index * 60}ms` }}
     >
@@ -64,15 +55,27 @@ function PlayerCard({ player, index }: { player: PlayerEntry; index: number }) {
       <div className="ap-info">
         <span className="ap-name">
           {player.name}
+          {isSelf && <span className="ap-self-badge">Vous</span>}
           {player.isHost && <span className="ap-host-badge">Hôte</span>}
         </span>
         <span className={`ap-status ${player.isReady ? 'ap-status--ready' : 'ap-status--wait'}`}>
           {player.isReady ? 'Prêt' : 'En attente...'}
         </span>
       </div>
-      <div className={`ap-ready-icon ${player.isReady ? 'ap-ready-icon--yes' : 'ap-ready-icon--no'}`}>
-        {player.isReady ? <IconCheck /> : <span className="ap-dots">•••</span>}
-      </div>
+      {isSelf ? (
+        <button
+          type="button"
+          className={`ap-ready-btn ${player.isReady ? 'ap-ready-btn--ready' : 'ap-ready-btn--wait'}`}
+          onClick={onToggleReady}
+          title="Cliquez pour changer votre statut"
+        >
+          {player.isReady ? <IconCheck /> : 'Prêt ?'}
+        </button>
+      ) : (
+        <div className={`ap-ready-icon ${player.isReady ? 'ap-ready-icon--yes' : 'ap-ready-icon--no'}`}>
+          {player.isReady ? <IconCheck /> : <span className="ap-dots">•••</span>}
+        </div>
+      )}
     </div>
   )
 }
@@ -98,7 +101,6 @@ export default function Arena() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const [arenaName, setArenaName] = useState('Chargement...')
-  const [players] = useState<PlayerEntry[]>(getInitialUser)
   const [maxPlayers, setMaxPlayers] = useState<number>(() => {
     const p = searchParams.get('maxPlayers')
     if (p !== null) {
@@ -159,13 +161,88 @@ export default function Arena() {
     }
   })
 
+  // Navigate to play screen
+  const navigateToPlay = useCallback(() => {
+    const catDiffsStr = Object.entries(settings.categoryDifficulties)
+      .filter(([cat]) => settings.categories.includes(cat as Category))
+      .map(([cat, diffs]) => `${cat}:${(diffs ?? []).join('+')}`)
+      .join(',')
+
+    const catTagsStr = Object.entries(settings.categoryTags)
+      .filter(([cat, tags]) => settings.categories.includes(cat) && Array.isArray(tags) && tags.length > 0)
+      .map(([cat, tags]) => `${cat}:${tags.join('+')}`)
+      .join(',')
+
+    const params = new URLSearchParams({
+      categories: settings.categories.join(','),
+      difficulty: settings.difficulty,
+      rounds: settings.infiniteRounds ? 'infinite' : String(settings.roundCount),
+      time: String(settings.timePerRound),
+      maxPoints: String(settings.maxPoints),
+      infiniteRounds: String(settings.infiniteRounds),
+      pointsPerAnswer: String(settings.pointsPerAnswer),
+      maxPlayers: String(maxPlayers),
+      catDiffs: catDiffsStr,
+      ...(catTagsStr ? { catTags: catTagsStr } : {}),
+    })
+    navigate(`/play/${arenaId}?${params.toString()}`)
+  }, [settings, arenaId, navigate, maxPlayers])
+
+  // Real-time multiplayer WebSocket connection
+  const {
+    connected,
+    selfId,
+    isHost,
+    players: wsPlayers,
+    settings: wsSettings,
+    actions,
+  } = useArenaSocket({
+    arenaId,
+    initialSettings: settings as any,
+    onGameStarted: navigateToPlay,
+  })
+
+  // Sync settings when received from host (guest mode)
+  useEffect(() => {
+    if (wsSettings && !isHost) {
+      setSettings(prev => ({
+        ...prev,
+        ...wsSettings,
+        categoryDifficulties: wsSettings.categoryDifficulties ?? prev.categoryDifficulties,
+        categoryTags: wsSettings.categoryTags ?? prev.categoryTags,
+      }))
+    }
+  }, [wsSettings, isHost])
+
+  // Sync settings to server when host modifies them
+  useEffect(() => {
+    if (isHost && connected) {
+      actions.updateSettings(settings as any)
+    }
+  }, [settings, isHost, connected, actions])
+
+  const players: PlayerSummary[] = wsPlayers.length > 0
+    ? wsPlayers
+    : [{
+        id: selfId,
+        name: 'Vous',
+        isHost: true,
+        isReady: true,
+        score: 0,
+        streak: 0,
+        bestStreak: 0,
+        hasAnswered: false,
+        answeredCorrectly: false,
+        answerTime: null,
+      }]
+
   /* ─── Categories & Subcategories State ─── */
   const [availableCategories, setAvailableCategories] = useState<CategoryInfo[]>([])
   const [matchingQuestionCount, setMatchingQuestionCount] = useState<number | null>(null)
 
   const fetchCategories = useCallback(async () => {
     try {
-      const res = await fetch('http://localhost:3000/questions/categories')
+      const res = await fetch(`${API_URL}/questions/categories`)
       if (res.ok) {
         const data = await res.json()
         if (Array.isArray(data) && data.length > 0) {
@@ -204,7 +281,7 @@ export default function Arena() {
       params.set('catTags', catTagsStr)
     }
 
-    fetch(`http://localhost:3000/questions/count?${params}`)
+    fetch(`${API_URL}/questions/count?${params}`)
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (data && typeof data.count === 'number') {
@@ -247,7 +324,7 @@ const clearCategoryTags = (catId: string) => {
 const minPointsPerAnswer = Math.max(1, Math.round(settings.pointsPerAnswer * 0.1))
 
 useEffect(() => {
-  fetch(`http://localhost:3000/arenas/${arenaId}`)
+  fetch(`${API_URL}/arenas/${arenaId}`)
     .then(r => r.ok ? r.json() : null)
     .then(data => {
       if (data) {
@@ -265,7 +342,7 @@ const handleMaxPlayersChange = (val: number) => {
   const cleanVal = Math.max(0, val)
   setMaxPlayers(cleanVal)
   if (arenaId) {
-    fetch(`http://localhost:3000/arenas/${arenaId}`, {
+    fetch(`${API_URL}/arenas/${arenaId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ maxPlayers: cleanVal }),
@@ -312,32 +389,10 @@ const setCategoryAllDifficulties = (cat: Category) => {
   }))
 }
 
-const startGame = useCallback(() => {
+const handleStartGame = () => {
   soundManager.playClick()
-  const catDiffsStr = Object.entries(settings.categoryDifficulties)
-    .filter(([cat]) => settings.categories.includes(cat as Category))
-    .map(([cat, diffs]) => `${cat}:${(diffs ?? []).join('+')}`)
-    .join(',')
-
-  const catTagsStr = Object.entries(settings.categoryTags)
-    .filter(([cat, tags]) => settings.categories.includes(cat) && Array.isArray(tags) && tags.length > 0)
-    .map(([cat, tags]) => `${cat}:${tags.join('+')}`)
-    .join(',')
-
-  const params = new URLSearchParams({
-    categories: settings.categories.join(','),
-    difficulty: settings.difficulty,
-    rounds: settings.infiniteRounds ? 'infinite' : String(settings.roundCount),
-    time: String(settings.timePerRound),
-    maxPoints: String(settings.maxPoints),
-    infiniteRounds: String(settings.infiniteRounds),
-    pointsPerAnswer: String(settings.pointsPerAnswer),
-    maxPlayers: String(maxPlayers),
-    catDiffs: catDiffsStr,
-    ...(catTagsStr ? { catTags: catTagsStr } : {}),
-  })
-  navigate(`/play/${arenaId}?${params.toString()}`)
-}, [settings, arenaId, navigate, maxPlayers])
+  actions.startGame(settings as any)
+}
 
 const copyInviteLink = () => {
   soundManager.playClick()
@@ -425,7 +480,13 @@ return (
 
         <div className="arena-player-list" id="arena-player-list">
           {players.map((p, i) => (
-            <PlayerCard key={p.id} player={p} index={i} />
+            <PlayerCard
+              key={p.id}
+              player={p}
+              index={i}
+              isSelf={p.id === selfId}
+              onToggleReady={() => actions.sendReady(!p.isReady)}
+            />
           ))}
           {/* Empty slots */}
           {maxPlayers === 0 ? (
@@ -495,6 +556,12 @@ return (
               </div>
             </div>
           </div>
+
+          {!isHost && (
+            <div className="arena-host-banner">
+              <span>👑 Salon géré par l'hôte. Vous pouvez vous préparer avec le bouton "Prêt ?" sur votre carte à gauche.</span>
+            </div>
+          )}
 
           {/* Tab bar */}
           <div className="settings-tabs" id="settings-tabs" role="tablist">
@@ -1081,12 +1148,13 @@ return (
                 </div>
                 <button
                   className="btn-start-game"
-                  onClick={startGame}
+                  onClick={handleStartGame}
                   id="start-game"
-                  disabled={readyCount < 1}
+                  disabled={!isHost || readyCount < 1}
+                  title={!isHost ? "Seul l'hôte peut lancer la partie" : readyCount < 1 ? "Au moins un joueur doit être prêt" : "Lancer"}
                 >
                   <IconZap />
-                  Lancer la partie
+                  {isHost ? 'Lancer la partie' : 'En attente de l\'hôte...'}
                 </button>
               </div>
             </div>

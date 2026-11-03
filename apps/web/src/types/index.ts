@@ -118,6 +118,27 @@ export interface Player {
   streak: number
 }
 
+export interface PlayerSummary {
+  id: string
+  name: string
+  isHost: boolean
+  isReady: boolean
+  score: number
+  streak: number
+  bestStreak: number
+  hasAnswered: boolean
+  answeredCorrectly: boolean
+  answerTime: number | null
+}
+
+export interface ChatMessage {
+  id: string
+  playerId: string
+  playerName: string
+  text: string
+  timestamp: number
+}
+
 export interface GameSettings {
   categories: Category[]
   difficulty: Difficulty

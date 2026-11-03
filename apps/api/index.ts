@@ -1,7 +1,8 @@
-﻿import { Elysia } from 'elysia'
+import { Elysia } from 'elysia'
 import { cors } from '@elysiajs/cors'
 import { questionsRoute } from './routes/questions'
 import { arenasRoute } from './routes/arenas'
+import { arenaWs } from './routes/arenaWs'
 import { importRoute } from './routes/import'
 import { authRoute } from './routes/auth'
 import prisma from './lib/prisma'
@@ -37,6 +38,7 @@ const app = new Elysia()
   .use(questionsRoute)
   .use(arenasRoute)
   .use(importRoute)
+  .use(arenaWs)
 
   /* Legacy alias /rooms → /arenas */
   .get('/rooms', async () => prisma.arena.findMany({ orderBy: { createdAt: 'asc' } }))

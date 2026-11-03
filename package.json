@@ -10,6 +10,8 @@
     "dev": "concurrently \"bun run dev:api\" \"bun run dev:web\"",
     "dev:api": "cd apps/api && bun --env-file=../../.env run --hot index.ts",
     "dev:web": "cd apps/web && bun run dev",
+    "tunnel": "bun run scripts/tunnel.ts",
+    "online": "concurrently \"bun run dev:api\" \"bun run dev:web\" \"bun run tunnel\"",
     "build": "cd apps/web && bun run build",
     "db:generate": "cd packages/database && bun x prisma generate",
     "db:push": "cd packages/database && bun --env-file=../../.env run db:push",
@@ -20,6 +22,7 @@
     "docker:status": "docker compose ps"
   },
   "devDependencies": {
+    "@types/bun": "^1.4.4",
     "concurrently": "^9.2.1",
     "prisma": "^7.8.0",
     "typescript": "^5.0.0"

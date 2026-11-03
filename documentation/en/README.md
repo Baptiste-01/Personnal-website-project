@@ -38,6 +38,7 @@ Each commit/task is documented following a standardized format (`Objective`, `Ac
 | **18** | 2026-11-02 | `Workspace` | [Task_18_2026-11-02.md](file:///c:/Users/bapti/Desktop/Moi/Projet-Perso/Personnal-website-project/documentation/en/Task_18_2026-11-02.md) | Excel Subcategory Tags & Mobile Responsive Arena |
 | **19** | 2026-11-02 | `Workspace` | [Task_19_2026-11-02.md](file:///c:/Users/bapti/Desktop/Moi/Projet-Perso/Personnal-website-project/documentation/en/Task_19_2026-11-02.md) | Removal of Fake Accounts & Dynamic Player Limit Management |
 | **20** | 2026-11-02 | `Workspace` | [Task_20_2026-11-02.md](file:///c:/Users/bapti/Desktop/Moi/Projet-Perso/Personnal-website-project/documentation/en/Task_20_2026-11-02.md) | Fix Excel Import for Visual Questions & AGENTS.md Rules |
+| **21** | 2026-11-02 | `Workspace` | [Task_21_2026-11-02.md](file:///c:/Users/bapti/Desktop/Moi/Projet-Perso/Personnal-website-project/documentation/en/Task_21_2026-11-02.md) | Real-Time WebSocket Multiplayer & Free Online Sharing (Cloudflare Tunnel) |
 
 ---
 

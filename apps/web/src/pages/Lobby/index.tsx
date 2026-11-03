@@ -12,6 +12,7 @@ import Slider from '../../components/Slider/Slider'
 import type { SlideItem } from '../../components/Slider/Slider'
 import AudioThemeControls from '../../components/AudioThemeControls'
 import { soundManager } from '../../utils/sound'
+import { API_URL } from '../../utils/config'
 import './Lobby.css'
 
 /* ─── Types ─── */
@@ -717,7 +718,7 @@ export default function Lobby() {
     if (manual) setIsRefreshing(true)
     else setFetchState('loading')
     try {
-      const res = await fetch('http://localhost:3000/arenas')
+      const res = await fetch(`${API_URL}/arenas`)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data: ArenaItem[] = await res.json()
       setArenas(data)
@@ -732,7 +733,7 @@ export default function Lobby() {
   useEffect(() => { fetchArenas() }, [fetchArenas])
 
   const handleCreateArena = async (settings: CreateArenaSettings) => {
-    const res = await fetch('http://localhost:3000/arenas', {
+    const res = await fetch(`${API_URL}/arenas`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

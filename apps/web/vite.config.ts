@@ -8,4 +8,34 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  server: {
+    host: '0.0.0.0',
+    port: 5173,
+    proxy: {
+      '/ws': {
+        target: 'http://localhost:3000',
+        ws: true,
+      },
+      '/arenas': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
+      '/questions': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
+      '/auth': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
+      '/admin': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
+      '/rooms': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
+    },
+  },
 })

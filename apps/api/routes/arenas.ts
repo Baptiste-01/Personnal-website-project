@@ -1,9 +1,18 @@
 import Elysia from 'elysia'
 import prisma from '../lib/prisma'
+import { roomManager } from '../ws/roomManager'
 
 export const arenasRoute = new Elysia({ prefix: '/arenas' })
   .get('/', async () => {
-    return prisma.arena.findMany({ orderBy: { createdAt: 'asc' } })
+    const arenas = await prisma.arena.findMany({ orderBy: { createdAt: 'asc' } })
+    return arenas.map(a => {
+      const room = roomManager.get(a.id)
+      return {
+        ...a,
+        players: room ? room.players.size : a.players,
+        status: room ? room.status : a.status,
+      }
+    })
   })
   .get('/:id', async ({ params, set }) => {
     const arena = await prisma.arena.findUnique({ where: { id: params.id } })
@@ -11,7 +20,12 @@ export const arenasRoute = new Elysia({ prefix: '/arenas' })
       set.status = 404
       return { error: 'Arène introuvable' }
     }
-    return arena
+    const room = roomManager.get(arena.id)
+    return {
+      ...arena,
+      players: room ? room.players.size : arena.players,
+      status: room ? room.status : arena.status,
+    }
   })
   .post('/', async ({ body, set }) => {
     const data = body as {

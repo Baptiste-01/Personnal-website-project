@@ -1,414 +1,567 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
+import { useState, useEffect, useRef } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
 import {
   IconArrowLeft, IconGamepad, IconUser, IconCrown, IconHash, IconClock,
-  IconCheck, IconX, IconInfinity, IconTrophy, IconFlame, IconTarget
+  IconCheck, IconX, IconInfinity, IconTrophy, IconFlame, IconTarget, IconZap
 } from '../../components/Icons'
 import AudioThemeControls from '../../components/AudioThemeControls'
 import { soundManager } from '../../utils/sound'
-import { triggerVictoryConfetti, triggerStreakConfetti } from '../../utils/confetti'
-import type { Question, Category, Difficulty } from '../../types'
+import { useArenaSocket } from '../../hooks/useArenaSocket'
 import { CATEGORY_ICONS, CATEGORY_LABELS } from '../../types'
 import './FlashGuess.css'
 
-/** Remove accents and lowercase for matching */
-function normalize(str: string): string {
-  return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
-}
-
-type Phase = 'loading' | 'playing' | 'reveal' | 'results'
-
 export default function FlashGuess() {
   const { arenaId } = useParams<{ arenaId: string }>()
-  const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // Parse settings from URL
-  const categories = (searchParams.get('categories') ?? 'geographie').split(',') as Category[]
-  const difficulty = (searchParams.get('difficulty') ?? 'facile') as Difficulty
-  const isInfinite = searchParams.get('infiniteRounds') === 'true' || searchParams.get('rounds') === 'infinite'
-  const rawRounds = searchParams.get('rounds')
-  const totalRounds = isInfinite ? Infinity : Number(rawRounds ?? '10')
-  const timePerRound = Number(searchParams.get('time') ?? '20')
-  const maxPoints = Number(searchParams.get('maxPoints') ?? '1000')
-  const pointsPerAnswer = Number(searchParams.get('pointsPerAnswer') ?? '100')
-  const catDiffsParam = searchParams.get('catDiffs')
-  const catTagsParam = searchParams.get('catTags')
-  const tagsParam = searchParams.get('tags')
-
-  const playerName = (() => {
-    try {
-      const raw = localStorage.getItem('auth_user')
-      if (raw) {
-        const u = JSON.parse(raw)
-        return u.displayName || u.username || 'Vous'
-      }
-    } catch {}
-    return 'Vous'
-  })()
-
-  const [questions, setQuestions] = useState<Question[]>([])
-  const [phase, setPhase] = useState<Phase>('loading')
-  const [round, setRound] = useState(0)
-  const [timeLeft, setTimeLeft] = useState(timePerRound)
   const [answer, setAnswer] = useState('')
-  const [feedback, setFeedback] = useState<'none' | 'correct' | 'wrong'>('none')
-  const [score, setScore] = useState(0)
-  const [streak, setStreak] = useState(0)
-  const [bestStreak, setBestStreak] = useState(0)
-  const [roundScores, setRoundScores] = useState<number[]>([])
-  const [reactionTimes, setReactionTimes] = useState<number[]>([])
   const [showHint, setShowHint] = useState(false)
   const [modalImage, setModalImage] = useState<string | null>(null)
 
-  const questionIndex = questions.length > 0 ? (round % questions.length) : 0
-  const currentQ = questions[questionIndex] ?? null
+  const {
+    connected,
+    selfId,
+    isHost,
+    myPlayer,
+    players,
+    roomStatus,
+    settings,
+    currentRound,
+    totalRounds,
+    isInfinite,
+    timeLeft,
+    currentQuestion,
+    revealedAnswer,
+    acceptedAnswers,
+    answerFeedback,
+    lastEarnedPoints,
+    leaderboard,
+    podium,
+    winner,
+    actions,
+  } = useArenaSocket({
+    arenaId,
+    onGameRestarted: () => navigate(`/arena/${arenaId}`),
+  })
 
-  // Fetch questions from API
+  // Autofocus input on each new round
   useEffect(() => {
-    const fetchCount = isInfinite ? 30 : Math.min(50, totalRounds)
-    const params = new URLSearchParams({
-      count: String(fetchCount),
-      categories: categories.join(','),
-    })
-    if (catDiffsParam) {
-      params.set('catDiffs', catDiffsParam)
-    } else {
-      params.set('difficulty', difficulty)
-    }
-    if (catTagsParam) {
-      params.set('catTags', catTagsParam)
-    }
-    if (tagsParam) {
-      params.set('tags', tagsParam)
-    }
-    fetch(`http://localhost:3000/questions?${params}`)
-      .then(r => r.json())
-      .then((data: Question[]) => {
-        setQuestions(data)
-        setPhase('playing')
-        setTimeLeft(timePerRound)
-      })
-      .catch(() => {
-        // Fallback: use hardcoded questions if API fails
-        setQuestions([
-          { id: 1, text: 'Quel est ce célèbre monument de Paris ?', answer: 'Tour Eiffel', acceptedAnswers: ['tour eiffel', 'eiffel', 'la tour eiffel'], hint: 'Conçue par Gustave Eiffel', imageUrl: 'https://images.unsplash.com/photo-1511739001486-6bfe10ce785f?w=600&auto=format&fit=crop', category: 'geographie' as Category, difficulty: 'facile' as Difficulty },
-          { id: 2, text: 'Quelle est la capitale de la France ?', answer: 'Paris', acceptedAnswers: ['paris'], hint: 'Ville lumière', category: 'geographie' as Category, difficulty: 'facile' as Difficulty },
-          { id: 3, text: 'Qui a peint la Joconde ?', answer: 'Leonard de Vinci', acceptedAnswers: ['leonard de vinci', 'de vinci', 'vinci', 'da vinci'], hint: 'Artiste de la Renaissance', imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec/Mona_Lisa_%28Leonardo_da_Vinci%29.jpg/300px-Mona_Lisa_%28Leonardo_da_Vinci%29.jpg', category: 'histoire' as Category, difficulty: 'facile' as Difficulty },
-          { id: 4, text: 'Quel est le symbole chimique de l\'eau ?', answer: 'H2O', acceptedAnswers: ['h2o'], hint: 'Deux éléments', category: 'sciences' as Category, difficulty: 'facile' as Difficulty },
-        ])
-        setPhase('playing')
-        setTimeLeft(timePerRound)
-      })
-  }, [])
-
-  // Timer & Audio Ticks
-  useEffect(() => {
-    if (phase !== 'playing' || timeLeft <= 0) return
-
-    // Sound warning in the last 5 seconds
-    if (timeLeft <= 5 && timeLeft > 0) {
-      soundManager.playWarning()
-    }
-
-    const t = setInterval(() => {
-      setTimeLeft(prev => {
-        if (prev <= 1) {
-          handleTimeUp()
-          return 0
-        }
-        return prev - 1
-      })
-    }, 1000)
-    return () => clearInterval(t)
-  }, [phase, timeLeft])
-
-  // Focus input on new round
-  useEffect(() => {
-    if (phase === 'playing') inputRef.current?.focus()
-  }, [phase, round])
-
-  const handleTimeUp = useCallback(() => {
-    soundManager.playWrong()
-    setFeedback('wrong')
-    setStreak(0)
-    setRoundScores(prev => [...prev, 0])
-    setReactionTimes(prev => [...prev, timePerRound])
-    setPhase('reveal')
-  }, [timePerRound])
-
-  const checkAnswer = () => {
-    if (!currentQ || phase !== 'playing') return
-    const normalized = normalize(answer)
-    const isCorrect = currentQ.acceptedAnswers.some(a => normalize(a) === normalized) || normalize(currentQ.answer) === normalized
-
-    if (isCorrect) {
-      const timeTaken = Math.max(0.5, timePerRound - timeLeft)
-      setReactionTimes(prev => [...prev, timeTaken])
-
-      const nextStreak = streak + 1
-      setStreak(nextStreak)
-      setBestStreak(prev => Math.max(prev, nextStreak))
-
-      const streakMultiplier = nextStreak >= 5 ? 2.0 : nextStreak >= 3 ? 1.5 : 1.0
-      const speedBonus = Math.round((timeLeft / timePerRound) * (pointsPerAnswer * 0.5))
-      const roundPts = Math.round((pointsPerAnswer + speedBonus) * streakMultiplier)
-      setScore(prev => prev + roundPts)
-      setRoundScores(prev => [...prev, roundPts])
-      setFeedback('correct')
-      setPhase('reveal')
-
-      // Audio & Visual celebratory effects
-      soundManager.playCorrect()
-      if (nextStreak >= 3) {
-        triggerStreakConfetti()
-      }
-    } else {
-      soundManager.playWrong()
-      setFeedback('wrong')
+    if (roomStatus === 'playing' && !myPlayer?.answeredCorrectly) {
       setAnswer('')
-      // Flash red briefly then let them retry
-      setTimeout(() => { if (phase === 'playing') setFeedback('none') }, 400)
+      setShowHint(false)
+      setTimeout(() => inputRef.current?.focus(), 50)
     }
-  }
+  }, [roomStatus, currentRound, myPlayer?.answeredCorrectly])
 
-  const isWinCondition = score >= maxPoints || (!isInfinite && round + 1 >= totalRounds)
-
-  const nextRound = () => {
-    soundManager.playClick()
-    if (isWinCondition) {
-      setPhase('results')
-      soundManager.playVictory()
-      triggerVictoryConfetti()
-      return
-    }
-    setRound(prev => prev + 1)
-    setAnswer('')
-    setFeedback('none')
-    setShowHint(false)
-    setTimeLeft(timePerRound)
-    setPhase('playing')
+  const handleSendAnswer = () => {
+    const trimmed = answer.trim()
+    if (!trimmed || roomStatus !== 'playing' || myPlayer?.answeredCorrectly) return
+    actions.submitAnswer(trimmed)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
-      if (phase === 'playing') checkAnswer()
-      else if (phase === 'reveal') nextRound()
+      handleSendAnswer()
     }
   }
 
-  const timerPct = (timeLeft / timePerRound) * 100
-  const timerColor = timeLeft > timePerRound * 0.5 ? 'var(--color-status-live)' : timeLeft > timePerRound * 0.25 ? 'var(--color-status-waiting)' : '#ef4444'
+  // Sorted players for real-time leaderboard
+  const sortedPlayers = [...players].sort((a, b) => b.score - a.score)
 
-  // Performance calculations
-  const correctCount = roundScores.filter(s => s > 0).length
-  const accuracyPct = roundScores.length > 0 ? Math.round((correctCount / roundScores.length) * 100) : 0
-  const avgReactionTime = reactionTimes.length > 0
-    ? (reactionTimes.reduce((acc, t) => acc + t, 0) / reactionTimes.length).toFixed(1)
-    : '0.0'
+  // Timer visualization
+  const maxTime = settings?.timePerRound ?? 20
+  const timerPct = Math.max(0, Math.min(100, (timeLeft / maxTime) * 100))
+  const timerColor =
+    timeLeft > maxTime * 0.5
+      ? 'var(--color-status-live)'
+      : timeLeft > maxTime * 0.25
+        ? 'var(--color-status-waiting)'
+        : '#ef4444'
+
+  // Final performance calculations
+  const effectiveLeaderboard = leaderboard.length > 0 ? leaderboard : sortedPlayers
+  const effectivePodium = podium.length > 0 ? podium : effectiveLeaderboard.slice(0, 3)
+  const effectiveWinner = winner || effectiveLeaderboard[0] || null
 
   return (
     <div className="fg" id="flashguess-page">
       {/* Top bar with sound & theme controls */}
       <header className="fg-topbar">
-        <button className="fg-back" onClick={() => { soundManager.playClick(); navigate(`/arena/${arenaId}`) }}>
-          <IconArrowLeft /><span>Retour</span>
+        <button
+          className="fg-back"
+          onClick={() => {
+            soundManager.playClick()
+            navigate(`/arena/${arenaId}`)
+          }}
+          title="Retour au salon d'arène"
+        >
+          <IconArrowLeft />
+          <span>Salon</span>
         </button>
+
         <div className="fg-topbar-center">
-          <div className="fg-topbar-icon"><IconGamepad /></div>
-          <h1 className="fg-topbar-title">FlashGuess</h1>
+          <div className="fg-topbar-icon">
+            <IconGamepad />
+          </div>
+          <h1 className="fg-topbar-title">FlashGuess Multijoueur</h1>
         </div>
+
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <AudioThemeControls compact />
-          <div className="fg-topbar-score">Score: <strong>{score} / {maxPoints} pts</strong></div>
+          <div className="fg-topbar-score">
+            Score: <strong>{myPlayer?.score ?? 0} pts</strong>
+            {settings?.maxPoints ? ` / ${settings.maxPoints} pts` : ''}
+          </div>
         </div>
       </header>
 
       <div className="fg-layout">
-        {/* Sidebar */}
+        {/* Real-time Multiplayer Leaderboard Sidebar */}
         <aside className="fg-sidebar">
-          <div className="fg-sidebar-header"><h2 className="fg-sidebar-title">Classement</h2></div>
-          <div className="fg-player-card fg-player-card--self">
-            <div className="fg-player-rank"><IconCrown /></div>
-            <div className="fg-player-avatar"><IconUser /></div>
-            <div className="fg-player-info">
-              <span className="fg-player-name">Vous</span>
-              <span className="fg-player-score">{score} pts</span>
-            </div>
-            {streak >= 3 && <span className="fg-streak-badge">x{streak}</span>}
+          <div className="fg-sidebar-header">
+            <h2 className="fg-sidebar-title">Classement en direct</h2>
           </div>
+
+          <div className="fg-players-list" style={{ padding: '8px 0', overflowY: 'auto', flex: 1 }}>
+            {sortedPlayers.map((p, idx) => {
+              const isSelf = p.id === selfId
+              const isFirst = idx === 0
+              return (
+                <div
+                  key={p.id}
+                  className={`fg-player-card ${isSelf ? 'fg-player-card--self' : ''}`}
+                >
+                  <div className="fg-player-rank">
+                    {isFirst ? <IconCrown /> : `#${idx + 1}`}
+                  </div>
+                  <div className="fg-player-avatar">
+                    <IconUser />
+                  </div>
+                  <div className="fg-player-info">
+                    <span className="fg-player-name">
+                      {p.name}
+                      {isSelf && <span className="ap-self-badge">Vous</span>}
+                      {p.isHost && <span className="ap-host-badge" style={{ marginLeft: 4 }}>👑</span>}
+                    </span>
+                    <span className="fg-player-score">{p.score} pts</span>
+                  </div>
+
+                  {/* Live status badge */}
+                  {roomStatus === 'playing' && (
+                    p.answeredCorrectly ? (
+                      <span className="fg-player-status fg-player-status--done" title="A trouvé !">
+                        <IconCheck /> OK
+                      </span>
+                    ) : (
+                      <span className="fg-player-status fg-player-status--thinking" title="En train de chercher...">
+                        •••
+                      </span>
+                    )
+                  )}
+
+                  {roomStatus === 'reveal' && (
+                    p.answeredCorrectly ? (
+                      <span className="fg-player-status fg-player-status--done">
+                        <IconCheck /> +{p.answerTime ? `${p.answerTime.toFixed(1)}s` : 'pts'}
+                      </span>
+                    ) : (
+                      <span className="fg-player-status fg-player-status--wrong">
+                        <IconX /> 0 pt
+                      </span>
+                    )
+                  )}
+
+                  {p.streak >= 3 && <span className="fg-streak-badge">x{p.streak} 🔥</span>}
+                </div>
+              )
+            })}
+          </div>
+
           <div className="fg-stats">
             <div className="fg-stat">
               <span className="fg-stat-label">Série</span>
-              <span className="fg-stat-value">{streak}</span>
+              <span className="fg-stat-value">{myPlayer?.streak ?? 0}</span>
             </div>
             <div className="fg-stat">
               <span className="fg-stat-label">Manche</span>
-              <span className="fg-stat-value">{isInfinite ? `${round + 1} (∞)` : `${round + 1}/${totalRounds}`}</span>
+              <span className="fg-stat-value">
+                {isInfinite ? `${currentRound + 1} (∞)` : `${currentRound + 1}/${totalRounds || 10}`}
+              </span>
             </div>
           </div>
         </aside>
 
-        {/* Main */}
+        {/* Main Content Area */}
         <main className="fg-main">
-          {/* Loading */}
-          {phase === 'loading' && (
-            <div className="fg-loading fade-in"><div className="fg-spinner" /><p>Chargement des questions...</p></div>
+          {/* Waiting for host to launch */}
+          {connected && roomStatus === 'waiting' && (
+            <div className="fg-loading fade-in" style={{ maxWidth: 480 }}>
+              <div className="fg-spinner" style={{ marginBottom: 16 }} />
+              <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8, color: 'var(--color-text-primary)' }}>
+                {isHost ? 'Prêt à démarrer FlashGuess ?' : 'En attente du lancement par l\'hôte...'}
+              </h2>
+              <p style={{ color: 'var(--color-text-secondary)', marginBottom: 20 }}>
+                {isHost
+                  ? 'Tous les joueurs sont connectés. Vous pouvez démarrer la partie immédiatement !'
+                  : 'L\'hôte va démarrer la manche dans un instant.'}
+              </p>
+              {isHost && (
+                <button
+                  type="button"
+                  className="fg-submit-btn"
+                  onClick={() => actions.startGame()}
+                  id="fg-start-now-btn"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 8, margin: '0 auto' }}
+                >
+                  <IconZap /> Démarrer la partie maintenant
+                </button>
+              )}
+            </div>
           )}
 
-          {/* Playing / Reveal */}
-          {(phase === 'playing' || phase === 'reveal') && currentQ && (
+          {/* Loading state while connecting or awaiting question payload */}
+          {(!connected || (!currentQuestion && (roomStatus === 'playing' || roomStatus === 'reveal'))) && (
+            <div className="fg-loading fade-in">
+              <div className="fg-spinner" />
+              <p>Connexion et synchronisation avec la partie multijoueur...</p>
+            </div>
+          )}
+
+          {/* Playing / Reveal Phase */}
+          {currentQuestion && (roomStatus === 'playing' || roomStatus === 'reveal') && (
             <div className="fg-question-area fade-in">
-              {/* Progress */}
+              {/* Progress bar and synchronized countdown */}
               <div className="fg-progress-bar">
                 <div className="fg-progress-header">
                   <span className="fg-round-label">
-                    {isInfinite ? <><IconInfinity /> Manche {round + 1} (Victoire à {maxPoints} pts)</> : <><IconHash /> Manche {round + 1} / {totalRounds}</>}
+                    {isInfinite ? (
+                      <>
+                        <IconInfinity /> Manche {currentRound + 1} (Victoire à {settings?.maxPoints ?? 1000} pts)
+                      </>
+                    ) : (
+                      <>
+                        <IconHash /> Manche {currentRound + 1} / {totalRounds}
+                      </>
+                    )}
                   </span>
-                  <span className="fg-timer" style={{ color: timerColor }}><IconClock /> {timeLeft}s</span>
+                  <span className="fg-timer" style={{ color: timerColor }}>
+                    <IconClock /> {timeLeft}s
+                  </span>
                 </div>
-                <div className="fg-timer-track"><div className="fg-timer-fill" style={{ width: `${timerPct}%`, backgroundColor: timerColor }} /></div>
+                <div className="fg-timer-track">
+                  <div
+                    className="fg-timer-fill"
+                    style={{ width: `${timerPct}%`, backgroundColor: timerColor }}
+                  />
+                </div>
               </div>
 
-              {/* Question */}
-              <div className={`fg-prompt ${phase === 'reveal' ? 'fg-prompt--reveal' : ''}`}>
+              {/* Question prompt */}
+              <div className={`fg-prompt ${roomStatus === 'reveal' ? 'fg-prompt--reveal' : ''}`}>
                 <div className="fg-question-meta">
                   <span className="fg-cat-badge">
-                    {CATEGORY_ICONS[currentQ.category] ?? '🏷️'} {CATEGORY_LABELS[currentQ.category] ?? currentQ.category}
+                    {CATEGORY_ICONS[currentQuestion.category] ?? '🏷️'}{' '}
+                    {CATEGORY_LABELS[currentQuestion.category] ?? currentQuestion.category}
                   </span>
-                  {currentQ.tags && currentQ.tags.length > 0 && (
+                  {currentQuestion.tags && currentQuestion.tags.length > 0 && (
                     <div className="fg-tags-row">
-                      {currentQ.tags.map(tag => (
-                        <span key={tag} className="fg-tag-badge">#{tag}</span>
+                      {currentQuestion.tags.map(tag => (
+                        <span key={tag} className="fg-tag-badge">
+                          #{tag}
+                        </span>
                       ))}
                     </div>
                   )}
                 </div>
-                <p className="fg-prompt-text">{currentQ.text}</p>
 
-                {currentQ.imageUrl && (
+                <p className="fg-prompt-text">{currentQuestion.text}</p>
+
+                {currentQuestion.imageUrl && (
                   <div className="fg-question-image-wrapper">
                     <img
-                      src={currentQ.imageUrl}
+                      src={currentQuestion.imageUrl}
                       alt="Illustration de la question"
                       className="fg-question-image"
-                      onClick={() => { soundManager.playClick(); setModalImage(currentQ.imageUrl ?? null) }}
+                      onClick={() => {
+                        soundManager.playClick()
+                        setModalImage(currentQuestion.imageUrl ?? null)
+                      }}
                       title="Cliquer pour agrandir"
                     />
                     <button
                       type="button"
                       className="fg-image-zoom-btn"
-                      onClick={() => { soundManager.playClick(); setModalImage(currentQ.imageUrl ?? null) }}
+                      onClick={() => {
+                        soundManager.playClick()
+                        setModalImage(currentQuestion.imageUrl ?? null)
+                      }}
                     >
                       🔍 Agrandir l'image
                     </button>
                   </div>
                 )}
 
-                {showHint && currentQ.hint && phase === 'playing' && (
-                  <p className="fg-hint">Indice : {currentQ.hint}</p>
+                {showHint && currentQuestion.hint && roomStatus === 'playing' && (
+                  <p className="fg-hint">Indice : {currentQuestion.hint}</p>
                 )}
-                {!showHint && phase === 'playing' && currentQ.hint && (
-                  <button className="fg-hint-btn" onClick={() => { soundManager.playClick(); setShowHint(true) }}>
+                {!showHint && roomStatus === 'playing' && currentQuestion.hint && (
+                  <button
+                    className="fg-hint-btn"
+                    onClick={() => {
+                      soundManager.playClick()
+                      setShowHint(true)
+                    }}
+                  >
                     Afficher l'indice
                   </button>
                 )}
               </div>
 
-              {/* Answer input */}
-              {phase === 'playing' && (
-                <div className={`fg-answer-area ${feedback === 'wrong' ? 'fg-answer-area--shake' : ''}`}>
-                  <input
-                    ref={inputRef}
-                    type="text"
-                    className="fg-answer-input"
-                    placeholder="Tapez votre réponse..."
-                    value={answer}
-                    onChange={e => setAnswer(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    autoComplete="off"
-                    autoFocus
-                    id="answer-input"
-                  />
-                  <button className="fg-submit-btn" onClick={checkAnswer} id="submit-answer">Valider</button>
-                </div>
+              {/* Input Area */}
+              {roomStatus === 'playing' && (
+                myPlayer?.answeredCorrectly ? (
+                  <div className="fg-answered-notice">
+                    <IconCheck />
+                    <span>Bonne réponse trouvée ! (+{lastEarnedPoints} pts) En attente des autres joueurs...</span>
+                  </div>
+                ) : (
+                  <div
+                    className={`fg-answer-area ${answerFeedback === 'wrong' ? 'fg-answer-area--shake' : ''
+                      }`}
+                  >
+                    <input
+                      ref={inputRef}
+                      type="text"
+                      className="fg-answer-input"
+                      placeholder="Tapez votre réponse..."
+                      value={answer}
+                      onChange={e => setAnswer(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      autoComplete="off"
+                      autoFocus
+                      id="answer-input"
+                    />
+                    <button
+                      className="fg-submit-btn"
+                      onClick={handleSendAnswer}
+                      id="submit-answer"
+                    >
+                      Valider
+                    </button>
+                  </div>
+                )
               )}
 
-              {/* Reveal */}
-              {phase === 'reveal' && (
+              {/* Reveal Phase */}
+              {roomStatus === 'reveal' && (
                 <div className="fg-reveal fade-in">
-                  <div className={`fg-reveal-badge ${feedback === 'correct' ? 'fg-reveal-badge--correct' : 'fg-reveal-badge--wrong'}`}>
-                    {feedback === 'correct' ? <><IconCheck /> Correct</> : <><IconX /> Temps écoulé</>}
+                  <div
+                    className={`fg-reveal-badge ${myPlayer?.answeredCorrectly
+                        ? 'fg-reveal-badge--correct'
+                        : 'fg-reveal-badge--wrong'
+                      }`}
+                  >
+                    {myPlayer?.answeredCorrectly ? (
+                      <>
+                        <IconCheck /> Bonne réponse (+{lastEarnedPoints} pts)
+                      </>
+                    ) : (
+                      <>
+                        <IconX /> Temps écoulé ou non trouvé
+                      </>
+                    )}
                   </div>
-                  <p className="fg-reveal-answer">Réponse : <strong>{currentQ.answer}</strong></p>
-                  {feedback === 'correct' && <p className="fg-reveal-points">+{roundScores[roundScores.length - 1]} points</p>}
-                  <button className="fg-next-btn" onClick={nextRound} id="next-round">
-                    {isWinCondition ? 'Voir les résultats' : 'Manche suivante'}
-                  </button>
+                  <p className="fg-reveal-answer">
+                    Réponse : <strong>{revealedAnswer || '...'}</strong>
+                  </p>
+                  {acceptedAnswers.length > 1 && (
+                    <p style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 12 }}>
+                      Variantes acceptées : {acceptedAnswers.join(', ')}
+                    </p>
+                  )}
+                  <p style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>
+                    Manche suivante dans quelques secondes...
+                  </p>
                 </div>
               )}
             </div>
           )}
 
-          {/* Celebratory Results & Podium Screen */}
-          {phase === 'results' && (
-            <div className="fg-results-card fade-in">
-              <div className="fg-results-icon">{score >= maxPoints ? <IconTrophy /> : <IconCrown />}</div>
-              <h2 className="fg-results-title">
-                {score >= maxPoints ? `🏆 Victoire Éclatante !` : 'Partie Terminée !'}
-              </h2>
-              <p className="fg-results-score">Score final : <strong>{score} points</strong></p>
-
-              {/* Dynamic Podium (Solo or Real Players) */}
-              <div className="fg-podium fg-podium--solo">
-                {/* 1st Place */}
-                <div className="fg-podium-step fg-podium-step--1">
-                  <div className="fg-podium-player">
-                    <div className="fg-podium-avatar">
-                      <span className="fg-podium-crown">👑</span>
-                      <IconUser />
-                    </div>
-                    <span className="fg-podium-name">{playerName}</span>
-                    <span className="fg-podium-score" style={{ color: '#facc15' }}>{score} pts</span>
-                  </div>
-                  <div className="fg-podium-block">1</div>
-                </div>
+          {/* Celebratory Multiplayer Podium & Results Screen */}
+          {roomStatus === 'finished' && (
+            <div className="fg-results-card fade-in" style={{ maxWidth: 650, width: '100%' }}>
+              <div className="fg-results-icon">
+                <IconTrophy />
               </div>
+              <h2 className="fg-results-title">Partie Terminée !</h2>
+              {effectiveWinner && (
+                <p className="fg-results-score">
+                  🏆 Victoire de <strong>{effectiveWinner.name}</strong> avec{' '}
+                  <strong>{effectiveWinner.score} points</strong> !
+                </p>
+              )}
 
-              {/* Detailed Performance Metrics */}
+              {/* Real-time Multiplayer Podium */}
+              {effectivePodium.length > 1 ? (
+                <div className="fg-podium fg-podium--multi">
+                  {/* 2nd Place */}
+                  {effectivePodium[1] && (
+                    <div className="fg-podium-step fg-podium-step--2">
+                      <div className="fg-podium-player">
+                        <div className="fg-podium-avatar">
+                          <span className="fg-podium-crown">🥈</span>
+                          <IconUser />
+                        </div>
+                        <span className="fg-podium-name">{effectivePodium[1].name}</span>
+                        <span className="fg-podium-score" style={{ color: '#cbd5e1' }}>
+                          {effectivePodium[1].score} pts
+                        </span>
+                      </div>
+                      <div className="fg-podium-block">2</div>
+                    </div>
+                  )}
+
+                  {/* 1st Place */}
+                  {effectivePodium[0] && (
+                    <div className="fg-podium-step fg-podium-step--1">
+                      <div className="fg-podium-player">
+                        <div className="fg-podium-avatar">
+                          <span className="fg-podium-crown">👑</span>
+                          <IconUser />
+                        </div>
+                        <span className="fg-podium-name">{effectivePodium[0].name}</span>
+                        <span className="fg-podium-score" style={{ color: '#facc15' }}>
+                          {effectivePodium[0].score} pts
+                        </span>
+                      </div>
+                      <div className="fg-podium-block">1</div>
+                    </div>
+                  )}
+
+                  {/* 3rd Place */}
+                  {effectivePodium[2] && (
+                    <div className="fg-podium-step fg-podium-step--3">
+                      <div className="fg-podium-player">
+                        <div className="fg-podium-avatar">
+                          <span className="fg-podium-crown">🥉</span>
+                          <IconUser />
+                        </div>
+                        <span className="fg-podium-name">{effectivePodium[2].name}</span>
+                        <span className="fg-podium-score" style={{ color: '#f59e0b' }}>
+                          {effectivePodium[2].score} pts
+                        </span>
+                      </div>
+                      <div className="fg-podium-block">3</div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* Solo podium fallback */
+                <div className="fg-podium fg-podium--solo">
+                  <div className="fg-podium-step fg-podium-step--1">
+                    <div className="fg-podium-player">
+                      <div className="fg-podium-avatar">
+                        <span className="fg-podium-crown">👑</span>
+                        <IconUser />
+                      </div>
+                      <span className="fg-podium-name">{myPlayer?.name || 'Vous'}</span>
+                      <span className="fg-podium-score" style={{ color: '#facc15' }}>
+                        {myPlayer?.score ?? 0} pts
+                      </span>
+                    </div>
+                    <div className="fg-podium-block">1</div>
+                  </div>
+                </div>
+              )}
+
+              {/* Full Multiplayer Leaderboard Table */}
+              <table className="fg-leaderboard-table">
+                <thead>
+                  <tr>
+                    <th>Rang</th>
+                    <th>Joueur</th>
+                    <th>Score</th>
+                    <th>Meilleure Série</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {effectiveLeaderboard.map((p, idx) => (
+                    <tr key={p.id} className={p.id === selfId ? 'fg-row-self' : ''}>
+                      <td>{idx === 0 ? '🥇 1er' : idx === 1 ? '🥈 2e' : idx === 2 ? '🥉 3e' : `#${idx + 1}`}</td>
+                      <td>
+                        {p.name}
+                        {p.id === selfId && ' (Vous)'}
+                        {p.isHost && ' 👑'}
+                      </td>
+                      <td>
+                        <strong>{p.score} pts</strong>
+                      </td>
+                      <td>{p.bestStreak > 0 ? `${p.bestStreak} 🔥` : '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {/* Performance Metrics for Current Player */}
               <div className="fg-metrics-grid">
                 <div className="fg-metric-card">
-                  <span className="fg-metric-icon"><IconTarget /></span>
-                  <span className="fg-metric-label">Précision</span>
-                  <span className="fg-metric-val">{accuracyPct}%</span>
+                  <span className="fg-metric-icon">
+                    <IconTarget />
+                  </span>
+                  <span className="fg-metric-label">Mon Score</span>
+                  <span className="fg-metric-val">{myPlayer?.score ?? 0}</span>
                 </div>
                 <div className="fg-metric-card">
-                  <span className="fg-metric-icon"><IconFlame /></span>
+                  <span className="fg-metric-icon">
+                    <IconFlame />
+                  </span>
                   <span className="fg-metric-label">Max Série</span>
-                  <span className="fg-metric-val">{bestStreak} 🔥</span>
+                  <span className="fg-metric-val">{myPlayer?.bestStreak ?? 0} 🔥</span>
                 </div>
                 <div className="fg-metric-card">
-                  <span className="fg-metric-icon"><IconClock /></span>
-                  <span className="fg-metric-label">Vitesse Moy.</span>
-                  <span className="fg-metric-val">{avgReactionTime}s</span>
+                  <span className="fg-metric-icon">
+                    <IconTrophy />
+                  </span>
+                  <span className="fg-metric-label">Classement</span>
+                  <span className="fg-metric-val">
+                    #{effectiveLeaderboard.findIndex(p => p.id === selfId) + 1}
+                  </span>
                 </div>
               </div>
 
               <div className="fg-results-actions">
+                {isHost && (
+                  <button
+                    className="fg-replay-btn"
+                    onClick={() => {
+                      soundManager.playClick()
+                      actions.restartGame()
+                    }}
+                    id="replay-together"
+                  >
+                    🔄 Rejouer ensemble
+                  </button>
+                )}
                 <button
-                  className="fg-replay-btn"
-                  onClick={() => { soundManager.playClick(); window.location.reload() }}
-                  id="replay"
+                  className="fg-leave-btn"
+                  onClick={() => {
+                    soundManager.playClick()
+                    navigate(`/arena/${arenaId}`)
+                  }}
+                  id="leave-to-arena"
                 >
-                  Rejouer
+                  Salon d'arène
                 </button>
                 <button
                   className="fg-leave-btn"
-                  onClick={() => { soundManager.playClick(); navigate('/') }}
-                  id="leave"
+                  onClick={() => {
+                    soundManager.playClick()
+                    navigate('/')
+                  }}
+                  id="leave-to-lobby"
                 >
-                  Retour au lobby
+                  Lobby principal
                 </button>
               </div>
             </div>
@@ -418,9 +571,24 @@ export default function FlashGuess() {
 
       {/* Image zoom modal */}
       {modalImage && (
-        <div className="fg-modal-backdrop fade-in" onClick={() => { soundManager.playClick(); setModalImage(null) }}>
+        <div
+          className="fg-modal-backdrop fade-in"
+          onClick={() => {
+            soundManager.playClick()
+            setModalImage(null)
+          }}
+        >
           <div className="fg-modal-card" onClick={e => e.stopPropagation()}>
-            <button className="fg-modal-close" onClick={() => { soundManager.playClick(); setModalImage(null) }} title="Fermer">✕</button>
+            <button
+              className="fg-modal-close"
+              onClick={() => {
+                soundManager.playClick()
+                setModalImage(null)
+              }}
+              title="Fermer"
+            >
+              ✕
+            </button>
             <img src={modalImage} alt="Illustration grand format" className="fg-modal-img" />
           </div>
         </div>
