@@ -508,10 +508,6 @@ export class GameRoom {
         id: q.id,
         text: q.text,
         imageUrl: q.imageUrl,
-        category: q.category,
-        difficulty: q.difficulty,
-        tags: q.tags,
-        hint: q.hint,
       },
       players: this.getPlayerSummaries(),
     })
@@ -702,10 +698,6 @@ export class GameRoom {
               id: q.id,
               text: q.text,
               imageUrl: q.imageUrl,
-              category: q.category,
-              difficulty: q.difficulty,
-              tags: q.tags,
-              hint: q.hint,
             }
           : null,
     }

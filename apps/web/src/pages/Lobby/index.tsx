@@ -790,6 +790,14 @@ export default function Lobby() {
       {/* ─── Navbar ─── */}
       <nav className="lobby-nav" id="lobby-nav">
         <AudioThemeControls />
+        <button
+          className="btn-login"
+          id="admin-button"
+          onClick={() => navigate('/admin')}
+          title="Administration & Importation de questions"
+        >
+          <span style={{ fontSize: '14px' }}>📊</span> Admin
+        </button>
         {isConnected && authUser ? (
           <button className="btn-login" id="profile-button" onClick={() => navigate('/profile')}>
             <IconUser />

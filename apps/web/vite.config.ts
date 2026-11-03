@@ -32,6 +32,11 @@ export default defineConfig({
       '/admin': {
         target: 'http://localhost:3000',
         changeOrigin: true,
+        bypass: (req) => {
+          if (req.headers.accept?.includes('text/html')) {
+            return '/index.html'
+          }
+        },
       },
       '/rooms': {
         target: 'http://localhost:3000',

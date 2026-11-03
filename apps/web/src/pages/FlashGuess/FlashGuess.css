@@ -63,9 +63,6 @@
 .fg-prompt { background: var(--color-bg-secondary); border: 1px solid var(--color-border); border-radius: var(--radius-xl); padding: 40px 32px; text-align: center; margin-bottom: 24px; transition: all var(--transition-base); }
 .fg-prompt--reveal { border-color: var(--color-border-hover); }
 .fg-prompt-text { font-family: var(--font-display); font-size: 22px; font-weight: 700; color: var(--color-text-primary); line-height: 1.5; margin-bottom: 0; }
-.fg-hint { margin-top: 16px; font-size: 14px; color: var(--color-status-waiting); font-style: italic; }
-.fg-hint-btn { margin-top: 16px; font-size: 13px; font-weight: 600; font-family: var(--font-body); color: var(--color-text-muted); background: none; border: 1px solid var(--color-border); border-radius: var(--radius-full); padding: 6px 16px; cursor: pointer; transition: all var(--transition-fast); }
-.fg-hint-btn:hover { color: var(--color-text-primary); border-color: var(--color-border-hover); }
 
 /* Answer input */
 .fg-answer-area { display: flex; gap: 10px; }
@@ -398,51 +395,6 @@
   font-size: 18px;
   font-weight: 800;
   color: var(--color-text-primary);
-}
-
-/* ─── Question Meta: Category & Subcategory Tags ─── */
-.fg-question-meta {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-bottom: 12px;
-}
-
-.fg-cat-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 12px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 700;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid var(--color-border);
-  color: var(--color-text-primary);
-}
-
-.fg-tags-row {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.fg-tag-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 3px 10px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  background: rgba(124, 58, 237, 0.18);
-  border: 1px solid rgba(139, 92, 246, 0.35);
-  color: #c4b5fd;
-  box-shadow: 0 0 10px rgba(124, 58, 237, 0.15);
 }
 
 /* ─── Real-time Multiplayer Indicators ─── */

@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { API_URL } from '../../utils/config'
 import './Admin.css'
 
@@ -57,6 +58,7 @@ function formatSize(bytes: number): string {
 
 /* ─── Component ──────────────────────────────────────────────── */
 export default function Admin() {
+  const navigate = useNavigate()
   const [file, setFile] = useState<File | null>(null)
   const [dragOver, setDragOver] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -149,10 +151,19 @@ export default function Admin() {
     <main className="admin-page">
       {/* Header */}
       <header className="admin-header">
-        <div className="admin-header-icon">📊</div>
-        <div>
-          <h1 className="admin-header-title">Import de questions</h1>
-          <p className="admin-header-sub">Ajoutez des questions via un fichier Excel — un onglet par catégorie</p>
+        <button
+          className="admin-back-btn"
+          onClick={() => navigate('/')}
+          title="Retour au salon principal"
+        >
+          ← Retour au Lobby
+        </button>
+        <div className="admin-header-title-row">
+          <div className="admin-header-icon">📊</div>
+          <div>
+            <h1 className="admin-header-title">Import de questions</h1>
+            <p className="admin-header-sub">Ajoutez des questions via un fichier Excel — un onglet par catégorie</p>
+          </div>
         </div>
       </header>
 

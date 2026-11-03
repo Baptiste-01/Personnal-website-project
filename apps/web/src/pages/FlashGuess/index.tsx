@@ -7,7 +7,6 @@ import {
 import AudioThemeControls from '../../components/AudioThemeControls'
 import { soundManager } from '../../utils/sound'
 import { useArenaSocket } from '../../hooks/useArenaSocket'
-import { CATEGORY_ICONS, CATEGORY_LABELS } from '../../types'
 import './FlashGuess.css'
 
 export default function FlashGuess() {
@@ -16,7 +15,6 @@ export default function FlashGuess() {
   const inputRef = useRef<HTMLInputElement>(null)
 
   const [answer, setAnswer] = useState('')
-  const [showHint, setShowHint] = useState(false)
   const [modalImage, setModalImage] = useState<string | null>(null)
 
   const {
@@ -49,7 +47,6 @@ export default function FlashGuess() {
   useEffect(() => {
     if (roomStatus === 'playing' && !myPlayer?.answeredCorrectly) {
       setAnswer('')
-      setShowHint(false)
       setTimeout(() => inputRef.current?.focus(), 50)
     }
   }, [roomStatus, currentRound, myPlayer?.answeredCorrectly])
@@ -257,24 +254,8 @@ export default function FlashGuess() {
                 </div>
               </div>
 
-              {/* Question prompt */}
+              {/* Question prompt: only the question text and image if present */}
               <div className={`fg-prompt ${roomStatus === 'reveal' ? 'fg-prompt--reveal' : ''}`}>
-                <div className="fg-question-meta">
-                  <span className="fg-cat-badge">
-                    {CATEGORY_ICONS[currentQuestion.category] ?? '🏷️'}{' '}
-                    {CATEGORY_LABELS[currentQuestion.category] ?? currentQuestion.category}
-                  </span>
-                  {currentQuestion.tags && currentQuestion.tags.length > 0 && (
-                    <div className="fg-tags-row">
-                      {currentQuestion.tags.map(tag => (
-                        <span key={tag} className="fg-tag-badge">
-                          #{tag}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
                 <p className="fg-prompt-text">{currentQuestion.text}</p>
 
                 {currentQuestion.imageUrl && (
@@ -300,21 +281,6 @@ export default function FlashGuess() {
                       🔍 Agrandir l'image
                     </button>
                   </div>
-                )}
-
-                {showHint && currentQuestion.hint && roomStatus === 'playing' && (
-                  <p className="fg-hint">Indice : {currentQuestion.hint}</p>
-                )}
-                {!showHint && roomStatus === 'playing' && currentQuestion.hint && (
-                  <button
-                    className="fg-hint-btn"
-                    onClick={() => {
-                      soundManager.playClick()
-                      setShowHint(true)
-                    }}
-                  >
-                    Afficher l'indice
-                  </button>
                 )}
               </div>
 

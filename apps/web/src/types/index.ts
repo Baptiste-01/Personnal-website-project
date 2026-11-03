@@ -100,12 +100,12 @@ export const CATEGORY_DIFFICULTY_LABELS: Record<CategoryDifficulty, string> = {
 export interface Question {
   id: number | string
   text: string
-  answer: string
-  acceptedAnswers: string[]
-  hint: string
+  answer?: string
+  acceptedAnswers?: string[]
+  hint?: string | null
   imageUrl?: string | null
-  category: Category
-  difficulty: Difficulty
+  category?: Category
+  difficulty?: Difficulty
   tags?: string[]
 }
 
