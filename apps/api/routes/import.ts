@@ -9,7 +9,6 @@ interface ExcelRow {
   reponse?: string
   réponses_acceptées?: string
   reponses_acceptees?: string
-  indice?: string
   difficulté?: string
   difficulte?: string
   imageUrl?: string
@@ -24,6 +23,94 @@ interface ImportResult {
   errors: string[]
 }
 
+export interface ImportedQuestionItem {
+  id: string
+  text: string
+  answer: string
+  acceptedAnswers: string[]
+  category: string
+  difficulty: string
+  imageUrl?: string | null
+  tags: string[]
+  status: 'inserted' | 'updated'
+}
+
+/* ─── Helper: parse Markdown tables ──────────────────────────── */
+function parseMarkdownTables(content: string, defaultName: string): Array<{ sheetName: string; rows: Record<string, unknown>[] }> {
+  const lines = content.split(/\r?\n/)
+  const sheets: Array<{ sheetName: string; rows: Record<string, unknown>[] }> = []
+  let currentCategory = defaultName
+  let currentHeaders: string[] = []
+  let currentRows: Record<string, unknown>[] = []
+  let inTable = false
+
+  const commitSection = () => {
+    if (currentRows.length > 0) {
+      sheets.push({
+        sheetName: currentCategory,
+        rows: currentRows,
+      })
+      currentRows = []
+    }
+    currentHeaders = []
+    inTable = false
+  }
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim()
+
+    // Detect Markdown headings: # Categorie or ## Categorie
+    const headerMatch = line.match(/^#{1,4}\s+(.+)$/)
+    if (headerMatch && headerMatch[1]) {
+      commitSection()
+      currentCategory = headerMatch[1].trim()
+      continue
+    }
+
+    // Detect Markdown table row
+    if (line.startsWith('|') && line.endsWith('|')) {
+      const cells = line
+        .slice(1, -1)
+        .split('|')
+        .map(c => {
+          let val = c.trim()
+          // Extract URL if markdown link [text](https://...)
+          const linkMatch = val.match(/^\[.*?\]\((https?:\/\/[^\s)]+)\)$/)
+          if (linkMatch && linkMatch[1]) val = linkMatch[1]
+          return val
+        })
+
+      // Check if separator line (| --- | :---: | --- |)
+      const isSeparator = cells.length > 0 && cells.every(c => /^[-:\s]+$/.test(c))
+      if (isSeparator) {
+        inTable = true
+        continue
+      }
+
+      // If we haven't hit the separator yet, this row is the header
+      if (!inTable) {
+        currentHeaders = cells
+        continue
+      }
+
+      // Data row
+      if (currentHeaders.length > 0) {
+        const rowObj: Record<string, unknown> = {}
+        currentHeaders.forEach((h, idx) => {
+          rowObj[h] = cells[idx] ?? ''
+        })
+        currentRows.push(rowObj)
+      }
+    } else if (inTable && line === '') {
+      // Empty line ends current table
+      commitSection()
+    }
+  }
+
+  commitSection()
+  return sheets
+}
+
 /* ─── Helper: normalise a row from any column name variant ────── */
 function normaliseRow(raw: Record<string, unknown>): ExcelRow {
   const row: ExcelRow = {}
@@ -33,7 +120,6 @@ function normaliseRow(raw: Record<string, unknown>): ExcelRow {
     if (k === 'question') row.question = v
     else if (k === 'réponse' || k === 'reponse') row.réponse = v
     else if (k === 'réponses_acceptées' || k === 'reponses_acceptees') row.réponses_acceptées = v
-    else if (k === 'indice') row.indice = v
     else if (k === 'difficulté' || k === 'difficulte') row.difficulté = v
     else if (k === 'image' || k === 'image_url' || k === 'imageurl' || k === 'image url' || k === 'photo' || k === 'illustration' || k === 'image_link') row.imageUrl = v
     else if (k === 'tags' || k === 'tag') row.tags = v
@@ -59,7 +145,7 @@ function validateDifficulty(val: string | undefined): string {
 
 /* ─── Route ───────────────────────────────────────────────────── */
 export const importRoute = new Elysia({ prefix: '/admin' })
-  /** POST /admin/import — upload a .xlsx file, parse and upsert questions */
+  /** POST /admin/import — upload a .xlsx, .xls or .md file, parse and upsert questions */
   .post('/import', async ({ request, set }) => {
     try {
       const formData = await request.formData()
@@ -67,29 +153,44 @@ export const importRoute = new Elysia({ prefix: '/admin' })
 
       if (!file) {
         set.status = 400
-        return { error: 'Aucun fichier fourni. Envoyez le fichier xlsx dans le champ "file".' }
+        return { error: 'Aucun fichier fourni. Envoyez un fichier .xlsx, .xls ou .md dans le champ "file".' }
       }
 
-      if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
+      const isXlsx = /\.(xlsx|xls)$/i.test(file.name)
+      const isMd = /\.(md|markdown)$/i.test(file.name)
+
+      if (!isXlsx && !isMd) {
         set.status = 400
-        return { error: 'Format invalide. Seuls les fichiers .xlsx et .xls sont acceptés.' }
+        return { error: 'Format invalide. Seuls les fichiers .xlsx, .xls et .md sont acceptés.' }
       }
 
-      // Read file buffer
-      const buffer = await file.arrayBuffer()
-      const workbook = XLSX.read(buffer, { type: 'array' })
+      const sheets: Array<{ sheetName: string; rows: Record<string, unknown>[] }> = []
+
+      if (isXlsx) {
+        const buffer = await file.arrayBuffer()
+        const workbook = XLSX.read(buffer, { type: 'array' })
+        for (const sheetName of workbook.SheetNames) {
+          const sheet = workbook.Sheets[sheetName]
+          if (!sheet) continue
+          const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet)
+          sheets.push({ sheetName, rows })
+        }
+      } else {
+        const text = await file.text()
+        const defaultCategory = file.name.replace(/\.[^.]+$/, '').trim() || 'Général'
+        const mdSheets = parseMarkdownTables(text, defaultCategory)
+        sheets.push(...mdSheets)
+      }
 
       const results: ImportResult[] = []
+      const importedQuestions: ImportedQuestionItem[] = []
       let totalInserted = 0
       let totalUpdated = 0
       let totalSkipped = 0
 
-      // Process each sheet as a category
-      for (const sheetName of workbook.SheetNames) {
+      // Process each sheet/section as a category
+      for (const { sheetName, rows } of sheets) {
         const category = sheetName.toLowerCase().trim()
-        const sheet = workbook.Sheets[sheetName]
-        if (!sheet) continue
-        const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet)
 
         const result: ImportResult = {
           sheet: sheetName,
@@ -121,7 +222,6 @@ export const importRoute = new Elysia({ prefix: '/admin' })
             : [answer.toLowerCase()]
 
           const difficulty = validateDifficulty(raw.difficulté)
-          const hint = raw.indice ?? null
           const imageUrl = raw.imageUrl?.trim() || null
           const tags = raw.tags
             ? raw.tags.split(/[,;]/).map(s => s.trim()).filter(Boolean)
@@ -176,13 +276,13 @@ export const importRoute = new Elysia({ prefix: '/admin' })
             }
 
             if (existing) {
-              await prisma.question.update({
+              const updated = await prisma.question.update({
                 where: { id: existing.id },
                 data: {
                   text: questionText,
                   answer,
                   acceptedAnswers,
-                  hint,
+                  hint: null,
                   category,
                   difficulty,
                   imageUrl,
@@ -191,12 +291,34 @@ export const importRoute = new Elysia({ prefix: '/admin' })
               })
               result.updated++
               totalUpdated++
+              importedQuestions.push({
+                id: updated.id,
+                text: updated.text,
+                answer: updated.answer,
+                acceptedAnswers: updated.acceptedAnswers,
+                category: updated.category,
+                difficulty: updated.difficulty,
+                imageUrl: updated.imageUrl,
+                tags: updated.tags,
+                status: 'updated',
+              })
             } else {
-              await prisma.question.create({
-                data: { text: questionText, answer, acceptedAnswers, hint, category, difficulty, imageUrl, tags },
+              const created = await prisma.question.create({
+                data: { text: questionText, answer, acceptedAnswers, hint: null, category, difficulty, imageUrl, tags },
               })
               result.inserted++
               totalInserted++
+              importedQuestions.push({
+                id: created.id,
+                text: created.text,
+                answer: created.answer,
+                acceptedAnswers: created.acceptedAnswers,
+                category: created.category,
+                difficulty: created.difficulty,
+                imageUrl: created.imageUrl,
+                tags: created.tags,
+                status: 'inserted',
+              })
             }
           } catch (err) {
             result.errors.push(`Ligne ${rowNum}: erreur DB — ${String(err)}`)
@@ -238,12 +360,13 @@ export const importRoute = new Elysia({ prefix: '/admin' })
       return {
         success: true,
         summary: {
-          sheetsProcessed: workbook.SheetNames.length,
+          sheetsProcessed: sheets.length,
           totalInserted,
           totalUpdated,
           totalSkipped,
         },
         details: results,
+        importedQuestions,
       }
     } catch (err) {
       set.status = 500
@@ -266,38 +389,38 @@ export const importRoute = new Elysia({ prefix: '/admin' })
       'gastronomie',
     ]
 
-    const HEADERS = ['question', 'réponse', 'réponses_acceptées', 'indice', 'difficulté', 'image_url', 'tags']
+    const HEADERS = ['question', 'réponse', 'réponses_acceptées', 'difficulté', 'image_url', 'tags']
 
     const EXAMPLES: Record<string, string[][]> = {
       'Mythologie & Légendes': [
-        ["Dans la mythologie grecque, qui est le roi des dieux et le maître de la foudre ?", 'Zeus', 'zeus', 'Réside sur l\'Olympe', 'easy', '', 'Grec'],
-        ["Dans la mythologie grecque, qui est la déesse de la sagesse et de la stratégie militaire ?", 'Athéna', 'athena,athéna', 'Fille de Zeus', 'easy', '', 'Grec'],
-        ["Dans la mythologie romaine, qui est le souverain des dieux, équivalent de Zeus ?", 'Jupiter', 'jupiter', 'Dieu du ciel et de la foudre', 'easy', '', 'Romain'],
-        ["Dans la mythologie romaine, qui est le dieu de la guerre ?", 'Mars', 'mars', 'Père de Romulus et Rémus', 'easy', '', 'Romain'],
-        ["Dans la mythologie nordique, quel dieu brandit le redoutable marteau Mjöllnir ?", 'Thor', 'thor', 'Dieu du tonnerre', 'easy', '', 'Nordique'],
-        ["Dans la mythologie égyptienne, qui est le dieu du Soleil créateur de l'univers ?", 'Râ', 'ra,râ', 'Barque solaire', 'easy', '', 'Égyptien'],
+        ["Dans la mythologie grecque, qui est le roi des dieux et le maître de la foudre ?", 'Zeus', 'zeus', 'easy', '', 'Grec'],
+        ["Dans la mythologie grecque, qui est la déesse de la sagesse et de la stratégie militaire ?", 'Athéna', 'athena,athéna', 'easy', '', 'Grec'],
+        ["Dans la mythologie romaine, qui est le souverain des dieux, équivalent de Zeus ?", 'Jupiter', 'jupiter', 'easy', '', 'Romain'],
+        ["Dans la mythologie romaine, qui est le dieu de la guerre ?", 'Mars', 'mars', 'easy', '', 'Romain'],
+        ["Dans la mythologie nordique, quel dieu brandit le redoutable marteau Mjöllnir ?", 'Thor', 'thor', 'easy', '', 'Nordique'],
+        ["Dans la mythologie égyptienne, qui est le dieu du Soleil créateur de l'univers ?", 'Râ', 'ra,râ', 'easy', '', 'Égyptien'],
       ],
       Capitale: [
-        ["Quelle est la capitale de la France ?", 'Paris', 'paris', 'Ville lumière', 'easy', '', 'Europe'],
-        ["Quelle est la capitale de l'Allemagne ?", 'Berlin', 'berlin', 'Porte de Brandebourg', 'easy', '', 'Europe'],
-        ["Quelle est la capitale du Japon ?", 'Tokyo', 'tokyo', 'Île de Honshu', 'easy', '', 'Asie'],
-        ["Quelle est la capitale du Sénégal ?", 'Dakar', 'dakar', 'Pointe des Almadies', 'easy', '', 'Afrique'],
+        ["Quelle est la capitale de la France ?", 'Paris', 'paris', 'easy', '', 'Europe'],
+        ["Quelle est la capitale de l'Allemagne ?", 'Berlin', 'berlin', 'easy', '', 'Europe'],
+        ["Quelle est la capitale du Japon ?", 'Tokyo', 'tokyo', 'easy', '', 'Asie'],
+        ["Quelle est la capitale du Sénégal ?", 'Dakar', 'dakar', 'easy', '', 'Afrique'],
       ],
       geographie: [
-        ['Quelle est la capitale de la France ?', 'Paris', 'paris,Paris', 'Ville lumière', 'easy', '', 'France,Capitale'],
-        ['Quel est ce célèbre monument de Paris ?', 'Tour Eiffel', 'tour eiffel,eiffel', 'Construite en 1889', 'easy', 'https://images.unsplash.com/photo-1511739001486-6bfe10ce785f?w=600&auto=format&fit=crop', 'France,Monument'],
-        ["Quel est le plus petit pays du monde ?", 'Vatican', 'vatican,le vatican', 'Enclave dans Rome', 'normal', '', 'Europe,Vatican'],
-        ["Quelle est la capitale de la Mongolie ?", 'Oulan-Bator', 'oulan-bator,ulaanbaatar', 'Asie centrale', 'hard', '', 'Asie,Capitale'],
+        ['Quelle est la capitale de la France ?', 'Paris', 'paris,Paris', 'easy', '', 'France,Capitale'],
+        ['Quel est ce célèbre monument de Paris ?', 'Tour Eiffel', 'tour eiffel,eiffel', 'easy', 'https://images.unsplash.com/photo-1511739001486-6bfe10ce785f?w=600&auto=format&fit=crop', 'France,Monument'],
+        ["Quel est le plus petit pays du monde ?", 'Vatican', 'vatican,le vatican', 'normal', '', 'Europe,Vatican'],
+        ["Quelle est la capitale de la Mongolie ?", 'Oulan-Bator', 'oulan-bator,ulaanbaatar', 'hard', '', 'Asie,Capitale'],
       ],
       histoire: [
-        ["Qui a peint ce célèbre chef-d'œuvre ?", 'Leonard de Vinci', 'leonard de vinci,da vinci,vinci', 'Exposé au Louvre', 'easy', 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec/Mona_Lisa_%28Leonardo_da_Vinci%29.jpg/300px-Mona_Lisa_%28Leonardo_da_Vinci%29.jpg', 'Art,Renaissance'],
-        ["En quelle année a débuté la Révolution française ?", '1789', '1789', 'Prise de la Bastille', 'facile', '', 'France,Révolution'],
-        ["En quelle année le mur de Berlin est-il tombé ?", '1989', '1989', 'Fin de la guerre froide', 'normal', '', 'Europe,Guerre froide'],
+        ["Qui a peint ce célèbre chef-d'œuvre ?", 'Leonard de Vinci', 'leonard de vinci,da vinci,vinci', 'easy', 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec/Mona_Lisa_%28Leonardo_da_Vinci%29.jpg/300px-Mona_Lisa_%28Leonardo_da_Vinci%29.jpg', 'Art,Renaissance'],
+        ["En quelle année a débuté la Révolution française ?", '1789', '1789', 'facile', '', 'France,Révolution'],
+        ["En quelle année le mur de Berlin est-il tombé ?", '1989', '1989', 'normal', '', 'Europe,Guerre froide'],
       ],
       sciences: [
-        ["Quelle est cette planète aux spectaculaires anneaux ?", 'Saturne', 'saturne,saturn', '6e planète du système solaire', 'easy', 'https://images.unsplash.com/photo-1614728894747-a83421e2b9c9?w=600&auto=format&fit=crop', 'Astronomie,Planète'],
-        ["Quel est le symbole chimique de l'eau ?", 'H2O', 'h2o', 'Deux éléments', 'easy', '', 'Chimie'],
-        ["Quel est le plus grand organe du corps humain ?", 'Peau', 'peau,la peau', 'Recouvre tout le corps', 'medium', '', 'Biologie,Corps humain'],
+        ["Quelle est cette planète aux spectaculaires anneaux ?", 'Saturne', 'saturne,saturn', 'easy', 'https://images.unsplash.com/photo-1614728894747-a83421e2b9c9?w=600&auto=format&fit=crop', 'Astronomie,Planète'],
+        ["Quel est le symbole chimique de l'eau ?", 'H2O', 'h2o', 'easy', '', 'Chimie'],
+        ["Quel est le plus grand organe du corps humain ?", 'Peau', 'peau,la peau', 'medium', '', 'Biologie,Corps humain'],
       ],
     }
 
@@ -309,7 +432,7 @@ export const importRoute = new Elysia({ prefix: '/admin' })
       const sheet = XLSX.utils.aoa_to_sheet(data)
 
       // Auto-width columns
-      sheet['!cols'] = [{ wch: 50 }, { wch: 25 }, { wch: 35 }, { wch: 30 }, { wch: 12 }, { wch: 50 }, { wch: 25 }]
+      sheet['!cols'] = [{ wch: 50 }, { wch: 25 }, { wch: 35 }, { wch: 15 }, { wch: 50 }, { wch: 25 }]
 
       XLSX.utils.book_append_sheet(workbook, sheet, cat)
     }
@@ -356,5 +479,87 @@ export const importRoute = new Elysia({ prefix: '/admin' })
       total,
       breakdown: counts.map(c => ({ category: c.category, difficulty: c.difficulty, count: c._count.id })),
       topTags,
+    }
+  })
+
+  /** GET /admin/export — export all questions from database as Excel (.xlsx) or Markdown (.md) */
+  .get('/export', async ({ query, set }) => {
+    try {
+      const format = ((query.format as string) || 'xlsx').toLowerCase().trim()
+      const allQuestions = await prisma.question.findMany({
+        orderBy: [{ category: 'asc' }, { id: 'asc' }],
+      })
+
+      if (format === 'md' || format === 'markdown') {
+        const byCat = new Map<string, typeof allQuestions>()
+        for (const q of allQuestions) {
+          const cat = q.category || 'Général'
+          if (!byCat.has(cat)) byCat.set(cat, [])
+          byCat.get(cat)!.push(q)
+        }
+
+        let mdContent = `# Smik Party — Export de toutes les questions (${allQuestions.length} questions)\n\n`
+        for (const [cat, questions] of byCat.entries()) {
+          mdContent += `## ${cat}\n\n`
+          mdContent += `| question | réponse | réponses_acceptées | difficulté | image_url | tag |\n`
+          mdContent += `| --- | --- | --- | --- | --- | --- |\n`
+          for (const q of questions) {
+            const clean = (s: string | null | undefined) => (s ?? '').replace(/\|/g, '\\|').replace(/\r?\n/g, ' ')
+            const accepted = Array.isArray(q.acceptedAnswers) ? q.acceptedAnswers.join(', ') : clean(q.answer)
+            const tags = Array.isArray(q.tags) ? q.tags.join(', ') : ''
+            mdContent += `| ${clean(q.text)} | ${clean(q.answer)} | ${clean(accepted)} | ${clean(q.difficulty)} | ${clean(q.imageUrl)} | ${clean(tags)} |\n`
+          }
+          mdContent += `\n`
+        }
+
+        return new Response(mdContent, {
+          headers: {
+            'Content-Type': 'text/markdown; charset=utf-8',
+            'Content-Disposition': 'attachment; filename="smik_party_all_questions.md"',
+          },
+        })
+      }
+
+      // Default: XLSX
+      const workbook = XLSX.utils.book_new()
+      const byCat = new Map<string, typeof allQuestions>()
+      for (const q of allQuestions) {
+        const cat = q.category || 'Général'
+        if (!byCat.has(cat)) byCat.set(cat, [])
+        byCat.get(cat)!.push(q)
+      }
+
+      const HEADERS = ['question', 'réponse', 'réponses_acceptées', 'difficulté', 'image_url', 'tag']
+
+      for (const [cat, questions] of byCat.entries()) {
+        const sheetName = cat.slice(0, 31) // Excel sheet name limit is 31 chars
+        const rows = questions.map(q => [
+          q.text,
+          q.answer,
+          Array.isArray(q.acceptedAnswers) ? q.acceptedAnswers.join(', ') : q.answer,
+          q.difficulty || 'facile',
+          q.imageUrl || '',
+          Array.isArray(q.tags) ? q.tags.join(', ') : '',
+        ])
+        const sheet = XLSX.utils.aoa_to_sheet([HEADERS, ...rows])
+        sheet['!cols'] = [{ wch: 45 }, { wch: 25 }, { wch: 30 }, { wch: 15 }, { wch: 45 }, { wch: 25 }]
+        XLSX.utils.book_append_sheet(workbook, sheet, sheetName)
+      }
+
+      if (workbook.SheetNames.length === 0) {
+        const sheet = XLSX.utils.aoa_to_sheet([HEADERS])
+        XLSX.utils.book_append_sheet(workbook, sheet, 'Questions')
+      }
+
+      const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' })
+      return new Response(buffer, {
+        headers: {
+          'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'Content-Disposition': 'attachment; filename="smik_party_all_questions.xlsx"',
+        },
+      })
+    } catch (err) {
+      set.status = 500
+      return { error: `Erreur lors de l'exportation: ${String(err)}` }
     }
   })

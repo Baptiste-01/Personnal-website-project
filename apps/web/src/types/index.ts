@@ -102,7 +102,6 @@ export interface Question {
   text: string
   answer?: string
   acceptedAnswers?: string[]
-  hint?: string | null
   imageUrl?: string | null
   category?: Category
   difficulty?: Difficulty

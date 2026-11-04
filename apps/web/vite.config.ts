@@ -33,7 +33,9 @@ export default defineConfig({
         target: 'http://localhost:3000',
         changeOrigin: true,
         bypass: (req) => {
-          if (req.headers.accept?.includes('text/html')) {
+          const pathname = req.url ? req.url.split('?')[0] : ''
+          // Only serve index.html for the client-side SPA route /admin, NOT for API endpoints (/admin/export, /admin/template, /admin/stats, /admin/import)
+          if ((pathname === '/admin' || pathname === '/admin/') && req.headers.accept?.includes('text/html')) {
             return '/index.html'
           }
         },
