@@ -84,13 +84,17 @@ export default function Admin() {
   const [statsError, setStatsError] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  /* Preview states */
+  /* Preview & Question Manager states */
   const [autoPreview, setAutoPreview] = useState(true)
   const [showVisualPreview, setShowVisualPreview] = useState(false)
   const [previewFilter, setPreviewFilter] = useState<'all' | 'inserted' | 'updated'>('all')
   const [previewSearch, setPreviewSearch] = useState('')
   const [previewCategory, setPreviewCategory] = useState<string>('all')
   const [previewModalImage, setPreviewModalImage] = useState<string | null>(null)
+  const [dbQuestions, setDbQuestions] = useState<ImportedQuestion[]>([])
+  const [showDbQuestions, setShowDbQuestions] = useState(false)
+  const [loadingDbQuestions, setLoadingDbQuestions] = useState(false)
+  const [diffFilter, setDiffFilter] = useState<'all' | 'facile' | 'moyen' | 'difficile'>('all')
 
   /* Fetch stats on mount */
   useEffect(() => {
@@ -111,13 +115,91 @@ export default function Admin() {
     }
   }
 
+  /* ── Database Question Manager Handlers ────────────────────── */
+  async function handleToggleDbQuestions() {
+    if (showDbQuestions) {
+      setShowDbQuestions(false)
+      return
+    }
+    setLoadingDbQuestions(true)
+    try {
+      const res = await fetch(`${API}/admin/questions`)
+      if (res.ok) {
+        const data = await res.json() as { total: number; questions: Array<{
+          id: string
+          text: string
+          answer: string
+          acceptedAnswers: string[]
+          category: string
+          difficulty: string
+          imageUrl?: string | null
+          tags: string[]
+        }> }
+        setDbQuestions(data.questions.map(q => ({
+          ...q,
+          status: 'inserted' as const,
+        })))
+        setShowDbQuestions(true)
+        setShowVisualPreview(true)
+      } else {
+        alert('Impossible de charger les questions de la base.')
+      }
+    } catch (err) {
+      alert(`Erreur : ${String(err)}`)
+    } finally {
+      setLoadingDbQuestions(false)
+    }
+  }
+
+  async function handleDeleteCategory(category: string, count: number) {
+    if (!window.confirm(`⚠️ ATTENTION : Voulez-vous vraiment supprimer la catégorie "${category}" et ses ${count} question(s) ?\nCette opération est irréversible.`)) {
+      return
+    }
+    try {
+      const res = await fetch(`${API}/admin/categories/${encodeURIComponent(category)}`, {
+        method: 'DELETE',
+      })
+      if (!res.ok) throw new Error(`Erreur HTTP: ${res.status}`)
+      const data = await res.json() as { success: boolean; count?: number }
+      alert(`Catégorie "${category}" supprimée (${data.count ?? count} question(s) effacée(s)).`)
+      fetchStats()
+      setResult(prev => prev ? {
+        ...prev,
+        importedQuestions: prev.importedQuestions?.filter(q => q.category.toLowerCase() !== category.toLowerCase())
+      } : null)
+      setDbQuestions(prev => prev.filter(q => q.category.toLowerCase() !== category.toLowerCase()))
+    } catch (err) {
+      alert(`Erreur lors de la suppression de la catégorie : ${String(err)}`)
+    }
+  }
+
+  async function handleDeleteQuestion(id: string, text: string) {
+    if (!window.confirm(`Supprimer définitivement la question suivante ?\n\n"${text}"`)) {
+      return
+    }
+    try {
+      const res = await fetch(`${API}/admin/questions/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      })
+      if (!res.ok) throw new Error(`Erreur HTTP: ${res.status}`)
+      fetchStats()
+      setResult(prev => prev ? {
+        ...prev,
+        importedQuestions: prev.importedQuestions?.filter(q => q.id !== id)
+      } : null)
+      setDbQuestions(prev => prev.filter(q => q.id !== id))
+    } catch (err) {
+      alert(`Erreur lors de la suppression de la question : ${String(err)}`)
+    }
+  }
+
   /* ── File handlers ─────────────────────────────────────────── */
   const handleFile = useCallback((f: File) => {
-    if (/\.(xlsx|xls|md|markdown)$/i.test(f.name)) {
+    if (/\.(xlsx|xls|md|markdown|csv)$/i.test(f.name)) {
       setFile(f)
       setResult(null)
     } else {
-      alert('Format invalide. Veuillez sélectionner un fichier .xlsx, .xls ou .md')
+      alert('Format invalide. Veuillez sélectionner un fichier .xlsx, .xls, .md ou .csv')
     }
   }, [])
 
@@ -171,7 +253,7 @@ export default function Admin() {
   /* ── Export handlers ────────────────────────────────────────── */
   const [downloadingExport, setDownloadingExport] = useState<string | null>(null)
 
-  async function handleDownloadExport(format: 'xlsx' | 'md') {
+  async function handleDownloadExport(format: 'xlsx' | 'md' | 'csv') {
     setDownloadingExport(format)
     try {
       const res = await fetch(`${API}/admin/export?format=${format}`)
@@ -182,7 +264,7 @@ export default function Admin() {
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = format === 'md' ? 'smik_party_all_questions.md' : 'smik_party_all_questions.xlsx'
+      a.download = format === 'md' ? 'smik_party_all_questions.md' : format === 'csv' ? 'smik_party_all_questions.csv' : 'smik_party_all_questions.xlsx'
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
@@ -212,6 +294,17 @@ export default function Admin() {
     }
   }
 
+  /* ── Difficulty Order Map (Strict: Easy, Normal, Hard) ──────── */
+  const DIFF_ORDER: Record<string, number> = {
+    facile: 1,
+    easy: 1,
+    moyen: 2,
+    normal: 2,
+    medium: 2,
+    difficile: 3,
+    hard: 3,
+  }
+
   /* ── Stats grouped by category ─────────────────────────────── */
   const statsByCategory = stats?.breakdown.reduce<Record<string, { total: number; details: StatBreakdown[] }>>((acc, item) => {
     if (!acc[item.category]) acc[item.category] = { total: 0, details: [] }
@@ -220,13 +313,25 @@ export default function Admin() {
     return acc
   }, {}) ?? {}
 
-  /* ── Filtered Questions for Visual Preview ─────────────────── */
-  const importedList = result?.importedQuestions ?? []
-  const availableCategories = Array.from(new Set(importedList.map(q => q.category)))
+  // Guarantee that details are ALWAYS ordered: Easy, Normal, Hard
+  Object.values(statsByCategory).forEach(cat => {
+    cat.details.sort((a, b) => (DIFF_ORDER[a.difficulty.toLowerCase()] ?? 99) - (DIFF_ORDER[b.difficulty.toLowerCase()] ?? 99))
+  })
 
-  const filteredQuestions = importedList.filter(q => {
-    if (previewFilter === 'inserted' && q.status !== 'inserted') return false
-    if (previewFilter === 'updated' && q.status !== 'updated') return false
+  /* ── Filtered Questions for Visual Preview ─────────────────── */
+  const activeQuestionsList = showDbQuestions ? dbQuestions : (result?.importedQuestions ?? [])
+  const availableCategories = Array.from(new Set(activeQuestionsList.map(q => q.category)))
+
+  const filteredQuestions = activeQuestionsList.filter(q => {
+    if (!showDbQuestions) {
+      if (previewFilter === 'inserted' && q.status !== 'inserted') return false
+      if (previewFilter === 'updated' && q.status !== 'updated') return false
+    }
+    if (diffFilter !== 'all') {
+      const d = q.difficulty.toLowerCase()
+      const normD = (d === 'facile' || d === 'easy') ? 'facile' : (d === 'moyen' || d === 'normal' || d === 'medium') ? 'moyen' : 'difficile'
+      if (normD !== diffFilter) return false
+    }
     if (previewCategory !== 'all' && q.category.toLowerCase() !== previewCategory.toLowerCase()) return false
     if (previewSearch.trim()) {
       const s = previewSearch.toLowerCase()
@@ -254,8 +359,8 @@ export default function Admin() {
         <div className="admin-header-title-row">
           <div className="admin-header-icon">📊</div>
           <div>
-            <h1 className="admin-header-title">Import de questions</h1>
-            <p className="admin-header-sub">Ajoutez des questions via un fichier Excel — un onglet par catégorie</p>
+            <h1 className="admin-header-title">Gestion des questions</h1>
+            <p className="admin-header-sub">Importez et exportez vos questions en Excel (.xlsx), CSV (.csv) ou Markdown (.md)</p>
           </div>
         </div>
       </header>
@@ -266,7 +371,16 @@ export default function Admin() {
         <section className="admin-card" aria-label="Statistiques base de données">
           <h2 className="admin-card-title">
             🗄️ Base de données
-            {stats && <span style={{ marginLeft: 'auto', fontSize: '0.8rem', color: 'var(--color-text-muted)', fontWeight: 400 }}>{stats.total} question{stats.total > 1 ? 's' : ''} au total</span>}
+            {stats && <span style={{ marginLeft: '0.75rem', fontSize: '0.8rem', color: 'var(--color-text-muted)', fontWeight: 400 }}>{stats.total} question{stats.total > 1 ? 's' : ''} au total</span>}
+            {stats && stats.total > 0 && (
+              <button
+                type="button"
+                className="btn-manage-db"
+                onClick={handleToggleDbQuestions}
+              >
+                {loadingDbQuestions ? 'Chargement…' : showDbQuestions ? '✕ Fermer le gestionnaire' : '🔍 Gérer toutes les questions'}
+              </button>
+            )}
           </h2>
 
           {statsError ? (
@@ -279,11 +393,26 @@ export default function Admin() {
             <div className="stats-grid">
               {Object.entries(statsByCategory).map(([cat, { total, details }]) => (
                 <div className="stats-item" key={cat}>
-                  <span className="stats-item-cat">{CAT_EMOJI[cat] ?? '❓'} {cat}</span>
+                  <div className="stats-item-header">
+                    <span className="stats-item-cat">{CAT_EMOJI[cat] ?? '❓'} {cat}</span>
+                    <button
+                      type="button"
+                      className="btn-delete-cat"
+                      title={`Supprimer toute la catégorie "${cat}" et ses ${total} questions`}
+                      onClick={() => handleDeleteCategory(cat, total)}
+                    >
+                      🗑️
+                    </button>
+                  </div>
                   <span className="stats-item-count">{total}</span>
                   <span className="stats-item-detail">
                     {details.map(d => {
-                      const diffTag = d.difficulty === 'facile' ? '🟢 Easy' : d.difficulty === 'moyen' ? '🟡 Normal' : d.difficulty === 'difficile' ? '🔴 Hard' : d.difficulty
+                      const dLower = d.difficulty.toLowerCase()
+                      const diffTag = (dLower === 'facile' || dLower === 'easy')
+                        ? '🟢 Easy'
+                        : (dLower === 'moyen' || dLower === 'normal' || dLower === 'medium')
+                        ? '🟡 Normal'
+                        : '🔴 Hard'
                       return `${diffTag}: ${d.count}`
                     }).join(' · ')}
                   </span>
@@ -322,7 +451,7 @@ export default function Admin() {
         </section>
 
         {/* ── File Upload Section ────────────────────────────── */}
-        <section className="admin-card" aria-label="Import de fichier Excel ou Markdown">
+        <section className="admin-card" aria-label="Import de fichier Excel, CSV ou Markdown">
           <h2 className="admin-card-title">📂 Importer un fichier</h2>
 
           {/* Drop zone */}
@@ -335,14 +464,14 @@ export default function Admin() {
             onClick={() => fileInputRef.current?.click()}
           >
             <span className="drop-zone-icon">📄</span>
-            <p className="drop-zone-label">Glissez votre fichier (.xlsx, .xls ou .md) ici</p>
+            <p className="drop-zone-label">Glissez votre fichier (.xlsx, .xls, .csv ou .md) ici</p>
             <p className="drop-zone-hint">ou cliquez pour parcourir</p>
             <input
               ref={fileInputRef}
               type="file"
-              accept=".xlsx,.xls,.md,.markdown"
+              accept=".xlsx,.xls,.csv,.md,.markdown"
               onChange={onInputChange}
-              aria-label="Sélectionner un fichier Excel ou Markdown"
+              aria-label="Sélectionner un fichier Excel, CSV ou Markdown"
             />
           </div>
 
@@ -415,23 +544,30 @@ export default function Admin() {
           )}
         </section>
 
-        {/* ── Visual Preview Section ────────────────────────────── */}
-        {result?.success && result.importedQuestions && result.importedQuestions.length > 0 && showVisualPreview && (
-          <section className="admin-card" aria-label="Aperçu visuel des questions">
+        {/* ── Visual Preview & Question Manager Section ──────────── */}
+        {((result?.success && result.importedQuestions && result.importedQuestions.length > 0 && showVisualPreview) || showDbQuestions) && (
+          <section className="admin-card" aria-label="Aperçu visuel et gestion des questions">
             <div className="preview-header-row">
               <div>
-                <h2 className="admin-card-title">👁️ Aperçu visuel des questions</h2>
+                <h2 className="admin-card-title">
+                  {showDbQuestions ? '🗄️ Gestion des questions en base' : '👁️ Aperçu visuel des questions'}
+                </h2>
                 <p className="admin-header-sub">
-                  {result.importedQuestions.length} question{result.importedQuestions.length > 1 ? 's' : ''} traitée{result.importedQuestions.length > 1 ? 's' : ''} dans cette session
+                  {showDbQuestions
+                    ? `${dbQuestions.length} question${dbQuestions.length > 1 ? 's' : ''} répertoriée${dbQuestions.length > 1 ? 's' : ''} en base`
+                    : `${result?.importedQuestions?.length ?? 0} question${(result?.importedQuestions?.length ?? 0) > 1 ? 's' : ''} traitée${(result?.importedQuestions?.length ?? 0) > 1 ? 's' : ''} dans cette session`}
                 </p>
               </div>
               <button
                 type="button"
                 className="btn-preview-close"
-                onClick={() => setShowVisualPreview(false)}
-                title="Masquer l'aperçu"
+                onClick={() => {
+                  setShowVisualPreview(false)
+                  setShowDbQuestions(false)
+                }}
+                title="Fermer la liste"
               >
-                ✕ Masquer l'aperçu
+                ✕ Fermer
               </button>
             </div>
 
@@ -445,29 +581,64 @@ export default function Admin() {
                 onChange={e => setPreviewSearch(e.target.value)}
               />
 
-              <div className="preview-filter-buttons">
-                <button
-                  type="button"
-                  className={`preview-filter-btn ${previewFilter === 'all' ? 'active' : ''}`}
-                  onClick={() => setPreviewFilter('all')}
-                >
-                  Toutes ({result.importedQuestions.length})
-                </button>
-                <button
-                  type="button"
-                  className={`preview-filter-btn ${previewFilter === 'inserted' ? 'active' : ''}`}
-                  onClick={() => setPreviewFilter('inserted')}
-                >
-                  ✨ Ajoutées ({result.importedQuestions.filter(q => q.status === 'inserted').length})
-                </button>
-                <button
-                  type="button"
-                  className={`preview-filter-btn ${previewFilter === 'updated' ? 'active' : ''}`}
-                  onClick={() => setPreviewFilter('updated')}
-                >
-                  🔄 Mises à jour ({result.importedQuestions.filter(q => q.status === 'updated').length})
-                </button>
-              </div>
+              {!showDbQuestions && result?.importedQuestions && (
+                <div className="preview-filter-buttons">
+                  <button
+                    type="button"
+                    className={`preview-filter-btn ${previewFilter === 'all' ? 'active' : ''}`}
+                    onClick={() => setPreviewFilter('all')}
+                  >
+                    Toutes ({result.importedQuestions.length})
+                  </button>
+                  <button
+                    type="button"
+                    className={`preview-filter-btn ${previewFilter === 'inserted' ? 'active' : ''}`}
+                    onClick={() => setPreviewFilter('inserted')}
+                  >
+                    ✨ Ajoutées ({result.importedQuestions.filter(q => q.status === 'inserted').length})
+                  </button>
+                  <button
+                    type="button"
+                    className={`preview-filter-btn ${previewFilter === 'updated' ? 'active' : ''}`}
+                    onClick={() => setPreviewFilter('updated')}
+                  >
+                    🔄 Mises à jour ({result.importedQuestions.filter(q => q.status === 'updated').length})
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Difficulty filter in strict order: Toutes, Easy, Normal, Hard */}
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '0.875rem', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', fontWeight: 600 }}>Difficulté :</span>
+              <button
+                type="button"
+                className={`preview-filter-btn ${diffFilter === 'all' ? 'active' : ''}`}
+                onClick={() => setDiffFilter('all')}
+              >
+                Toutes
+              </button>
+              <button
+                type="button"
+                className={`preview-filter-btn ${diffFilter === 'facile' ? 'active' : ''}`}
+                onClick={() => setDiffFilter('facile')}
+              >
+                🟢 Easy
+              </button>
+              <button
+                type="button"
+                className={`preview-filter-btn ${diffFilter === 'moyen' ? 'active' : ''}`}
+                onClick={() => setDiffFilter('moyen')}
+              >
+                🟡 Normal
+              </button>
+              <button
+                type="button"
+                className={`preview-filter-btn ${diffFilter === 'difficile' ? 'active' : ''}`}
+                onClick={() => setDiffFilter('difficile')}
+              >
+                🔴 Hard
+              </button>
             </div>
 
             {/* Category quick filter */}
@@ -495,19 +666,37 @@ export default function Admin() {
 
             {/* Cards Grid */}
             <div className="preview-cards-grid">
-              {filteredQuestions.map(q => (
-                <div className={`preview-card ${q.status === 'inserted' ? 'preview-card--new' : 'preview-card--updated'}`} key={q.id}>
-                  <div className="preview-card-top">
-                    <span className="preview-cat-badge">
-                      {CAT_EMOJI[q.category.toLowerCase()] ?? '🏷️'} {q.category}
-                    </span>
-                    <span className={`preview-status-pill ${q.status}`}>
-                      {q.status === 'inserted' ? '✨ Ajoutée' : '🔄 Mise à jour'}
-                    </span>
-                    <span className={`preview-diff-pill ${q.difficulty}`}>
-                      {q.difficulty}
-                    </span>
-                  </div>
+              {filteredQuestions.map(q => {
+                const dLower = q.difficulty.toLowerCase()
+                const diffLabel = (dLower === 'facile' || dLower === 'easy')
+                  ? '🟢 Easy'
+                  : (dLower === 'moyen' || dLower === 'normal' || dLower === 'medium')
+                  ? '🟡 Normal'
+                  : '🔴 Hard'
+
+                return (
+                  <div className={`preview-card ${q.status === 'inserted' ? 'preview-card--new' : 'preview-card--updated'}`} key={q.id}>
+                    <div className="preview-card-top">
+                      <span className="preview-cat-badge">
+                        {CAT_EMOJI[q.category.toLowerCase()] ?? '🏷️'} {q.category}
+                      </span>
+                      {!showDbQuestions && (
+                        <span className={`preview-status-pill ${q.status}`}>
+                          {q.status === 'inserted' ? '✨ Ajoutée' : '🔄 Mise à jour'}
+                        </span>
+                      )}
+                      <span className={`preview-diff-pill ${q.difficulty}`}>
+                        {diffLabel}
+                      </span>
+                      <button
+                        type="button"
+                        className="preview-card-delete-btn"
+                        title="Supprimer cette question"
+                        onClick={() => handleDeleteQuestion(q.id, q.text)}
+                      >
+                        🗑️
+                      </button>
+                    </div>
 
                   {q.imageUrl && (
                     <div
@@ -535,7 +724,8 @@ export default function Admin() {
                     </div>
                   )}
                 </div>
-              ))}
+              )
+            })}
             </div>
 
             {filteredQuestions.length === 0 && (
@@ -605,6 +795,15 @@ export default function Admin() {
             </button>
             <button
               type="button"
+              id="btn-export-csv"
+              onClick={() => handleDownloadExport('csv')}
+              disabled={downloadingExport !== null}
+              className="btn-export btn-export--csv"
+            >
+              <span>📋</span> {downloadingExport === 'csv' ? 'Export en cours…' : 'Télécharger en CSV (.csv)'}
+            </button>
+            <button
+              type="button"
               id="btn-export-md"
               onClick={() => handleDownloadExport('md')}
               disabled={downloadingExport !== null}
@@ -646,6 +845,11 @@ export default function Admin() {
                 </tr>
               </thead>
               <tbody>
+                <tr>
+                  <td><strong>catégorie</strong> (ou category)</td>
+                  <td>geographie, histoire...</td>
+                  <td><span className="optional">Optionnel (recommandé pour CSV multi-catégories)</span></td>
+                </tr>
                 <tr>
                   <td><strong>question</strong></td>
                   <td>Quelle est la capitale de la France ?</td>
@@ -697,6 +901,18 @@ export default function Admin() {
 | question | réponse | difficulté | tag |
 | --- | --- | --- | --- |
 | En quelle année débute la Révolution ? | 1789 | facile | France, Révolution |`}
+            </pre>
+          </div>
+
+          <div style={{ marginTop: '1.5rem' }}>
+            <p style={{ fontSize: '0.8125rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem', fontWeight: 500 }}>
+              📋 Exemple d'import via fichier CSV (.csv) :
+            </p>
+            <pre className="code-example-block">
+{`catégorie,question,réponse,réponses_acceptées,difficulté,image_url,tag
+geographie,"Quelle est la capitale de l'Allemagne ?",Berlin,berlin,facile,,Europe, Capitale
+histoire,En quelle année débute la Révolution ?,1789,,facile,,France, Révolution
+sciences,Quel est le symbole chimique de l'eau ?,H2O,h2o,facile,,Chimie`}
             </pre>
           </div>
         </section>

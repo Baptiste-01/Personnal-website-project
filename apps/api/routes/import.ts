@@ -4,6 +4,7 @@ import prisma from '../lib/prisma'
 
 /* ─── Types ──────────────────────────────────────────────────── */
 interface ExcelRow {
+  category?: string
   question?: string
   réponse?: string
   reponse?: string
@@ -111,13 +112,119 @@ function parseMarkdownTables(content: string, defaultName: string): Array<{ shee
   return sheets
 }
 
+/* ─── Helper: parse CSV content ──────────────────────────────── */
+function parseCsv(content: string, defaultName: string): Array<{ sheetName: string; rows: Record<string, unknown>[] }> {
+  let cleanContent = content
+  if (cleanContent.charCodeAt(0) === 0xfeff) {
+    cleanContent = cleanContent.slice(1)
+  }
+
+  const firstLine = cleanContent.split(/\r?\n/)[0] || ''
+  const commaCount = (firstLine.match(/,/g) || []).length
+  const semiCount = (firstLine.match(/;/g) || []).length
+  const delimiter = semiCount > commaCount ? ';' : ','
+
+  const records: string[][] = []
+  let currentRecord: string[] = []
+  let currentField = ''
+  let inQuotes = false
+
+  for (let i = 0; i < cleanContent.length; i++) {
+    const char = cleanContent[i]
+    const nextChar = cleanContent[i + 1]
+
+    if (inQuotes) {
+      if (char === '"') {
+        if (nextChar === '"') {
+          currentField += '"'
+          i++
+        } else {
+          inQuotes = false
+        }
+      } else {
+        currentField += char
+      }
+    } else {
+      if (char === '"') {
+        inQuotes = true
+      } else if (char === delimiter) {
+        currentRecord.push(currentField.trim())
+        currentField = ''
+      } else if (char === '\r') {
+        if (nextChar === '\n') {
+          i++
+        }
+        currentRecord.push(currentField.trim())
+        currentField = ''
+        if (currentRecord.some(f => f.length > 0)) {
+          records.push(currentRecord)
+        }
+        currentRecord = []
+      } else if (char === '\n') {
+        currentRecord.push(currentField.trim())
+        currentField = ''
+        if (currentRecord.some(f => f.length > 0)) {
+          records.push(currentRecord)
+        }
+        currentRecord = []
+      } else {
+        currentField += char
+      }
+    }
+  }
+
+  if (currentField.length > 0 || currentRecord.length > 0) {
+    currentRecord.push(currentField.trim())
+    if (currentRecord.some(f => f.length > 0)) {
+      records.push(currentRecord)
+    }
+  }
+
+  const firstRecord = records[0]
+  if (!firstRecord || records.length < 2) return []
+
+  const rawHeaders = firstRecord.map(h => h.trim())
+  const rows: Record<string, unknown>[] = []
+
+  for (let r = 1; r < records.length; r++) {
+    const rowValues = records[r]
+    if (!rowValues) continue
+    const rowObj: Record<string, unknown> = {}
+    rawHeaders.forEach((h, colIdx) => {
+      rowObj[h] = rowValues[colIdx] ?? ''
+    })
+    rows.push(rowObj)
+  }
+
+  const categoryGroups = new Map<string, Record<string, unknown>[]>()
+
+  for (const row of rows) {
+    const rowCategory = String(
+      row.catégorie ?? row.categorie ?? row.category ?? ''
+    ).trim()
+    const targetCategory = rowCategory || defaultName
+    if (!categoryGroups.has(targetCategory)) {
+      categoryGroups.set(targetCategory, [])
+    }
+    categoryGroups.get(targetCategory)!.push(row)
+  }
+
+  const sheets: Array<{ sheetName: string; rows: Record<string, unknown>[] }> = []
+  for (const [sheetName, catRows] of categoryGroups.entries()) {
+    sheets.push({ sheetName, rows: catRows })
+  }
+
+  return sheets
+}
+
 /* ─── Helper: normalise a row from any column name variant ────── */
 function normaliseRow(raw: Record<string, unknown>): ExcelRow {
   const row: ExcelRow = {}
   for (const [key, val] of Object.entries(raw)) {
     const k = key.toLowerCase().trim()
     const v = String(val ?? '').trim()
-    if (k === 'question') row.question = v
+    if (k === 'catégorie' || k === 'categorie' || k === 'category') row.category = v
+    else if (k === 'question') row.question = v
     else if (k === 'réponse' || k === 'reponse') row.réponse = v
     else if (k === 'réponses_acceptées' || k === 'reponses_acceptees') row.réponses_acceptées = v
     else if (k === 'difficulté' || k === 'difficulte') row.difficulté = v
@@ -153,15 +260,16 @@ export const importRoute = new Elysia({ prefix: '/admin' })
 
       if (!file) {
         set.status = 400
-        return { error: 'Aucun fichier fourni. Envoyez un fichier .xlsx, .xls ou .md dans le champ "file".' }
+        return { error: 'Aucun fichier fourni. Envoyez un fichier .xlsx, .xls, .md ou .csv dans le champ "file".' }
       }
 
       const isXlsx = /\.(xlsx|xls)$/i.test(file.name)
       const isMd = /\.(md|markdown)$/i.test(file.name)
+      const isCsv = /\.csv$/i.test(file.name)
 
-      if (!isXlsx && !isMd) {
+      if (!isXlsx && !isMd && !isCsv) {
         set.status = 400
-        return { error: 'Format invalide. Seuls les fichiers .xlsx, .xls et .md sont acceptés.' }
+        return { error: 'Format invalide. Seuls les fichiers .xlsx, .xls, .md et .csv sont acceptés.' }
       }
 
       const sheets: Array<{ sheetName: string; rows: Record<string, unknown>[] }> = []
@@ -175,6 +283,11 @@ export const importRoute = new Elysia({ prefix: '/admin' })
           const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet)
           sheets.push({ sheetName, rows })
         }
+      } else if (isCsv) {
+        const text = await file.text()
+        const defaultCategory = file.name.replace(/\.[^.]+$/, '').trim() || 'Général'
+        const csvSheets = parseCsv(text, defaultCategory)
+        sheets.push(...csvSheets)
       } else {
         const text = await file.text()
         const defaultCategory = file.name.replace(/\.[^.]+$/, '').trim() || 'Général'
@@ -475,20 +588,75 @@ export const importRoute = new Elysia({ prefix: '/admin' })
       .map(([tag, count]) => ({ tag, count }))
       .sort((a, b) => b.count - a.count)
 
+    const DIFF_ORDER: Record<string, number> = {
+      facile: 1,
+      easy: 1,
+      moyen: 2,
+      normal: 2,
+      medium: 2,
+      difficile: 3,
+      hard: 3,
+    }
+
+    const breakdown = counts
+      .map(c => ({ category: c.category, difficulty: c.difficulty, count: c._count.id }))
+      .sort((a, b) => {
+        const catCmp = a.category.localeCompare(b.category)
+        if (catCmp !== 0) return catCmp
+        return (DIFF_ORDER[a.difficulty.toLowerCase()] ?? 99) - (DIFF_ORDER[b.difficulty.toLowerCase()] ?? 99)
+      })
+
     return {
       total,
-      breakdown: counts.map(c => ({ category: c.category, difficulty: c.difficulty, count: c._count.id })),
+      breakdown,
       topTags,
     }
   })
 
-  /** GET /admin/export — export all questions from database as Excel (.xlsx) or Markdown (.md) */
+  /** GET /admin/export — export all questions from database as Excel (.xlsx), CSV (.csv) or Markdown (.md) */
   .get('/export', async ({ query, set }) => {
     try {
       const format = ((query.format as string) || 'xlsx').toLowerCase().trim()
       const allQuestions = await prisma.question.findMany({
         orderBy: [{ category: 'asc' }, { id: 'asc' }],
       })
+
+      if (format === 'csv') {
+        const escapeCsv = (val: string | null | undefined): string => {
+          if (val == null) return ''
+          const str = String(val)
+          if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r') || str.includes(';')) {
+            return `"${str.replace(/"/g, '""')}"`
+          }
+          return str
+        }
+
+        const headers = ['catégorie', 'question', 'réponse', 'réponses_acceptées', 'difficulté', 'image_url', 'tag']
+        const lines: string[] = [headers.join(',')]
+
+        for (const q of allQuestions) {
+          const accepted = Array.isArray(q.acceptedAnswers) ? q.acceptedAnswers.join(', ') : (q.answer ?? '')
+          const tags = Array.isArray(q.tags) ? q.tags.join(', ') : ''
+          lines.push([
+            escapeCsv(q.category || 'Général'),
+            escapeCsv(q.text),
+            escapeCsv(q.answer),
+            escapeCsv(accepted),
+            escapeCsv(q.difficulty || 'facile'),
+            escapeCsv(q.imageUrl || ''),
+            escapeCsv(tags),
+          ].join(','))
+        }
+
+        const csvContent = '\uFEFF' + lines.join('\r\n')
+
+        return new Response(csvContent, {
+          headers: {
+            'Content-Type': 'text/csv; charset=utf-8',
+            'Content-Disposition': 'attachment; filename="smik_party_all_questions.csv"',
+          },
+        })
+      }
 
       if (format === 'md' || format === 'markdown') {
         const byCat = new Map<string, typeof allQuestions>()
@@ -561,5 +729,93 @@ export const importRoute = new Elysia({ prefix: '/admin' })
     } catch (err) {
       set.status = 500
       return { error: `Erreur lors de l'exportation: ${String(err)}` }
+    }
+  })
+
+  /** GET /admin/questions — list questions with optional category & search filter */
+  .get('/questions', async ({ query }) => {
+    const category = (query.category as string | undefined)?.toLowerCase().trim()
+    const search = (query.search as string | undefined)?.trim()
+
+    const where: Record<string, unknown> = {}
+    if (category && category !== 'all') {
+      where.category = { equals: category, mode: 'insensitive' }
+    }
+    if (search) {
+      where.OR = [
+        { text: { contains: search, mode: 'insensitive' } },
+        { answer: { contains: search, mode: 'insensitive' } },
+        { category: { contains: search, mode: 'insensitive' } },
+      ]
+    }
+
+    const total = await prisma.question.count({ where })
+    const questions = await prisma.question.findMany({
+      where,
+      orderBy: [{ category: 'asc' }, { id: 'asc' }],
+    })
+
+    const DIFF_ORDER: Record<string, number> = {
+      facile: 1,
+      easy: 1,
+      moyen: 2,
+      normal: 2,
+      medium: 2,
+      difficile: 3,
+      hard: 3,
+    }
+
+    // Sort questions by difficulty order Easy -> Normal -> Hard within category
+    const sortedQuestions = [...questions].sort((a, b) => {
+      const catCmp = a.category.localeCompare(b.category)
+      if (catCmp !== 0) return catCmp
+      return (DIFF_ORDER[a.difficulty.toLowerCase()] ?? 99) - (DIFF_ORDER[b.difficulty.toLowerCase()] ?? 99)
+    })
+
+    return { total, questions: sortedQuestions }
+  })
+
+  /** DELETE /admin/questions/:id — delete a single question by id */
+  .delete('/questions/:id', async ({ params, set }) => {
+    try {
+      const id = params.id
+      await prisma.question.delete({
+        where: { id },
+      })
+      return { success: true, message: 'Question supprimée avec succès.' }
+    } catch (err) {
+      set.status = 500
+      return { error: `Impossible de supprimer la question : ${String(err)}` }
+    }
+  })
+
+  /** DELETE /admin/categories/:category — delete all questions belonging to a category */
+  .delete('/categories/:category', async ({ params, set }) => {
+    try {
+      const category = decodeURIComponent(params.category).trim()
+      const qResult = await prisma.question.deleteMany({
+        where: {
+          category: { equals: category, mode: 'insensitive' },
+        },
+      })
+
+      // Clean up category metadata table if present
+      await prisma.category.deleteMany({
+        where: {
+          OR: [
+            { slug: category.toLowerCase() },
+            { name: { equals: category, mode: 'insensitive' } },
+          ],
+        },
+      })
+
+      return {
+        success: true,
+        count: qResult.count,
+        message: `${qResult.count} question(s) supprimée(s) dans la catégorie "${category}".`,
+      }
+    } catch (err) {
+      set.status = 500
+      return { error: `Impossible de supprimer la catégorie : ${String(err)}` }
     }
   })
