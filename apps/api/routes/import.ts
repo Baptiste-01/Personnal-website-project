@@ -20,6 +20,7 @@ interface ImportResult {
   sheet: string
   inserted: number
   updated: number
+  unchanged: number
   skipped: number
   errors: string[]
 }
@@ -33,7 +34,7 @@ export interface ImportedQuestionItem {
   difficulty: string
   imageUrl?: string | null
   tags: string[]
-  status: 'inserted' | 'updated'
+  status: 'inserted' | 'updated' | 'unchanged'
 }
 
 /* ─── Helper: parse Markdown tables ──────────────────────────── */
@@ -250,6 +251,58 @@ function validateDifficulty(val: string | undefined): string {
   return DIFFICULTY_NORMALIZE_MAP[d] ?? 'facile'
 }
 
+/* ─── Helper: check if a question has any difference ─────────── */
+function hasQuestionChanged(
+  existing: {
+    text: string
+    answer: string
+    acceptedAnswers: string[]
+    difficulty: string
+    imageUrl: string | null
+    tags: string[]
+    category: string
+  },
+  incoming: {
+    text: string
+    answer: string
+    acceptedAnswers: string[]
+    difficulty: string
+    imageUrl: string | null
+    tags: string[]
+    category: string
+  }
+): boolean {
+  if (existing.text.trim() !== incoming.text.trim()) return true
+  if (existing.answer.trim() !== incoming.answer.trim()) return true
+  if (existing.difficulty.toLowerCase().trim() !== incoming.difficulty.toLowerCase().trim()) return true
+  if (existing.category.toLowerCase().trim() !== incoming.category.toLowerCase().trim()) return true
+  if ((existing.imageUrl?.trim() || null) !== (incoming.imageUrl?.trim() || null)) return true
+
+  // Compare acceptedAnswers
+  const exAns = (existing.acceptedAnswers || []).map(a => a.toLowerCase().trim()).filter(Boolean)
+  const inAns = (incoming.acceptedAnswers || []).map(a => a.toLowerCase().trim()).filter(Boolean)
+  const setExAns = new Set(exAns)
+  const setInAns = new Set(inAns)
+  if (setExAns.size !== setInAns.size) return true
+  for (const a of setInAns) {
+    if (!setExAns.has(a)) return true
+  }
+
+  // Compare tags (only if incoming explicitly provides tags)
+  if (incoming.tags.length > 0) {
+    const exTags = (existing.tags || []).map(t => t.toLowerCase().trim()).filter(Boolean)
+    const inTags = incoming.tags.map(t => t.toLowerCase().trim()).filter(Boolean)
+    const setExTags = new Set(exTags)
+    const setInTags = new Set(inTags)
+    if (setExTags.size !== setInTags.size) return true
+    for (const t of setInTags) {
+      if (!setExTags.has(t)) return true
+    }
+  }
+
+  return false
+}
+
 /* ─── Route ───────────────────────────────────────────────────── */
 export const importRoute = new Elysia({ prefix: '/admin' })
   /** POST /admin/import — upload a .xlsx, .xls or .md file, parse and upsert questions */
@@ -299,6 +352,7 @@ export const importRoute = new Elysia({ prefix: '/admin' })
       const importedQuestions: ImportedQuestionItem[] = []
       let totalInserted = 0
       let totalUpdated = 0
+      let totalUnchanged = 0
       let totalSkipped = 0
 
       // Process each sheet/section as a category
@@ -309,6 +363,7 @@ export const importRoute = new Elysia({ prefix: '/admin' })
           sheet: sheetName,
           inserted: 0,
           updated: 0,
+          unchanged: 0,
           skipped: 0,
           errors: [],
         }
@@ -389,39 +444,85 @@ export const importRoute = new Elysia({ prefix: '/admin' })
             }
 
             if (existing) {
-              const updated = await prisma.question.update({
-                where: { id: existing.id },
-                data: {
+              const changed = hasQuestionChanged(
+                {
+                  text: existing.text,
+                  answer: existing.answer,
+                  acceptedAnswers: existing.acceptedAnswers,
+                  difficulty: existing.difficulty,
+                  imageUrl: existing.imageUrl,
+                  tags: existing.tags,
+                  category: existing.category,
+                },
+                {
                   text: questionText,
                   answer,
                   acceptedAnswers,
-                  hint: null,
-                  category,
                   difficulty,
                   imageUrl,
-                  ...(tags.length > 0 ? { tags } : {}),
-                },
-              })
-              result.updated++
-              totalUpdated++
-              importedQuestions.push({
-                id: updated.id,
-                text: updated.text,
-                answer: updated.answer,
-                acceptedAnswers: updated.acceptedAnswers,
-                category: updated.category,
-                difficulty: updated.difficulty,
-                imageUrl: updated.imageUrl,
-                tags: updated.tags,
-                status: 'updated',
-              })
+                  tags,
+                  category,
+                }
+              )
+
+              if (changed) {
+                const updated = await prisma.question.update({
+                  where: { id: existing.id },
+                  data: {
+                    text: questionText,
+                    answer,
+                    acceptedAnswers,
+                    hint: null,
+                    category,
+                    difficulty,
+                    imageUrl,
+                    ...(tags.length > 0 ? { tags } : {}),
+                  },
+                })
+                result.updated++
+                totalUpdated++
+                const updatedItem: ImportedQuestionItem = {
+                  id: updated.id,
+                  text: updated.text,
+                  answer: updated.answer,
+                  acceptedAnswers: updated.acceptedAnswers,
+                  category: updated.category,
+                  difficulty: updated.difficulty,
+                  imageUrl: updated.imageUrl,
+                  tags: updated.tags,
+                  status: 'updated',
+                }
+                const existingIdx = importedQuestions.findIndex(q => q.id === updated.id)
+                if (existingIdx >= 0) {
+                  importedQuestions[existingIdx] = updatedItem
+                } else {
+                  importedQuestions.push(updatedItem)
+                }
+              } else {
+                result.unchanged++
+                totalUnchanged++
+                const existingIdx = importedQuestions.findIndex(q => q.id === existing.id)
+                if (existingIdx < 0) {
+                  importedQuestions.push({
+                    id: existing.id,
+                    text: existing.text,
+                    answer: existing.answer,
+                    acceptedAnswers: existing.acceptedAnswers,
+                    category: existing.category,
+                    difficulty: existing.difficulty,
+                    imageUrl: existing.imageUrl,
+                    tags: existing.tags,
+                    status: 'unchanged',
+                  })
+                }
+              }
             } else {
               const created = await prisma.question.create({
                 data: { text: questionText, answer, acceptedAnswers, hint: null, category, difficulty, imageUrl, tags },
               })
               result.inserted++
               totalInserted++
-              importedQuestions.push({
+              const createdItem: ImportedQuestionItem = {
                 id: created.id,
                 text: created.text,
                 answer: created.answer,
@@ -431,7 +532,13 @@ export const importRoute = new Elysia({ prefix: '/admin' })
                 imageUrl: created.imageUrl,
                 tags: created.tags,
                 status: 'inserted',
-              })
+              }
+              const existingIdx = importedQuestions.findIndex(q => q.id === created.id)
+              if (existingIdx >= 0) {
+                importedQuestions[existingIdx] = createdItem
+              } else {
+                importedQuestions.push(createdItem)
+              }
             }
           } catch (err) {
             result.errors.push(`Ligne ${rowNum}: erreur DB — ${String(err)}`)
@@ -441,7 +548,7 @@ export const importRoute = new Elysia({ prefix: '/admin' })
         }
 
         // Register or sync category & tags
-        if (result.inserted > 0 || result.updated > 0) {
+        if (result.inserted > 0 || result.updated > 0 || result.unchanged > 0) {
           try {
             const slug = category.replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || category
             const existingCat = await prisma.category.findUnique({ where: { slug } })
@@ -476,6 +583,7 @@ export const importRoute = new Elysia({ prefix: '/admin' })
           sheetsProcessed: sheets.length,
           totalInserted,
           totalUpdated,
+          totalUnchanged,
           totalSkipped,
         },
         details: results,

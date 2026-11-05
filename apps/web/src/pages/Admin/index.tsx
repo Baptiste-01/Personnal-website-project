@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { API_URL } from '../../utils/config'
 import './Admin.css'
@@ -10,6 +10,7 @@ interface ImportDetail {
   sheet: string
   inserted: number
   updated: number
+  unchanged?: number
   skipped: number
   errors: string[]
 }
@@ -23,7 +24,7 @@ export interface ImportedQuestion {
   difficulty: string
   imageUrl?: string | null
   tags: string[]
-  status: 'inserted' | 'updated'
+  status: 'inserted' | 'updated' | 'unchanged'
 }
 
 interface ImportResponse {
@@ -32,6 +33,7 @@ interface ImportResponse {
     sheetsProcessed: number
     totalInserted: number
     totalUpdated: number
+    totalUnchanged?: number
     totalSkipped: number
   }
   details: ImportDetail[]
@@ -87,7 +89,7 @@ export default function Admin() {
   /* Preview & Question Manager states */
   const [autoPreview, setAutoPreview] = useState(true)
   const [showVisualPreview, setShowVisualPreview] = useState(false)
-  const [previewFilter, setPreviewFilter] = useState<'all' | 'inserted' | 'updated'>('all')
+  const [previewFilter, setPreviewFilter] = useState<'all' | 'inserted' | 'updated' | 'unchanged'>('all')
   const [previewSearch, setPreviewSearch] = useState('')
   const [previewCategory, setPreviewCategory] = useState<string>('all')
   const [previewModalImage, setPreviewModalImage] = useState<string | null>(null)
@@ -319,30 +321,60 @@ export default function Admin() {
   })
 
   /* ── Filtered Questions for Visual Preview ─────────────────── */
-  const activeQuestionsList = showDbQuestions ? dbQuestions : (result?.importedQuestions ?? [])
-  const availableCategories = Array.from(new Set(activeQuestionsList.map(q => q.category)))
+  const rawList = showDbQuestions ? dbQuestions : (result?.importedQuestions ?? [])
+  // Deduplicate questions by id to avoid duplicate cards and React key collision issues
+  const activeQuestionsList = useMemo(() => {
+    const seen = new Set<string>()
+    return rawList.filter(q => {
+      if (!q.id || seen.has(q.id)) return false
+      seen.add(q.id)
+      return true
+    })
+  }, [rawList])
 
-  const filteredQuestions = activeQuestionsList.filter(q => {
-    if (!showDbQuestions) {
-      if (previewFilter === 'inserted' && q.status !== 'inserted') return false
-      if (previewFilter === 'updated' && q.status !== 'updated') return false
+  const availableCategories = useMemo(() => {
+    const catsMap = new Map<string, string>()
+    activeQuestionsList.forEach(q => {
+      const trimmed = q.category.trim()
+      const lower = trimmed.toLowerCase()
+      if (!catsMap.has(lower)) {
+        catsMap.set(lower, trimmed)
+      }
+    })
+    return Array.from(catsMap.values())
+  }, [activeQuestionsList])
+
+  // Reset category filter if selected category is not in available categories
+  useEffect(() => {
+    if (previewCategory !== 'all' && !availableCategories.some(c => c.toLowerCase() === previewCategory.toLowerCase())) {
+      setPreviewCategory('all')
     }
-    if (diffFilter !== 'all') {
-      const d = q.difficulty.toLowerCase()
-      const normD = (d === 'facile' || d === 'easy') ? 'facile' : (d === 'moyen' || d === 'normal' || d === 'medium') ? 'moyen' : 'difficile'
-      if (normD !== diffFilter) return false
-    }
-    if (previewCategory !== 'all' && q.category.toLowerCase() !== previewCategory.toLowerCase()) return false
-    if (previewSearch.trim()) {
-      const s = previewSearch.toLowerCase()
-      const matchText = q.text.toLowerCase().includes(s)
-      const matchAns = q.answer.toLowerCase().includes(s)
-      const matchCat = q.category.toLowerCase().includes(s)
-      const matchTag = q.tags?.some(t => t.toLowerCase().includes(s))
-      return matchText || matchAns || matchCat || matchTag
-    }
-    return true
-  })
+  }, [availableCategories, previewCategory])
+
+  const filteredQuestions = useMemo(() => {
+    return activeQuestionsList.filter(q => {
+      if (!showDbQuestions) {
+        if (previewFilter === 'inserted' && q.status !== 'inserted') return false
+        if (previewFilter === 'updated' && q.status !== 'updated') return false
+        if (previewFilter === 'unchanged' && q.status !== 'unchanged') return false
+      }
+      if (diffFilter !== 'all') {
+        const d = q.difficulty.toLowerCase().trim()
+        const normD = (d === 'facile' || d === 'easy') ? 'facile' : (d === 'moyen' || d === 'normal' || d === 'medium') ? 'moyen' : 'difficile'
+        if (normD !== diffFilter) return false
+      }
+      if (previewCategory !== 'all' && q.category.trim().toLowerCase() !== previewCategory.trim().toLowerCase()) return false
+      if (previewSearch.trim()) {
+        const s = previewSearch.toLowerCase().trim()
+        const matchText = q.text.toLowerCase().includes(s)
+        const matchAns = q.answer.toLowerCase().includes(s)
+        const matchCat = q.category.toLowerCase().includes(s)
+        const matchTag = q.tags?.some(t => t.toLowerCase().includes(s))
+        return matchText || matchAns || matchCat || matchTag
+      }
+      return true
+    })
+  }, [activeQuestionsList, showDbQuestions, previewFilter, diffFilter, previewCategory, previewSearch])
 
   /* ─── Render ─────────────────────────────────────────────────── */
   return (
@@ -525,7 +557,7 @@ export default function Admin() {
           )}
           {result?.success && (
             <div className="alert-banner success">
-              ✅ Import terminé — {result.summary.totalInserted} ajoutées, {result.summary.totalUpdated} mises à jour.
+              ✅ Import terminé — {result.summary.totalInserted} ajoutée{result.summary.totalInserted > 1 ? 's' : ''}, {result.summary.totalUpdated} mise{result.summary.totalUpdated > 1 ? 's' : ''} à jour{(result.summary.totalUnchanged ?? 0) > 0 ? `, ${result.summary.totalUnchanged} inchangée${result.summary.totalUnchanged! > 1 ? 's' : ''}` : ''}.
             </div>
           )}
 
@@ -588,22 +620,31 @@ export default function Admin() {
                     className={`preview-filter-btn ${previewFilter === 'all' ? 'active' : ''}`}
                     onClick={() => setPreviewFilter('all')}
                   >
-                    Toutes ({result.importedQuestions.length})
+                    Toutes ({activeQuestionsList.length})
                   </button>
                   <button
                     type="button"
                     className={`preview-filter-btn ${previewFilter === 'inserted' ? 'active' : ''}`}
                     onClick={() => setPreviewFilter('inserted')}
                   >
-                    ✨ Ajoutées ({result.importedQuestions.filter(q => q.status === 'inserted').length})
+                    ✨ Ajoutées ({activeQuestionsList.filter(q => q.status === 'inserted').length})
                   </button>
                   <button
                     type="button"
                     className={`preview-filter-btn ${previewFilter === 'updated' ? 'active' : ''}`}
                     onClick={() => setPreviewFilter('updated')}
                   >
-                    🔄 Mises à jour ({result.importedQuestions.filter(q => q.status === 'updated').length})
+                    🔄 Mises à jour ({activeQuestionsList.filter(q => q.status === 'updated').length})
                   </button>
+                  {activeQuestionsList.some(q => q.status === 'unchanged') && (
+                    <button
+                      type="button"
+                      className={`preview-filter-btn ${previewFilter === 'unchanged' ? 'active' : ''}`}
+                      onClick={() => setPreviewFilter('unchanged')}
+                    >
+                      💤 Inchangées ({activeQuestionsList.filter(q => q.status === 'unchanged').length})
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -674,15 +715,26 @@ export default function Admin() {
                   ? '🟡 Normal'
                   : '🔴 Hard'
 
+                const cardClass = q.status === 'inserted'
+                  ? 'preview-card--new'
+                  : q.status === 'updated'
+                  ? 'preview-card--updated'
+                  : 'preview-card--unchanged'
+                const statusLabel = q.status === 'inserted'
+                  ? '✨ Ajoutée'
+                  : q.status === 'updated'
+                  ? '🔄 Mise à jour'
+                  : '💤 Inchangée'
+
                 return (
-                  <div className={`preview-card ${q.status === 'inserted' ? 'preview-card--new' : 'preview-card--updated'}`} key={q.id}>
+                  <div className={`preview-card ${cardClass}`} key={q.id}>
                     <div className="preview-card-top">
                       <span className="preview-cat-badge">
                         {CAT_EMOJI[q.category.toLowerCase()] ?? '🏷️'} {q.category}
                       </span>
                       {!showDbQuestions && (
                         <span className={`preview-status-pill ${q.status}`}>
-                          {q.status === 'inserted' ? '✨ Ajoutée' : '🔄 Mise à jour'}
+                          {statusLabel}
                         </span>
                       )}
                       <span className={`preview-diff-pill ${q.difficulty}`}>
@@ -750,6 +802,12 @@ export default function Admin() {
                 <div className="result-stat-number updated">{result.summary.totalUpdated}</div>
                 <div className="result-stat-label">Mises à jour</div>
               </div>
+              {(result.summary.totalUnchanged ?? 0) > 0 && (
+                <div className="result-stat">
+                  <div className="result-stat-number unchanged" style={{ color: '#94a3b8' }}>{result.summary.totalUnchanged}</div>
+                  <div className="result-stat-label">Inchangées</div>
+                </div>
+              )}
               <div className="result-stat">
                 <div className="result-stat-number skipped">{result.summary.totalSkipped}</div>
                 <div className="result-stat-label">Ignorées</div>
@@ -764,6 +822,7 @@ export default function Admin() {
                 <span className="sheet-counts">
                   <span style={{ color: '#10b981' }}>+{d.inserted}</span>
                   <span style={{ color: '#6366f1' }}>↺{d.updated}</span>
+                  {(d.unchanged ?? 0) > 0 && <span style={{ color: '#94a3b8' }}>={d.unchanged}</span>}
                   {d.skipped > 0 && <span style={{ color: '#f59e0b' }}>⚠{d.skipped}</span>}
                 </span>
                 {d.errors.length > 0 && (
