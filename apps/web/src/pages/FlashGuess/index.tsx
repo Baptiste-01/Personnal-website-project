@@ -523,6 +523,7 @@ export default function FlashGuess() {
                   className="fg-leave-btn"
                   onClick={() => {
                     soundManager.playClick()
+                    actions.leaveArena()
                     navigate('/')
                   }}
                   id="leave-to-lobby"

@@ -776,9 +776,9 @@ export default function Lobby() {
     }
   }
 
-  const fetchArenas = useCallback(async (manual = false) => {
-    if (manual) setIsRefreshing(true)
-    else setFetchState('loading')
+  const fetchArenas = useCallback(async (mode?: 'manual' | 'silent') => {
+    if (mode === 'manual') setIsRefreshing(true)
+    else if (!mode) setFetchState('loading')
     try {
       const res = await fetch(`${API_URL}/arenas`)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -786,13 +786,19 @@ export default function Lobby() {
       setArenas(data)
       setFetchState('success')
     } catch {
-      setFetchState('error')
+      if (!mode) setFetchState('error')
     } finally {
-      setIsRefreshing(false)
+      if (mode === 'manual') setIsRefreshing(false)
     }
   }, [])
 
-  useEffect(() => { fetchArenas() }, [fetchArenas])
+  useEffect(() => {
+    fetchArenas()
+    const interval = setInterval(() => {
+      fetchArenas('silent')
+    }, 3000)
+    return () => clearInterval(interval)
+  }, [fetchArenas])
 
   const handleCreateArena = async (settings: CreateArenaSettings) => {
     const res = await fetch(`${API_URL}/arenas`, {
@@ -922,7 +928,7 @@ export default function Lobby() {
               </button>
               <button
                 className={`btn-refresh ${isRefreshing ? 'is-loading' : ''}`}
-                onClick={() => fetchArenas(true)}
+                onClick={() => fetchArenas('manual')}
                 disabled={isRefreshing}
                 id="refresh-button"
               >

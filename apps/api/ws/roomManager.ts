@@ -360,6 +360,7 @@ export class GameRoom {
 
     if (player.disconnectTimeout) {
       clearTimeout(player.disconnectTimeout)
+      player.disconnectTimeout = null
     }
 
     this.players.delete(id)
@@ -373,6 +374,7 @@ export class GameRoom {
       }
     } else if (this.players.size === 0) {
       this.hostId = null
+      this.status = 'waiting'
       this.clearAllTimers()
     }
 
@@ -382,6 +384,18 @@ export class GameRoom {
       newHostId: this.hostId,
       players: this.getPlayerSummaries(),
     })
+
+    // Sync active player count and status to DB
+    const activeCount = this.getActivePlayerCount()
+    prisma.arena
+      .update({
+        where: { id: this.id },
+        data: {
+          players: activeCount,
+          ...(activeCount === 0 ? { status: 'waiting' } : {}),
+        },
+      })
+      .catch(() => {})
   }
 
   public clearAllTimers() {
@@ -720,6 +734,15 @@ class RoomManager {
     return this.rooms.get(id)
   }
 
+  public delete(id: string): boolean {
+    const room = this.rooms.get(id)
+    if (room) {
+      room.clearAllTimers()
+      return this.rooms.delete(id)
+    }
+    return false
+  }
+
   public getLivePlayerCount(id: string): number {
     const room = this.rooms.get(id)
     return room ? room.getActivePlayerCount() : 0
@@ -733,6 +756,21 @@ class RoomManager {
       this.rooms.delete(id)
     }
   }
+
+  public cleanupInactiveRooms() {
+    const now = Date.now()
+    for (const [id, room] of this.rooms.entries()) {
+      if (room.getActivePlayerCount() === 0 && now - room.lastActiveAt > 180000) {
+        room.clearAllTimers()
+        this.rooms.delete(id)
+      }
+    }
+  }
 }
 
 export const roomManager = new RoomManager()
+
+// Periodic housekeeping for stale rooms (every 60s)
+setInterval(() => {
+  roomManager.cleanupInactiveRooms()
+}, 60000)

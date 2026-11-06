@@ -87,7 +87,7 @@ export function useArenaSocket({
     setSelfId(player.id)
     setSelfName(player.name)
 
-    const wsUrl = `${WS_URL}/ws/arena/${arenaId}`
+    const wsUrl = `${WS_URL}/ws/arena/${arenaId}?playerId=${encodeURIComponent(player.id)}&playerName=${encodeURIComponent(player.name)}`
 
     function connect() {
       if (isUnmounted) return
@@ -374,6 +374,19 @@ export function useArenaSocket({
     send({ type: 'request_current_round' })
   }, [send])
 
+  const leaveArena = useCallback(() => {
+    try {
+      if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+        socketRef.current.send(
+          JSON.stringify({
+            type: 'leave',
+            playerId: selfId,
+          })
+        )
+      }
+    } catch {}
+  }, [send, selfId])
+
   // Recovery: if room is in progress but client missed the question packet, request it
   useEffect(() => {
     if (connected && (roomStatus === 'playing' || roomStatus === 'reveal') && !currentQuestion) {
@@ -416,6 +429,7 @@ export function useArenaSocket({
       restartGame,
       sendChatMessage,
       requestCurrentRound,
+      leaveArena,
     },
   }
 }

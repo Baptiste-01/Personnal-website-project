@@ -1144,6 +1144,24 @@
   transform: none;
 }
 
+.btn-ready-toggle--wait {
+  background: linear-gradient(130deg, #3b82f6 0%, #2563eb 100%);
+  box-shadow: 0 4px 22px rgba(59, 130, 246, 0.4);
+}
+
+.btn-ready-toggle--wait:hover {
+  box-shadow: 0 8px 32px rgba(59, 130, 246, 0.55);
+}
+
+.btn-ready-toggle--ready {
+  background: linear-gradient(130deg, #10b981 0%, #059669 100%);
+  box-shadow: 0 4px 22px rgba(16, 185, 129, 0.4);
+}
+
+.btn-ready-toggle--ready:hover {
+  box-shadow: 0 8px 32px rgba(16, 185, 129, 0.55);
+}
+
 /* ─── Points inputs ─── */
 .pts-input-row {
   display: flex;

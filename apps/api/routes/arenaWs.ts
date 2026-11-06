@@ -4,6 +4,7 @@ import { roomManager, type GameSettings } from '../ws/roomManager'
 
 interface WsData {
   params: { arenaId: string }
+  query?: { playerId?: string; playerName?: string }
   playerId?: string
   playerName?: string
 }
@@ -11,8 +12,16 @@ interface WsData {
 export const arenaWs = new Elysia()
   .ws('/ws/arena/:arenaId', {
     open(ws) {
-      const arenaId = ws.data.params.arenaId
+      const data = ws.data as WsData
+      const arenaId = data.params.arenaId
       if (!arenaId) return
+
+      if (data.query?.playerId) {
+        data.playerId = data.query.playerId
+      }
+      if (data.query?.playerName) {
+        data.playerName = data.query.playerName
+      }
 
       // Pre-warm room immediately in memory
       const room = roomManager.getOrCreate(arenaId, 'Arène')
@@ -49,8 +58,8 @@ export const arenaWs = new Elysia()
 
       switch (msg.type) {
         case 'join': {
-          const playerId = String(msg.playerId || `p_${Math.random().toString(36).slice(2, 9)}`)
-          const playerName = String(msg.playerName || 'Anonyme')
+          const playerId = String(msg.playerId || data.playerId || data.query?.playerId || `p_${Math.random().toString(36).slice(2, 9)}`)
+          const playerName = String(msg.playerName || data.playerName || data.query?.playerName || 'Anonyme')
 
           data.playerId = playerId
           data.playerName = playerName
@@ -118,14 +127,41 @@ export const arenaWs = new Elysia()
             playerId
           )
 
-          // Sync player count to DB
+          // Sync active player count to DB
           prisma.arena
             .update({
               where: { id: arenaId },
-              data: { players: room.players.size },
+              data: { players: room.getActivePlayerCount() },
             })
             .catch(() => {})
 
+          break
+        }
+
+        case 'leave': {
+          let playerId = String(msg.playerId || data.playerId || data.query?.playerId || '')
+          if (!playerId) {
+            for (const [id, p] of room.players.entries()) {
+              if (p.ws === ws || (ws.raw && p.ws?.raw === ws.raw)) {
+                playerId = id
+                break
+              }
+            }
+          }
+          if (!playerId) return
+
+          room.removePlayer(playerId)
+
+          const activeCount = room.getActivePlayerCount()
+          prisma.arena
+            .update({
+              where: { id: arenaId },
+              data: {
+                players: activeCount,
+                ...(activeCount === 0 ? { status: 'waiting' } : {}),
+              },
+            })
+            .catch(() => {})
           break
         }
 
@@ -258,22 +294,35 @@ export const arenaWs = new Elysia()
     close(ws) {
       const data = ws.data as WsData
       const arenaId = data.params.arenaId
-      const playerId = data.playerId
+      let playerId = data.playerId || data.query?.playerId
 
-      if (!arenaId || !playerId) return
+      if (!arenaId) return
 
       const room = roomManager.get(arenaId)
       if (!room) return
+
+      if (!playerId) {
+        for (const [id, p] of room.players.entries()) {
+          if (p.ws === ws || (ws.raw && p.ws?.raw === ws.raw)) {
+            playerId = id
+            break
+          }
+        }
+      }
+
+      if (!playerId) return
 
       // Graceful disconnect (does not destroy the room instantly on route transitions)
       room.handlePlayerDisconnect(playerId)
 
       // Sync active player count to DB
+      const activeCount = room.getActivePlayerCount()
       prisma.arena
         .update({
           where: { id: arenaId },
           data: {
-            players: room.getActivePlayerCount(),
+            players: activeCount,
+            ...(activeCount === 0 ? { status: 'waiting' } : {}),
           },
         })
         .catch(() => {})

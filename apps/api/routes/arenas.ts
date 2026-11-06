@@ -7,10 +7,11 @@ export const arenasRoute = new Elysia({ prefix: '/arenas' })
     const arenas = await prisma.arena.findMany({ orderBy: { createdAt: 'asc' } })
     return arenas.map(a => {
       const room = roomManager.get(a.id)
+      const activePlayers = room ? room.getActivePlayerCount() : (a.players || 0)
       return {
         ...a,
-        players: room ? room.players.size : a.players,
-        status: room ? room.status : a.status,
+        players: activePlayers,
+        status: room ? (activePlayers === 0 ? 'waiting' : room.status) : a.status,
       }
     })
   })
@@ -21,10 +22,11 @@ export const arenasRoute = new Elysia({ prefix: '/arenas' })
       return { error: 'Arène introuvable' }
     }
     const room = roomManager.get(arena.id)
+    const activePlayers = room ? room.getActivePlayerCount() : (arena.players || 0)
     return {
       ...arena,
-      players: room ? room.players.size : arena.players,
-      status: room ? room.status : arena.status,
+      players: activePlayers,
+      status: room ? (activePlayers === 0 ? 'waiting' : room.status) : arena.status,
     }
   })
   .post('/', async ({ body, set }) => {
@@ -91,5 +93,6 @@ export const arenasRoute = new Elysia({ prefix: '/arenas' })
       return { error: 'Arène introuvable' }
     }
     await prisma.arena.delete({ where: { id: params.id } })
+    roomManager.delete(params.id)
     return { success: true }
   })

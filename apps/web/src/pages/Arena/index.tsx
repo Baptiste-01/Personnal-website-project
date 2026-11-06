@@ -202,6 +202,11 @@ export default function Arena() {
     onGameStarted: navigateToPlay,
   })
 
+  const handleBackToLobby = useCallback(() => {
+    actions.leaveArena()
+    navigate('/')
+  }, [actions, navigate])
+
   // Sync settings when received from host (guest mode)
   useEffect(() => {
     if (wsSettings && !isHost) {
@@ -235,6 +240,14 @@ export default function Arena() {
         answeredCorrectly: false,
         answerTime: null,
       }]
+
+  const myPlayer = players.find(p => p.id === selfId)
+  const isSelfReady = Boolean(myPlayer?.isReady)
+
+  const handleToggleSelfReady = useCallback(() => {
+    soundManager.playClick()
+    actions.sendReady(!isSelfReady)
+  }, [actions, isSelfReady])
 
   /* ─── Categories & Subcategories State ─── */
   const [availableCategories, setAvailableCategories] = useState<CategoryInfo[]>([])
@@ -423,7 +436,7 @@ return (
 
     {/* ─── Topbar ─── */}
     <header className="arena-topbar">
-      <button className="arena-back" onClick={() => navigate('/')} id="back-to-lobby">
+      <button className="arena-back" onClick={handleBackToLobby} id="back-to-lobby">
         <IconArrowLeft /><span>Lobby</span>
       </button>
 
@@ -485,7 +498,7 @@ return (
               player={p}
               index={i}
               isSelf={p.id === selfId}
-              onToggleReady={() => actions.sendReady(!p.isReady)}
+              onToggleReady={handleToggleSelfReady}
             />
           ))}
           {/* Empty slots */}
@@ -559,7 +572,7 @@ return (
 
           {!isHost && (
             <div className="arena-host-banner">
-              <span>👑 Salon géré par l'hôte. Vous pouvez vous préparer avec le bouton "Prêt ?" sur votre carte à gauche.</span>
+              <span>👑 Salon géré par l'hôte. Indiquez que vous êtes prêt avec le bouton « {isSelfReady ? 'Prêt !' : 'Je suis prêt !'} » ci-dessous (ou sur votre carte à gauche).</span>
             </div>
           )}
 
@@ -1146,16 +1159,29 @@ return (
                     <IconTrophy /> {settings.maxPoints.toLocaleString('fr-FR')} pts max
                   </span>
                 </div>
-                <button
-                  className="btn-start-game"
-                  onClick={handleStartGame}
-                  id="start-game"
-                  disabled={!isHost || readyCount < 1}
-                  title={!isHost ? "Seul l'hôte peut lancer la partie" : readyCount < 1 ? "Au moins un joueur doit être prêt" : "Lancer"}
-                >
-                  <IconZap />
-                  {isHost ? 'Lancer la partie' : 'En attente de l\'hôte...'}
-                </button>
+                {isHost ? (
+                  <button
+                    className="btn-start-game"
+                    onClick={handleStartGame}
+                    id="start-game"
+                    disabled={readyCount < 1}
+                    title={readyCount < 1 ? "Au moins un joueur doit être prêt" : "Lancer la partie"}
+                  >
+                    <IconZap />
+                    Lancer la partie
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className={`btn-start-game btn-ready-toggle ${isSelfReady ? 'btn-ready-toggle--ready' : 'btn-ready-toggle--wait'}`}
+                    onClick={handleToggleSelfReady}
+                    id="toggle-ready-main"
+                    title={isSelfReady ? "Cliquez si vous n'êtes plus prêt" : "Cliquez pour vous déclarer prêt"}
+                  >
+                    {isSelfReady ? <IconCheck /> : <IconZap />}
+                    {isSelfReady ? 'Prêt ! (En attente de l\'hôte...)' : 'Je suis prêt !'}
+                  </button>
+                )}
               </div>
             </div>
         </main>
