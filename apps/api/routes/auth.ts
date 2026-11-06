@@ -83,6 +83,7 @@ export const authRoute = new Elysia({ prefix: '/auth' })
         displayName: user.displayName,
         level: user.level,
         xp: user.xp,
+        isAdmin: user.isAdmin,
       },
     }
   })
@@ -133,6 +134,7 @@ export const authRoute = new Elysia({ prefix: '/auth' })
         totalPoints: user.totalPoints,
         gamesPlayed: user.gamesPlayed,
         gamesWon: user.gamesWon,
+        isAdmin: user.isAdmin,
       },
     }
   })
@@ -184,6 +186,7 @@ export const authRoute = new Elysia({ prefix: '/auth' })
       displayName: user.displayName,
       avatarUrl: user.avatarUrl,
       bio: user.bio,
+      isAdmin: user.isAdmin,
       level: user.level,
       xp: user.xp,
       totalPoints: user.totalPoints,

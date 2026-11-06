@@ -524,7 +524,17 @@ function SkeletonList() {
 }
 
 /* ─── Arena Card ─── */
-function ArenaCard({ arena, onJoin }: { arena: ArenaItem; onJoin: (id: string) => void }) {
+function ArenaCard({
+  arena,
+  onJoin,
+  isAdmin,
+  onDelete,
+}: {
+  arena: ArenaItem
+  onJoin: (id: string) => void
+  isAdmin?: boolean
+  onDelete?: (id: string, name: string) => void
+}) {
   const isLive = arena.status === 'playing'
   const isFull = arena.maxPlayers > 0 && arena.players >= arena.maxPlayers
   const statusClass = isLive ? 'status-badge--live' : isFull ? 'status-badge--full' : 'status-badge--waiting'
@@ -579,6 +589,20 @@ function ArenaCard({ arena, onJoin }: { arena: ArenaItem; onJoin: (id: string) =
         >
           {isFull ? 'Complet' : 'Rejoindre'}
         </button>
+        {isAdmin && onDelete && (
+          <button
+            type="button"
+            className="btn-delete-arena"
+            id={`delete-${arena.id}`}
+            title="Supprimer cette arène (Admin)"
+            onClick={(e) => {
+              e.stopPropagation()
+              onDelete(arena.id, arena.name)
+            }}
+          >
+            🗑️
+          </button>
+        )}
       </div>
     </div>
   )
@@ -705,6 +729,7 @@ export default function Lobby() {
 
   useEffect(() => {
     const userStr = localStorage.getItem('auth_user')
+    const token = localStorage.getItem('auth_token')
     if (userStr) {
       try {
         const user = JSON.parse(userStr)
@@ -712,7 +737,44 @@ export default function Lobby() {
         setIsConnected(true)
       } catch (e) {}
     }
+    if (token) {
+      fetch(`${API_URL}/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data && !data.error) {
+            setAuthUser(data)
+            setIsConnected(true)
+            localStorage.setItem('auth_user', JSON.stringify(data))
+          }
+        })
+        .catch(() => {})
+    }
   }, [])
+
+  const handleDeleteArena = async (id: string, name: string) => {
+    if (!window.confirm(`⚠️ Voulez-vous vraiment supprimer l'arène "${name}" ?`)) {
+      return
+    }
+    const token = localStorage.getItem('auth_token')
+    try {
+      const res = await fetch(`${API_URL}/arenas/${id}`, {
+        method: 'DELETE',
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        }
+      })
+      const data = await res.json()
+      if (res.ok && data.success) {
+        setArenas(prev => prev.filter(a => a.id !== id))
+      } else {
+        alert(`Erreur : ${data.error || 'Impossible de supprimer l\'arène'}`)
+      }
+    } catch (err) {
+      alert(`Erreur lors de la suppression de l'arène : ${String(err)}`)
+    }
+  }
 
   const fetchArenas = useCallback(async (manual = false) => {
     if (manual) setIsRefreshing(true)
@@ -790,14 +852,16 @@ export default function Lobby() {
       {/* ─── Navbar ─── */}
       <nav className="lobby-nav" id="lobby-nav">
         <AudioThemeControls />
-        <button
-          className="btn-login"
-          id="admin-button"
-          onClick={() => navigate('/admin')}
-          title="Administration & Importation de questions"
-        >
-          <span style={{ fontSize: '14px' }}>📊</span> Admin
-        </button>
+        {isConnected && authUser?.isAdmin && (
+          <button
+            className="btn-login"
+            id="admin-button"
+            onClick={() => navigate('/admin')}
+            title="Administration & Importation de questions"
+          >
+            <span style={{ fontSize: '14px' }}>📊</span> Admin
+          </button>
+        )}
         {isConnected && authUser ? (
           <button className="btn-login" id="profile-button" onClick={() => navigate('/profile')}>
             <IconUser />
@@ -901,7 +965,9 @@ export default function Lobby() {
                 <ArenaCard
                   key={a.id}
                   arena={a}
+                  isAdmin={Boolean(isConnected && authUser?.isAdmin)}
                   onJoin={id => navigate(`/arena/${id}`)}
+                  onDelete={handleDeleteArena}
                 />
               ))}
             </div>

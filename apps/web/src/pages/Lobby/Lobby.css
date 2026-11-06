@@ -371,6 +371,26 @@
   flex-shrink: 0;
 }
 
+.btn-delete-arena {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+  font-size: 0.8125rem;
+  padding: 6px 9px;
+  border-radius: var(--radius-sm, 6px);
+  cursor: pointer;
+  transition: all var(--transition-fast, 0.15s) ease;
+}
+
+.btn-delete-arena:hover {
+  background: rgba(239, 68, 68, 0.25);
+  border-color: #ef4444;
+  transform: scale(1.08);
+}
+
 /* ─── Difficulty badges ─── */
 .diff-badge {
   display: inline-flex;

@@ -44,6 +44,7 @@ Each commit/task is documented following a standardized format (`Objective`, `Ac
 | **24** | 2026-11-04 | `Workspace` | [Task_24_2026-11-04.md](file:///c:/Users/bapti/Desktop/Moi/Projet-Perso/Personnal-website-project/documentation/en/Task_24_2026-11-04.md) | Full Question Export, Markdown Table Import (.md), Visual Preview & Permanent Removal of 'Indice' (Hint) Column |
 | **25** | 2026-11-05 | `Workspace` | [Task_25_2026-11-05.md](file:///c:/Users/bapti/Desktop/Moi/Projet-Perso/Personnal-website-project/documentation/en/Task_25_2026-11-05.md) | CSV Import/Export, Question/Category Deletion & Strict Difficulty Ordering (Easy, Normal, Hard) |
 | **26** | 2026-11-05 | `Workspace` | [Task_26_2026-11-05.md](file:///c:/Users/bapti/Desktop/Moi/Projet-Perso/Personnal-website-project/documentation/en/Task_26_2026-11-05.md) | Preview Duplicate Fix, Category Filter Reliability, and Unchanged Question Detection on Import |
+| **27** | 2026-11-05 | `Workspace` | [Task_27_2026-11-05.md](file:///c:/Users/bapti/Desktop/Moi/Projet-Perso/Personnal-website-project/documentation/en/Task_27_2026-11-05.md) | Windows Script Fixes (AppLocker), Admin Privileges Management (isAdmin), and Arena Deletion |
 
 ---
 

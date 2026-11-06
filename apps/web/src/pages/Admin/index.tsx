@@ -98,6 +98,24 @@ export default function Admin() {
   const [loadingDbQuestions, setLoadingDbQuestions] = useState(false)
   const [diffFilter, setDiffFilter] = useState<'all' | 'facile' | 'moyen' | 'difficile'>('all')
 
+  /* Verify admin credentials */
+  useEffect(() => {
+    const userStr = localStorage.getItem('auth_user')
+    const token = localStorage.getItem('auth_token')
+    if (!token || !userStr) {
+      navigate('/login')
+      return
+    }
+    try {
+      const u = JSON.parse(userStr)
+      if (!u?.isAdmin) {
+        navigate('/')
+      }
+    } catch {
+      navigate('/')
+    }
+  }, [navigate])
+
   /* Fetch stats on mount */
   useEffect(() => {
     fetchStats()

@@ -7,11 +7,11 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "concurrently \"bun run dev:api\" \"bun run dev:web\"",
+    "dev": "bun ./node_modules/concurrently/dist/bin/concurrently.js \"bun run dev:api\" \"bun run dev:web\"",
     "dev:api": "cd apps/api && bun --env-file=../../.env run --hot index.ts",
     "dev:web": "cd apps/web && bun run dev",
     "tunnel": "bun run scripts/tunnel.ts",
-    "online": "concurrently \"bun run dev:api\" \"bun run dev:web\" \"bun run tunnel\"",
+    "online": "bun ./node_modules/concurrently/dist/bin/concurrently.js \"bun run dev:api\" \"bun run dev:web\" \"bun run tunnel\"",
     "build": "cd apps/web && bun run build",
     "db:generate": "cd packages/database && bun x prisma generate",
     "db:push": "cd packages/database && bun --env-file=../../.env run db:push",

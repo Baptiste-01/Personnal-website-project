@@ -69,7 +69,22 @@ export const arenasRoute = new Elysia({ prefix: '/arenas' })
       data: body as Record<string, unknown>,
     })
   })
-  .delete('/:id', async ({ params, set }) => {
+  .delete('/:id', async ({ params, headers, set }) => {
+    const token = (headers['authorization'] ?? '').replace('Bearer ', '')
+    if (token) {
+      const session = await prisma.session.findUnique({
+        where: { token },
+        include: { user: true },
+      })
+      if (!session || !session.user?.isAdmin) {
+        set.status = 403
+        return { error: 'Action réservée aux administrateurs.' }
+      }
+    } else {
+      set.status = 401
+      return { error: 'Authentification requise.' }
+    }
+
     const arena = await prisma.arena.findUnique({ where: { id: params.id } })
     if (!arena) {
       set.status = 404
