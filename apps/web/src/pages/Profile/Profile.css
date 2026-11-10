@@ -1,4 +1,4 @@
-﻿/* ─── Profile Page ─── */
+/* ─── Profile Page ─── */
 .profile-page {
   min-height: 100vh;
   background: var(--color-bg-primary);
@@ -321,3 +321,135 @@
   background: var(--color-bg-elevated);
   border-radius: var(--radius-md);
 }
+
+/* ─── Profile Sub-Tabs ─── */
+.profile-sub-tabs {
+  display: flex;
+  gap: 12px;
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 8px;
+}
+
+.profile-sub-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.profile-sub-tab:hover {
+  color: var(--color-text-primary);
+}
+
+.profile-sub-tab.active {
+  color: var(--color-accent);
+  border-bottom-color: var(--color-accent);
+}
+
+.profile-sub-tab svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ─── Profile Import Box ─── */
+.profile-import-box {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 18px;
+  margin-bottom: 20px;
+}
+
+.profile-import-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin: 0 0 12px 0;
+}
+
+.profile-import-title svg {
+  width: 16px;
+  height: 16px;
+  color: var(--color-accent);
+}
+
+.profile-import-form {
+  display: flex;
+  gap: 10px;
+}
+
+.profile-import-input {
+  max-width: 280px;
+  font-family: monospace;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+
+/* ─── Profile Template Cards & Buttons ─── */
+.profile-templates svg {
+  width: 15px;
+  height: 15px;
+  max-width: 15px;
+  max-height: 15px;
+  flex-shrink: 0;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.profile-templates .template-badge svg {
+  width: 12px !important;
+  height: 12px !important;
+  max-width: 12px !important;
+  max-height: 12px !important;
+}
+
+.profile-templates .template-item-code-badge svg {
+  width: 13px !important;
+  height: 13px !important;
+  max-width: 13px !important;
+  max-height: 13px !important;
+}
+
+.profile-templates .setting-pill svg {
+  width: 12px !important;
+  height: 12px !important;
+  max-width: 12px !important;
+  max-height: 12px !important;
+}
+
+.profile-templates .btn-tpl-apply svg {
+  width: 14px !important;
+  height: 14px !important;
+  max-width: 14px !important;
+  max-height: 14px !important;
+}
+
+.profile-templates .btn-tpl-action svg {
+  width: 13px !important;
+  height: 13px !important;
+  max-width: 13px !important;
+  max-height: 13px !important;
+}
+
+.profile-templates .template-empty-state svg {
+  width: 42px !important;
+  height: 42px !important;
+  max-width: 42px !important;
+  max-height: 42px !important;
+  opacity: 0.5;
+  margin-bottom: 12px;
+}
+
+

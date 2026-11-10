@@ -153,6 +153,27 @@ export interface GameSettings {
   maxPlayers?: number
 }
 
+export interface TemplateAuthor {
+  id: string
+  username: string
+  displayName: string
+  avatarUrl?: string | null
+}
+
+export interface GameTemplate {
+  id: string
+  name: string
+  description?: string | null
+  shareCode: string
+  isPublic: boolean
+  usageCount: number
+  settings: GameSettings
+  userId: string
+  user?: TemplateAuthor
+  createdAt: string
+  updatedAt: string
+}
+
 export interface Arena {
   id: string
   name: string

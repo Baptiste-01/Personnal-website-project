@@ -80,6 +80,7 @@ model User {
   // Amitiés : l'utilisateur peut être demandeur ou destinataire
   sentFriendRequests     Friendship[] @relation("FriendshipSender")
   receivedFriendRequests Friendship[] @relation("FriendshipReceiver")
+  templates              GameTemplate[]
 
   @@index([username])
 }
@@ -179,4 +180,26 @@ model GameHistory {
 
   @@index([userId])
   @@index([playedAt])
+}
+
+// ═══════════════════════════════════════════════
+//  TEMPLATES DE PARTIE (MODÈLES & CONFIGURATIONS)
+// ═══════════════════════════════════════════════
+
+model GameTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  shareCode   String   @unique
+  isPublic    Boolean  @default(false)
+  usageCount  Int      @default(0)
+  settings    Json
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([shareCode])
+  @@index([isPublic])
 }

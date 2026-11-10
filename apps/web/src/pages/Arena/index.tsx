@@ -3,13 +3,14 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   IconArrowLeft, IconGamepad, IconUser, IconCheck, IconClock,
   IconTrophy, IconShield, IconZap, IconInfinity, IconSettings,
-  IconCopy, IconWifi, IconUsers, IconTarget,
+  IconCopy, IconWifi, IconUsers, IconTarget, IconTemplate
 } from '../../components/Icons'
 import {
   CATEGORY_LABELS, DIFFICULTY_LABELS, ALL_CATEGORIES, CATEGORY_ICONS, DEFAULT_CATEGORY_DIFFICULTIES
 } from '../../types'
 import type { Category, Difficulty, GameSettings, CategoryInfo, PlayerSummary } from '../../types'
 import AudioThemeControls from '../../components/AudioThemeControls'
+import TemplateModal from '../../components/TemplateModal/TemplateModal'
 import { soundManager } from '../../utils/sound'
 import { useArenaSocket } from '../../hooks/useArenaSocket'
 import { API_URL } from '../../utils/config'
@@ -111,6 +112,9 @@ export default function Arena() {
   })
   const [activeTab, setActiveTab] = useState<SettingTab>('general')
   const [copied, setCopied] = useState(false)
+  const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false)
+  const [templateModalTab, setTemplateModalTab] = useState<'my' | 'public' | 'code' | 'save'>('my')
+  const [templateToast, setTemplateToast] = useState<string | null>(null)
 
   const [settings, setSettings] = useState<GameSettings>(() => {
     const diff = searchParams.get('difficulty') as Difficulty | null
@@ -573,6 +577,32 @@ return (
           {!isHost && (
             <div className="arena-host-banner">
               <span>👑 Salon géré par l'hôte. Indiquez que vous êtes prêt avec le bouton « {isSelfReady ? 'Prêt !' : 'Je suis prêt !'} » ci-dessous (ou sur votre carte à gauche).</span>
+            </div>
+          )}
+
+          {/* Host Template Toolbar */}
+          {isHost && (
+            <div className="modal-template-toolbar" style={{ margin: '0 0 16px 0' }}>
+              <button
+                type="button"
+                className="btn-tpl-bar"
+                onClick={() => { setTemplateModalTab('my'); setIsTemplateModalOpen(true) }}
+              >
+                <IconTemplate /> Modèles de partie
+              </button>
+              <button
+                type="button"
+                className="btn-tpl-bar btn-tpl-bar--save"
+                onClick={() => { setTemplateModalTab('save'); setIsTemplateModalOpen(true) }}
+              >
+                💾 Sauvegarder ce modèle
+              </button>
+            </div>
+          )}
+
+          {templateToast && (
+            <div className="template-toast fade-in">
+              <IconCheck /> {templateToast}
             </div>
           )}
 
@@ -1186,6 +1216,24 @@ return (
             </div>
         </main>
     </div>
+
+    <TemplateModal
+      isOpen={isTemplateModalOpen}
+      onClose={() => setIsTemplateModalOpen(false)}
+      currentSettings={settings}
+      initialTab={templateModalTab}
+      onApplyTemplate={(newSettings, tplName) => {
+        setSettings(prev => ({
+          ...prev,
+          ...newSettings,
+          categories: newSettings.categories ?? prev.categories,
+          categoryDifficulties: newSettings.categoryDifficulties ?? prev.categoryDifficulties,
+          categoryTags: newSettings.categoryTags ?? prev.categoryTags,
+        }))
+        setTemplateToast(`Modèle "${tplName}" appliqué à l'arène !`)
+        setTimeout(() => setTemplateToast(null), 3000)
+      }}
+    />
   </div>
 )
 }

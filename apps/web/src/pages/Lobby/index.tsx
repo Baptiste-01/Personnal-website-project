@@ -1,16 +1,18 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   IconGamepad, IconRefresh, IconZap, IconUser,
   IconInbox, IconAlertCircle, IconLogin,
   IconBookOpen, IconHeart, IconLock, IconChevronRight, IconTarget, IconTrophy, IconX,
-  IconInfinity, IconClock
+  IconInfinity, IconClock, IconTemplate, IconCheck
 } from '../../components/Icons'
 import { DIFFICULTY_LABELS, CATEGORY_LABELS, ALL_CATEGORIES, CATEGORY_ICONS, DEFAULT_CATEGORY_DIFFICULTIES } from '../../types'
-import type { Difficulty } from '../../types'
+import type { Difficulty, GameSettings } from '../../types'
 import Slider from '../../components/Slider/Slider'
 import type { SlideItem } from '../../components/Slider/Slider'
 import AudioThemeControls from '../../components/AudioThemeControls'
+import TemplateModal from '../../components/TemplateModal/TemplateModal'
+import { fetchTemplateByCode } from '../../utils/templateApi'
 import { soundManager } from '../../utils/sound'
 import { API_URL } from '../../utils/config'
 import './Lobby.css'
@@ -113,28 +115,46 @@ interface CreateArenaSettings {
 function CreateArenaModal({
   onClose,
   onCreate,
+  initialSettings,
 }: {
   onClose: () => void
   onCreate: (settings: CreateArenaSettings) => Promise<void>
+  initialSettings?: Partial<CreateArenaSettings>
 }) {
-  const [name, setName] = useState('')
-  const [difficulty, setDifficulty] = useState<Difficulty>('moyen')
-  const [categoryDifficulties, setCategoryDifficulties] = useState<Record<string, Difficulty[]>>(DEFAULT_CATEGORY_DIFFICULTIES)
-  const [infiniteRounds, setInfiniteRounds] = useState(false)
-  const [roundCount, setRoundCount] = useState(10)
-  const [timePerRound, setTimePerRound] = useState(20)
-  const [maxPoints, setMaxPoints] = useState(1000)
-  const [maxPlayers, setMaxPlayers] = useState(8)
+  const [name, setName] = useState(initialSettings?.name ?? '')
+  const [difficulty, setDifficulty] = useState<Difficulty>(initialSettings?.difficulty ?? 'moyen')
+  const [categoryDifficulties, setCategoryDifficulties] = useState<Record<string, Difficulty[]>>(
+    initialSettings?.categoryDifficulties ?? DEFAULT_CATEGORY_DIFFICULTIES
+  )
+  const [infiniteRounds, setInfiniteRounds] = useState(initialSettings?.infiniteRounds ?? false)
+  const [roundCount, setRoundCount] = useState(initialSettings?.roundCount ?? 10)
+  const [timePerRound, setTimePerRound] = useState(initialSettings?.timePerRound ?? 20)
+  const [maxPoints, setMaxPoints] = useState(initialSettings?.maxPoints ?? 1000)
+  const [maxPlayers, setMaxPlayers] = useState(initialSettings?.maxPlayers ?? 8)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false)
+  const [templateModalTab, setTemplateModalTab] = useState<'my' | 'public' | 'code' | 'save'>('my')
+  const [templateToast, setTemplateToast] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
 
+  // Focus ONLY on initial mount
   useEffect(() => {
     inputRef.current?.focus()
-    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+  }, [])
+
+  // Safely handle escape key without resetting on parent re-renders
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !isTemplateModalOpen) {
+        onCloseRef.current()
+      }
+    }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [onClose])
+  }, [isTemplateModalOpen])
 
   const handleGlobalDifficultyChange = (d: Difficulty | 'all') => {
     if (d !== 'all') setDifficulty(d)
@@ -158,6 +178,32 @@ function CreateArenaModal({
 
   const setCategoryAllDiffs = (cat: string) => {
     setCategoryDifficulties(prev => ({ ...prev, [cat]: ['facile', 'moyen', 'difficile'] }))
+  }
+
+  const handleApplyTemplate = (tplSettings: GameSettings, templateName: string) => {
+    if (!name.trim()) setName(templateName)
+    if (tplSettings.difficulty) setDifficulty(tplSettings.difficulty)
+    if (tplSettings.categoryDifficulties) setCategoryDifficulties(tplSettings.categoryDifficulties)
+    if (tplSettings.infiniteRounds !== undefined) setInfiniteRounds(tplSettings.infiniteRounds)
+    if (tplSettings.roundCount !== undefined) setRoundCount(tplSettings.roundCount)
+    if (tplSettings.timePerRound !== undefined) setTimePerRound(tplSettings.timePerRound)
+    if (tplSettings.maxPoints !== undefined) setMaxPoints(tplSettings.maxPoints)
+    if (tplSettings.maxPlayers !== undefined) setMaxPlayers(tplSettings.maxPlayers)
+    setTemplateToast(`Modèle "${templateName}" appliqué !`)
+    setTimeout(() => setTemplateToast(null), 3000)
+  }
+
+  const currentSettingsForTemplate: GameSettings = {
+    categories: Object.keys(categoryDifficulties),
+    difficulty,
+    categoryDifficulties,
+    categoryTags: {},
+    roundCount,
+    timePerRound,
+    maxPoints,
+    infiniteRounds,
+    pointsPerAnswer: 100,
+    maxPlayers,
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -184,32 +230,58 @@ function CreateArenaModal({
   }
 
   return (
-    <div className="modal-overlay" id="create-arena-modal" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="modal-card">
-        <div className="modal-header">
-          <div className="modal-title-group">
-            <div className="modal-icon"><IconGamepad /></div>
-            <h2 className="modal-title">Créer une arène</h2>
+    <>
+      <div className="modal-overlay" id="create-arena-modal" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+        <div className="modal-card">
+          <div className="modal-header">
+            <div className="modal-title-group">
+              <div className="modal-icon"><IconGamepad /></div>
+              <h2 className="modal-title">Créer une arène</h2>
+            </div>
+            <button className="modal-close" onClick={onClose} id="modal-close"><IconX /></button>
           </div>
-          <button className="modal-close" onClick={onClose} id="modal-close"><IconX /></button>
-        </div>
 
-        <form className="modal-form" onSubmit={handleSubmit}>
-          {/* Arena Name */}
-          <div className="modal-field">
-            <label className="modal-label" htmlFor="arena-name-input">Nom de l'arène</label>
-            <input
-              ref={inputRef}
-              id="arena-name-input"
-              type="text"
-              className="modal-input"
-              placeholder="Ex: La Ligue des Champions"
-              value={name}
-              onChange={e => setName(e.target.value)}
-              maxLength={40}
-            />
-            <span className="modal-input-counter">{name.length}/40</span>
-          </div>
+          <form className="modal-form" onSubmit={handleSubmit}>
+            {/* Template Toolbar */}
+            <div className="modal-template-toolbar">
+              <button
+                type="button"
+                className="btn-tpl-bar"
+                onClick={() => { setTemplateModalTab('my'); setIsTemplateModalOpen(true) }}
+              >
+                <IconTemplate /> Charger un modèle
+              </button>
+              <button
+                type="button"
+                className="btn-tpl-bar btn-tpl-bar--save"
+                onClick={() => { setTemplateModalTab('save'); setIsTemplateModalOpen(true) }}
+              >
+                💾 Sauvegarder ce modèle
+              </button>
+            </div>
+
+            {/* Template Toast */}
+            {templateToast && (
+              <div className="template-toast fade-in">
+                <IconCheck /> {templateToast}
+              </div>
+            )}
+
+            {/* Arena Name */}
+            <div className="modal-field">
+              <label className="modal-label" htmlFor="arena-name-input">Nom de l'arène</label>
+              <input
+                ref={inputRef}
+                id="arena-name-input"
+                type="text"
+                className="modal-input"
+                placeholder="Ex: La Ligue des Champions"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                maxLength={40}
+              />
+              <span className="modal-input-counter">{name.length}/40</span>
+            </div>
 
           {/* Difficulty Presets */}
           <div className="modal-field">
@@ -500,6 +572,15 @@ function CreateArenaModal({
         </form>
       </div>
     </div>
+
+    <TemplateModal
+      isOpen={isTemplateModalOpen}
+      onClose={() => setIsTemplateModalOpen(false)}
+      currentSettings={currentSettingsForTemplate}
+      onApplyTemplate={handleApplyTemplate}
+      initialTab={templateModalTab}
+    />
+  </>
   )
 }
 
@@ -717,15 +798,40 @@ const LOBBY_SLIDES: SlideItem[] = [
 /* ─── Main Lobby ─── */
 export default function Lobby() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [arenas, setArenas] = useState<ArenaItem[]>([])
   const [fetchState, setFetchState] = useState<FetchState>('idle')
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [showTemplateModal, setShowTemplateModal] = useState(false)
+  const [prefilledSettings, setPrefilledSettings] = useState<Partial<CreateArenaSettings> | undefined>(undefined)
 
   const [isConnected, setIsConnected] = useState(false)
   const [authUser, setAuthUser] = useState<any>(null)
   const [favorites, setFavorites] = useState<Set<string>>(new Set())
   const [activeRuleTab, setActiveRuleTab] = useState<'all' | 'favorites'>('all')
+
+  // Check URL query parameters for template code (e.g. ?template=TMPL-XXXX)
+  useEffect(() => {
+    const tmplCode = searchParams.get('template')
+    if (tmplCode) {
+      fetchTemplateByCode(tmplCode, true)
+        .then(tpl => {
+          setPrefilledSettings({
+            name: tpl.name,
+            difficulty: tpl.settings.difficulty ?? 'moyen',
+            categoryDifficulties: tpl.settings.categoryDifficulties ?? DEFAULT_CATEGORY_DIFFICULTIES,
+            infiniteRounds: tpl.settings.infiniteRounds ?? false,
+            roundCount: tpl.settings.roundCount ?? 10,
+            timePerRound: tpl.settings.timePerRound ?? 20,
+            maxPoints: tpl.settings.maxPoints ?? 1000,
+            maxPlayers: tpl.settings.maxPlayers ?? 8,
+          })
+          setShowCreateModal(true)
+        })
+        .catch(err => console.error('Failed to prefill template from URL:', err))
+    }
+  }, [searchParams])
 
   useEffect(() => {
     const userStr = localStorage.getItem('auth_user')
@@ -792,13 +898,21 @@ export default function Lobby() {
     }
   }, [])
 
+  const handleCloseCreateModal = useCallback(() => {
+    setShowCreateModal(false)
+    setPrefilledSettings(undefined)
+  }, [])
+
   useEffect(() => {
     fetchArenas()
     const interval = setInterval(() => {
-      fetchArenas('silent')
+      // Pause background polling while a modal is open so focus is never lost
+      if (!showCreateModal && !showTemplateModal) {
+        fetchArenas('silent')
+      }
     }, 3000)
     return () => clearInterval(interval)
-  }, [fetchArenas])
+  }, [fetchArenas, showCreateModal, showTemplateModal])
 
   const handleCreateArena = async (settings: CreateArenaSettings) => {
     const res = await fetch(`${API_URL}/arenas`, {
@@ -919,8 +1033,17 @@ export default function Lobby() {
             </div>
             <div className="lobby-panel-actions">
               <button
+                className="btn-header-templates"
+                onClick={() => setShowTemplateModal(true)}
+                id="open-templates-button"
+                title="Explorer et gérer les modèles de partie"
+              >
+                <IconTemplate />
+                Modèles
+              </button>
+              <button
                 className="btn-create"
-                onClick={() => setShowCreateModal(true)}
+                onClick={() => { setPrefilledSettings(undefined); setShowCreateModal(true) }}
                 id="create-arena-button"
               >
                 <IconZap />
@@ -1062,10 +1185,32 @@ export default function Lobby() {
       {/* Create Arena Modal */}
       {showCreateModal && (
         <CreateArenaModal
-          onClose={() => setShowCreateModal(false)}
+          initialSettings={prefilledSettings}
+          onClose={handleCloseCreateModal}
           onCreate={handleCreateArena}
         />
       )}
+
+      {/* Standalone Template Catalog Modal */}
+      <TemplateModal
+        isOpen={showTemplateModal}
+        onClose={() => setShowTemplateModal(false)}
+        initialTab="public"
+        onApplyTemplate={(tplSettings, templateName) => {
+          setPrefilledSettings({
+            name: templateName,
+            difficulty: tplSettings.difficulty ?? 'moyen',
+            categoryDifficulties: tplSettings.categoryDifficulties ?? DEFAULT_CATEGORY_DIFFICULTIES,
+            infiniteRounds: tplSettings.infiniteRounds ?? false,
+            roundCount: tplSettings.roundCount ?? 10,
+            timePerRound: tplSettings.timePerRound ?? 20,
+            maxPoints: tplSettings.maxPoints ?? 1000,
+            maxPlayers: tplSettings.maxPlayers ?? 8,
+          })
+          setShowTemplateModal(false)
+          setShowCreateModal(true)
+        }}
+      />
     </div>
   )
 }
