@@ -45,7 +45,31 @@ export interface GameSettings {
   maxPlayers: number
   catDiffs?: string
   catTags?: string
-  tags?: string
+  bannedCatTags?: string
+  tags?: string | string[]
+  bannedTags?: string | string[]
+  categoryDifficulties?: Record<string, string[]>
+  categoryTags?: Record<string, string[]>
+  bannedCategoryTags?: Record<string, string[]>
+}
+
+function serializeCategoryMap(
+  map?: Record<string, string[]>,
+  activeCategories?: string[]
+): string | undefined {
+  if (!map || typeof map !== 'object') return undefined
+  const activeSet =
+    activeCategories && activeCategories.length > 0
+      ? new Set(activeCategories.map(c => c.toLowerCase().trim()))
+      : null
+  const encoded = Object.entries(map)
+    .filter(([cat, vals]) => {
+      if (!Array.isArray(vals) || vals.length === 0) return false
+      return !activeSet || activeSet.has(cat.toLowerCase().trim())
+    })
+    .map(([cat, vals]) => `${cat}:${vals.join('+')}`)
+    .join(',')
+  return encoded || undefined
 }
 
 export interface QuestionData {
@@ -420,7 +444,7 @@ export class GameRoom {
     })
   }
 
-  public async startGame() {
+  public async startGame(): Promise<boolean> {
     this.clearAllTimers()
     this.currentRoundIndex = 0
 
@@ -436,20 +460,50 @@ export class GameRoom {
       player.answerTime = null
     }
 
-    // Load questions from DB if not already populated
+    const catDiffs = this.settings.categoryDifficulties
+      ? serializeCategoryMap(this.settings.categoryDifficulties, this.settings.categories)
+      : this.settings.catDiffs
+    const catTags = this.settings.categoryTags
+      ? serializeCategoryMap(this.settings.categoryTags, this.settings.categories)
+      : this.settings.catTags
+    const bannedCatTags = this.settings.bannedCategoryTags
+      ? serializeCategoryMap(this.settings.bannedCategoryTags, this.settings.categories)
+      : this.settings.bannedCatTags
+    const tagsStr = Array.isArray(this.settings.tags)
+      ? this.settings.tags.join(',')
+      : this.settings.tags
+    const bannedTagsStr = Array.isArray(this.settings.bannedTags)
+      ? this.settings.bannedTags.join(',')
+      : this.settings.bannedTags
+
+    const hasStrictFilters = Boolean(
+      catTags || bannedCatTags || tagsStr || bannedTagsStr || this.settings.categories.length > 0
+    )
+
+    // Load questions from DB matching category filters & tag bans
     let loadedQuestions: QuestionData[] = []
+    let dbFilteredZero = false
     try {
       const where = buildWhereClause({
         categories: this.settings.categories.join(','),
         difficulty: this.settings.difficulty,
-        catDiffs: this.settings.catDiffs,
-        catTags: this.settings.catTags,
-        tags: this.settings.tags,
+        catDiffs,
+        catTags,
+        bannedCatTags,
+        tags: tagsStr,
+        bannedTags: bannedTagsStr,
       })
 
       let dbQuestions = await prisma.question.findMany({ where })
       if (dbQuestions.length === 0) {
-        dbQuestions = await prisma.question.findMany({ take: 50 })
+        if (hasStrictFilters) {
+          const totalInDb = await prisma.question.count()
+          if (totalInDb > 0) {
+            dbFilteredZero = true
+          }
+        } else {
+          dbQuestions = await prisma.question.findMany({ take: 50 })
+        }
       }
 
       if (dbQuestions.length > 0) {
@@ -469,7 +523,15 @@ export class GameRoom {
       loadedQuestions = []
     }
 
-    // Fallback: guaranteed question list if database returned empty
+    if (dbFilteredZero) {
+      this.broadcast({
+        type: 'room_error',
+        message: 'Aucune question ne correspond aux filtres et tags bannis actuels.',
+      })
+      return false
+    }
+
+    // Fallback: guaranteed question list if database returned empty (no DB records)
     if (loadedQuestions.length === 0) {
       loadedQuestions = [...FALLBACK_QUESTIONS]
     }
@@ -482,6 +544,8 @@ export class GameRoom {
       type: 'game_started',
       arenaId: this.id,
     })
+
+    return true
 
     // Start round 0 after a short transition buffer (500ms)
     setTimeout(() => {

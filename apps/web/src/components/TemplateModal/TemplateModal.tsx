@@ -8,9 +8,38 @@ import {
   fetchMyTemplates, fetchPublicTemplates, fetchTemplateByCode,
   createTemplate, deleteTemplate, cloneTemplate
 } from '../../utils/templateApi'
+import { getTemplateTagSummary } from '../../utils/tagFilter'
 import { CATEGORY_ICONS, CATEGORY_LABELS } from '../../types'
 import type { GameTemplate, GameSettings } from '../../types'
 import './TemplateModal.css'
+
+/** Shared category & tag ban preview pills rendered across template cards and Profile. */
+export function TemplateCategoriesPreview({ settings }: { settings: Partial<GameSettings> }) {
+  const { bannedFlat, totalIncluded } = getTemplateTagSummary(settings)
+  return (
+    <div className="template-cats-preview">
+      {(settings.categories ?? []).map(cat => (
+        <span key={cat} className="template-cat-tag" title={CATEGORY_LABELS[cat] || cat}>
+          {CATEGORY_ICONS[cat] || '🏷️'} {CATEGORY_LABELS[cat] || cat}
+        </span>
+      ))}
+      {totalIncluded > 0 && (
+        <span className="template-cat-tag template-cat-tag--included" title="Sous-catégories incluses">
+          🏷️ {totalIncluded} tag{totalIncluded > 1 ? 's' : ''}
+        </span>
+      )}
+      {bannedFlat.map(({ cat, tag }) => (
+        <span
+          key={`ban-${cat}-${tag}`}
+          className="template-cat-tag template-cat-tag--banned"
+          title={cat ? `Banni dans ${CATEGORY_LABELS[cat] || cat}` : 'Tag banni'}
+        >
+          🚫 #{tag}
+        </span>
+      ))}
+    </div>
+  )
+}
 
 interface TemplateModalProps {
   isOpen: boolean
@@ -302,13 +331,7 @@ export default function TemplateModal({
                       </div>
 
                       {/* Categories Preview */}
-                      <div className="template-cats-preview">
-                        {(tpl.settings.categories ?? []).map(cat => (
-                          <span key={cat} className="template-cat-tag" title={CATEGORY_LABELS[cat] || cat}>
-                            {CATEGORY_ICONS[cat] || '🏷️'} {CATEGORY_LABELS[cat] || cat}
-                          </span>
-                        ))}
-                      </div>
+                      <TemplateCategoriesPreview settings={tpl.settings} />
 
                       {/* Card Actions */}
                       <div className="template-card-actions">
@@ -383,13 +406,7 @@ export default function TemplateModal({
                         <span className="setting-pill badge--usage">🔥 {tpl.usageCount ?? 0} parties</span>
                       </div>
 
-                      <div className="template-cats-preview">
-                        {(tpl.settings.categories ?? []).map(cat => (
-                          <span key={cat} className="template-cat-tag">
-                            {CATEGORY_ICONS[cat] || '🏷️'} {CATEGORY_LABELS[cat] || cat}
-                          </span>
-                        ))}
-                      </div>
+                      <TemplateCategoriesPreview settings={tpl.settings} />
 
                       <div className="template-card-actions">
                         {onApplyTemplate && (
@@ -468,13 +485,7 @@ export default function TemplateModal({
                     <span className="setting-pill"><IconTrophy /> {searchedTemplate.settings.maxPoints ?? 1000} pts</span>
                   </div>
 
-                  <div className="template-cats-preview">
-                    {(searchedTemplate.settings.categories ?? []).map(cat => (
-                      <span key={cat} className="template-cat-tag">
-                        {CATEGORY_ICONS[cat] || '🏷️'} {CATEGORY_LABELS[cat] || cat}
-                      </span>
-                    ))}
-                  </div>
+                  <TemplateCategoriesPreview settings={searchedTemplate.settings} />
 
                   <div className="template-card-actions" style={{ marginTop: 14 }}>
                     {onApplyTemplate && (
@@ -560,6 +571,11 @@ export default function TemplateModal({
                       </span>
                       <span className="setting-pill"><IconTrophy /> {currentSettings.maxPoints} pts</span>
                       <span className="setting-pill"><IconTarget /> {currentSettings.categories.length} catégories</span>
+                      {getTemplateTagSummary(currentSettings).totalBanned > 0 && (
+                        <span className="setting-pill badge--banned">
+                          🚫 {getTemplateTagSummary(currentSettings).totalBanned} tag{getTemplateTagSummary(currentSettings).totalBanned > 1 ? 's' : ''} banni{getTemplateTagSummary(currentSettings).totalBanned > 1 ? 's' : ''}
+                        </span>
+                      )}
                     </div>
                   </div>
 

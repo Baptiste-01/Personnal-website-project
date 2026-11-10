@@ -272,6 +272,24 @@
   color: var(--color-text-secondary);
 }
 
+.template-cat-tag--included {
+  background: rgba(139, 92, 246, 0.14);
+  border-color: rgba(139, 92, 246, 0.4);
+  color: #ddd6fe;
+}
+
+.template-cat-tag--banned {
+  background: rgba(239, 68, 68, 0.14);
+  border-color: rgba(239, 68, 68, 0.45);
+  color: #fca5a5;
+}
+
+.setting-pill.badge--banned {
+  color: #fca5a5;
+  border-color: rgba(239, 68, 68, 0.45);
+  background: rgba(239, 68, 68, 0.12);
+}
+
 /* Card actions */
 .template-card-actions {
   display: flex;

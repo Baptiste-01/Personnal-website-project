@@ -15,6 +15,7 @@ export interface CategoryInfo {
   icon: string
   count: number
   tags: CategoryTag[]
+  tagChildren?: Record<string, CategoryTag[]>
 }
 
 export const ALL_CATEGORIES: string[] = [
@@ -143,8 +144,10 @@ export interface GameSettings {
   difficulty: Difficulty
   difficulties?: Difficulty[]
   categoryDifficulties: Record<string, Difficulty[]>
-  categoryTags: Record<string, string[]> // category id -> selected tag names (empty = all questions)
+  categoryTags: Record<string, string[]>        // category id -> selected tag names (empty = all questions)
+  bannedCategoryTags?: Record<string, string[]> // category id -> banned tag names
   tags?: string[]
+  bannedTags?: string[]
   roundCount: number
   timePerRound: number
   maxPoints: number
@@ -186,7 +189,9 @@ export interface Arena {
   categories: Category[]
   categoryDifficulties?: Record<string, Difficulty[]>
   categoryTags?: Record<string, string[]>
+  bannedCategoryTags?: Record<string, string[]>
   tags?: string[]
+  bannedTags?: string[]
   roundCount?: number
   timePerRound?: number
   maxPoints?: number
@@ -214,7 +219,9 @@ export const DEFAULT_GAME_SETTINGS: GameSettings = {
   difficulties: ['facile', 'moyen', 'difficile'],
   categoryDifficulties: DEFAULT_CATEGORY_DIFFICULTIES,
   categoryTags: {},
+  bannedCategoryTags: {},
   tags: [],
+  bannedTags: [],
   roundCount: 10,
   timePerRound: 20,
   maxPoints: 1000,

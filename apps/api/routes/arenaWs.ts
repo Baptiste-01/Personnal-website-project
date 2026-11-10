@@ -207,15 +207,17 @@ export const arenaWs = new Elysia()
             }
           }
 
-          await room.startGame()
+          const started = await room.startGame()
 
-          // Update arena status to 'playing' in DB
-          prisma.arena
-            .update({
-              where: { id: arenaId },
-              data: { status: 'playing' },
-            })
-            .catch(() => {})
+          // Update arena status to 'playing' in DB only if game actually started
+          if (started) {
+            prisma.arena
+              .update({
+                where: { id: arenaId },
+                data: { status: 'playing' },
+              })
+              .catch(() => {})
+          }
 
           break
         }

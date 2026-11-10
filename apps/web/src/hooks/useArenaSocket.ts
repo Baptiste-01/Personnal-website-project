@@ -67,6 +67,7 @@ export function useArenaSocket({
   const [podium, setPodium] = useState<PlayerSummary[]>([])
   const [winner, setWinner] = useState<PlayerSummary | null>(null)
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
+  const [roomError, setRoomError] = useState<string | null>(null)
 
   const socketRef = useRef<WebSocket | null>(null)
   const reconnectTimeoutRef = useRef<any>(null)
@@ -201,13 +202,22 @@ export function useArenaSocket({
       }
 
       case 'settings_updated': {
+        setRoomError(null)
         if (msg.settings) {
           setSettings(msg.settings)
         }
         break
       }
 
+      case 'room_error': {
+        if (typeof msg.message === 'string') {
+          setRoomError(msg.message)
+        }
+        break
+      }
+
       case 'game_started': {
+        setRoomError(null)
         setRoomStatus('playing')
         soundManager.playClick()
         if (onGameStartedRef.current) {
@@ -421,6 +431,7 @@ export function useArenaSocket({
     podium,
     winner,
     chatMessages,
+    roomError,
     actions: {
       sendReady,
       updateSettings,

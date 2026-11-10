@@ -47,6 +47,7 @@ Each commit/task is documented following a standardized format (`Objective`, `Ac
 | **27** | 2026-11-05 | `Workspace` | [Task_27_2026-11-05.md](file:///c:/Users/bapti/Desktop/Moi/Projet-Perso/Personnal-website-project/documentation/en/Task_27_2026-11-05.md) | Windows Script Fixes (AppLocker), Admin Privileges Management (isAdmin), and Arena Deletion |
 | **28** | 2026-11-06 | `Workspace` | [Task_28_2026-11-06.md](file:///c:/Users/bapti/Desktop/Moi/Projet-Perso/Personnal-website-project/documentation/en/Task_28_2026-11-06.md) | Real-Time Arena Player Counter Synchronization and Leave Handling |
 | **29** | 2026-11-09 | `Workspace` | [Task_29_2026-11-09.md](file:///c:/Users/bapti/Desktop/Moi/Projet-Perso/Personnal-website-project/documentation/en/Task_29_2026-11-09.md) | Game Configuration Templates System & Multiplayer Sharing |
+| **30** | 2026-11-10 | `Workspace` | [Task_30_2026-11-10.md](file:///c:/Users/bapti/Desktop/Moi/Projet-Perso/Personnal-website-project/documentation/en/Task_30_2026-11-10.md) | Tag Ban System, Collapsible Tag Dropdown (>10 tags) & Anime Character Sub-Tag Dropdown |
 
 ---
 

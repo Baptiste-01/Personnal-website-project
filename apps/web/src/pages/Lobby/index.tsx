@@ -13,6 +13,7 @@ import type { SlideItem } from '../../components/Slider/Slider'
 import AudioThemeControls from '../../components/AudioThemeControls'
 import TemplateModal from '../../components/TemplateModal/TemplateModal'
 import { fetchTemplateByCode } from '../../utils/templateApi'
+import { serializeCategoryListMap } from '../../utils/tagFilter'
 import { soundManager } from '../../utils/sound'
 import { API_URL } from '../../utils/config'
 import './Lobby.css'
@@ -102,13 +103,35 @@ const DIFFICULTY_COLOR: Record<Difficulty, string> = {
 interface CreateArenaSettings {
   name: string
   difficulty: Difficulty
+  categories?: string[]
   categoryDifficulties: Record<string, Difficulty[]>
+  categoryTags?: Record<string, string[]>
+  bannedCategoryTags?: Record<string, string[]>
   tags?: string[]
+  bannedTags?: string[]
   infiniteRounds: boolean
   roundCount: number
   timePerRound: number
   maxPoints: number
   maxPlayers: number
+}
+
+function buildPrefilledArenaSettings(tplSettings: GameSettings, name: string): Partial<CreateArenaSettings> {
+  return {
+    name,
+    difficulty: tplSettings.difficulty ?? 'moyen',
+    categories: tplSettings.categories,
+    categoryDifficulties: tplSettings.categoryDifficulties ?? DEFAULT_CATEGORY_DIFFICULTIES,
+    categoryTags: tplSettings.categoryTags ?? {},
+    bannedCategoryTags: tplSettings.bannedCategoryTags ?? {},
+    tags: tplSettings.tags ?? [],
+    bannedTags: tplSettings.bannedTags ?? [],
+    infiniteRounds: tplSettings.infiniteRounds ?? false,
+    roundCount: tplSettings.roundCount ?? 10,
+    timePerRound: tplSettings.timePerRound ?? 20,
+    maxPoints: tplSettings.maxPoints ?? 1000,
+    maxPlayers: tplSettings.maxPlayers ?? 8,
+  }
 }
 
 /* ─── Create Arena Modal ─── */
@@ -123,9 +146,17 @@ function CreateArenaModal({
 }) {
   const [name, setName] = useState(initialSettings?.name ?? '')
   const [difficulty, setDifficulty] = useState<Difficulty>(initialSettings?.difficulty ?? 'moyen')
+  const [categories, setCategories] = useState<string[] | undefined>(initialSettings?.categories)
   const [categoryDifficulties, setCategoryDifficulties] = useState<Record<string, Difficulty[]>>(
     initialSettings?.categoryDifficulties ?? DEFAULT_CATEGORY_DIFFICULTIES
   )
+  const [categoryTags, setCategoryTags] = useState<Record<string, string[]>>(
+    initialSettings?.categoryTags ?? {}
+  )
+  const [bannedCategoryTags, setBannedCategoryTags] = useState<Record<string, string[]>>(
+    initialSettings?.bannedCategoryTags ?? {}
+  )
+  const [bannedTags, setBannedTags] = useState<string[]>(initialSettings?.bannedTags ?? [])
   const [infiniteRounds, setInfiniteRounds] = useState(initialSettings?.infiniteRounds ?? false)
   const [roundCount, setRoundCount] = useState(initialSettings?.roundCount ?? 10)
   const [timePerRound, setTimePerRound] = useState(initialSettings?.timePerRound ?? 20)
@@ -183,7 +214,11 @@ function CreateArenaModal({
   const handleApplyTemplate = (tplSettings: GameSettings, templateName: string) => {
     if (!name.trim()) setName(templateName)
     if (tplSettings.difficulty) setDifficulty(tplSettings.difficulty)
+    if (tplSettings.categories) setCategories(tplSettings.categories)
     if (tplSettings.categoryDifficulties) setCategoryDifficulties(tplSettings.categoryDifficulties)
+    setCategoryTags(tplSettings.categoryTags ?? {})
+    setBannedCategoryTags(tplSettings.bannedCategoryTags ?? {})
+    setBannedTags(tplSettings.bannedTags ?? [])
     if (tplSettings.infiniteRounds !== undefined) setInfiniteRounds(tplSettings.infiniteRounds)
     if (tplSettings.roundCount !== undefined) setRoundCount(tplSettings.roundCount)
     if (tplSettings.timePerRound !== undefined) setTimePerRound(tplSettings.timePerRound)
@@ -194,10 +229,12 @@ function CreateArenaModal({
   }
 
   const currentSettingsForTemplate: GameSettings = {
-    categories: Object.keys(categoryDifficulties),
+    categories: categories ?? Object.keys(categoryDifficulties),
     difficulty,
     categoryDifficulties,
-    categoryTags: {},
+    categoryTags,
+    bannedCategoryTags,
+    bannedTags,
     roundCount,
     timePerRound,
     maxPoints,
@@ -216,7 +253,11 @@ function CreateArenaModal({
       await onCreate({
         name: trimmed,
         difficulty,
+        categories,
         categoryDifficulties,
+        categoryTags,
+        bannedCategoryTags,
+        bannedTags,
         infiniteRounds,
         roundCount,
         timePerRound,
@@ -817,16 +858,7 @@ export default function Lobby() {
     if (tmplCode) {
       fetchTemplateByCode(tmplCode, true)
         .then(tpl => {
-          setPrefilledSettings({
-            name: tpl.name,
-            difficulty: tpl.settings.difficulty ?? 'moyen',
-            categoryDifficulties: tpl.settings.categoryDifficulties ?? DEFAULT_CATEGORY_DIFFICULTIES,
-            infiniteRounds: tpl.settings.infiniteRounds ?? false,
-            roundCount: tpl.settings.roundCount ?? 10,
-            timePerRound: tpl.settings.timePerRound ?? 20,
-            maxPoints: tpl.settings.maxPoints ?? 1000,
-            maxPlayers: tpl.settings.maxPlayers ?? 8,
-          })
+          setPrefilledSettings(buildPrefilledArenaSettings(tpl.settings, tpl.name))
           setShowCreateModal(true)
         })
         .catch(err => console.error('Failed to prefill template from URL:', err))
@@ -932,19 +964,23 @@ export default function Lobby() {
     })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     const data = await res.json()
-    const catDiffsStr = Object.entries(settings.categoryDifficulties)
-      .map(([cat, diffs]) => `${cat}:${(diffs ?? []).join('+')}`)
-      .join(',')
+    const catDiffsStr = serializeCategoryListMap(settings.categoryDifficulties, settings.categories)
+    const catTagsStr = serializeCategoryListMap(settings.categoryTags, settings.categories)
+    const bannedCatTagsStr = serializeCategoryListMap(settings.bannedCategoryTags, settings.categories)
 
     const query = new URLSearchParams({
       difficulty: settings.difficulty,
+      ...(settings.categories && settings.categories.length > 0 ? { categories: settings.categories.join(',') } : {}),
       rounds: settings.infiniteRounds ? 'infinite' : String(settings.roundCount),
       time: String(settings.timePerRound),
       maxPoints: String(settings.maxPoints),
       infiniteRounds: String(settings.infiniteRounds),
       maxPlayers: String(settings.maxPlayers),
       catDiffs: catDiffsStr,
+      ...(catTagsStr ? { catTags: catTagsStr } : {}),
+      ...(bannedCatTagsStr ? { bannedCatTags: bannedCatTagsStr } : {}),
       ...(settings.tags && settings.tags.length > 0 ? { tags: settings.tags.join(',') } : {}),
+      ...(settings.bannedTags && settings.bannedTags.length > 0 ? { bannedTags: settings.bannedTags.join(',') } : {}),
     })
     navigate(`/arena/${data.id}?${query.toString()}`)
   }
@@ -1197,16 +1233,7 @@ export default function Lobby() {
         onClose={() => setShowTemplateModal(false)}
         initialTab="public"
         onApplyTemplate={(tplSettings, templateName) => {
-          setPrefilledSettings({
-            name: templateName,
-            difficulty: tplSettings.difficulty ?? 'moyen',
-            categoryDifficulties: tplSettings.categoryDifficulties ?? DEFAULT_CATEGORY_DIFFICULTIES,
-            infiniteRounds: tplSettings.infiniteRounds ?? false,
-            roundCount: tplSettings.roundCount ?? 10,
-            timePerRound: tplSettings.timePerRound ?? 20,
-            maxPoints: tplSettings.maxPoints ?? 1000,
-            maxPlayers: tplSettings.maxPlayers ?? 8,
-          })
+          setPrefilledSettings(buildPrefilledArenaSettings(tplSettings, templateName))
           setShowTemplateModal(false)
           setShowCreateModal(true)
         }}

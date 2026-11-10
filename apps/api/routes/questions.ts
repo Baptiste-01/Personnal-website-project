@@ -27,39 +27,52 @@ export function normalizeDifficulty(d: string | undefined): string | undefined {
   return DIFFICULTY_MAP[lower] ?? lower
 }
 
+/** Parse comma-separated category maps encoded as "cat:val1+val2,cat2:val3". */
+function parseCategoryListMap(
+  raw: string | undefined,
+  transform?: (val: string) => string | undefined
+): Record<string, string[]> {
+  const map: Record<string, string[]> = {}
+  if (!raw) return map
+  raw.split(',').filter(Boolean).forEach(entry => {
+    const colonIdx = entry.indexOf(':')
+    if (colonIdx <= 0) return
+    const cat = entry.slice(0, colonIdx).toLowerCase().trim()
+    const itemsPart = entry.slice(colonIdx + 1)
+    if (!cat || !itemsPart) return
+    const values = itemsPart
+      .split('+')
+      .map(v => {
+        const trimmed = v.trim()
+        return transform ? transform(trimmed) : trimmed
+      })
+      .filter((v): v is string => Boolean(v))
+    if (values.length > 0) {
+      map[cat] = values
+    }
+  })
+  return map
+}
+
 export function buildWhereClause(query: Record<string, string | undefined>) {
-  const catDiffsStr = query.catDiffs
-  const catTagsStr = query.catTags
+  const catDiffsMap = parseCategoryListMap(query.catDiffs, d => {
+    const norm = normalizeDifficulty(d)
+    return norm && norm !== 'mixte' ? norm : undefined
+  })
+  const catTagsMap = parseCategoryListMap(query.catTags)
+  const bannedCatTagsMap = parseCategoryListMap(query.bannedCatTags)
+  const globalBannedTags = query.bannedTags?.split(',').map(t => t.trim()).filter(Boolean) ?? []
 
-  // Parse category -> tags map
-  const catTagsMap: Record<string, string[]> = {}
-  if (catTagsStr) {
-    catTagsStr.split(',').filter(Boolean).forEach(entry => {
-      const [cat, tagsPart] = entry.split(':')
-      if (cat && tagsPart) {
-        catTagsMap[cat.toLowerCase().trim()] = tagsPart.split('+').map(t => t.trim()).filter(Boolean)
-      }
-    })
-  }
-
-  // Parse category -> difficulties map
-  const catDiffsMap: Record<string, string[]> = {}
-  if (catDiffsStr) {
-    catDiffsStr.split(',').filter(Boolean).forEach(entry => {
-      const [cat, diffsPart] = entry.split(':')
-      if (cat && diffsPart) {
-        catDiffsMap[cat.toLowerCase().trim()] = diffsPart
-          .split('+')
-          .map(d => normalizeDifficulty(d))
-          .filter((d): d is string => Boolean(d) && d !== 'mixte')
-      }
-    })
-  }
-
-  // Active categories from query.categories or maps
-  let activeCategories = query.categories
+  // Active categories from query.categories or category maps
+  const activeCategories = query.categories
     ? query.categories.split(',').map(c => c.toLowerCase().trim()).filter(Boolean)
-    : Array.from(new Set([...Object.keys(catDiffsMap), ...Object.keys(catTagsMap)]))
+    : Array.from(
+        new Set([
+          ...Object.keys(catDiffsMap),
+          ...Object.keys(catTagsMap),
+          ...Object.keys(bannedCatTagsMap),
+        ])
+      )
 
   if (activeCategories.length > 0) {
     const orClauses = activeCategories.map(cat => {
@@ -70,13 +83,30 @@ export function buildWhereClause(query: Record<string, string | undefined>) {
       if (diffs && diffs.length > 0 && diffs.length < 3) {
         cond.difficulty = { in: diffs }
       }
-      const tags = catTagsMap[cat]
-      if (tags && tags.length > 0) {
-        cond.tags = { hasSome: tags }
+      const includedTags = catTagsMap[cat]
+      const bannedTags = bannedCatTagsMap[cat]
+
+      if (includedTags && includedTags.length > 0 && bannedTags && bannedTags.length > 0) {
+        cond.AND = [
+          { tags: { hasSome: includedTags } },
+          { NOT: { tags: { hasSome: bannedTags } } },
+        ]
+      } else if (includedTags && includedTags.length > 0) {
+        cond.tags = { hasSome: includedTags }
+      } else if (bannedTags && bannedTags.length > 0) {
+        cond.NOT = { tags: { hasSome: bannedTags } }
       }
-      // If tags is empty/undefined: NO tag restriction (includes all questions of this category)
       return cond
     })
+
+    if (globalBannedTags.length > 0) {
+      return {
+        AND: [
+          { OR: orClauses },
+          { NOT: { tags: { hasSome: globalBannedTags } } },
+        ],
+      }
+    }
 
     return { OR: orClauses }
   }
@@ -90,6 +120,7 @@ export function buildWhereClause(query: Record<string, string | undefined>) {
   return {
     ...(normDiffs.length > 0 && normDiffs.length < 3 ? { difficulty: { in: normDiffs } } : {}),
     ...(globalTags.length > 0 ? { tags: { hasSome: globalTags } } : {}),
+    ...(globalBannedTags.length > 0 ? { NOT: { tags: { hasSome: globalBannedTags } } } : {}),
   }
 }
 
@@ -127,18 +158,26 @@ export const questionsRoute = new Elysia({ prefix: '/questions' })
     })
 
     // 2. Group questions by category
-    const catMap: Record<string, { count: number; tagCounts: Record<string, number> }> = {}
+    const catMap: Record<
+      string,
+      { count: number; tagCounts: Record<string, number>; personnageChildren: Record<string, number> }
+    > = {}
     for (const q of questions) {
       const catKey = q.category.toLowerCase().trim()
       if (!catMap[catKey]) {
-        catMap[catKey] = { count: 0, tagCounts: {} }
+        catMap[catKey] = { count: 0, tagCounts: {}, personnageChildren: {} }
       }
       catMap[catKey].count++
       if (Array.isArray(q.tags)) {
-        for (const t of q.tags) {
-          const trimmed = t.trim()
-          if (trimmed) {
-            catMap[catKey].tagCounts[trimmed] = (catMap[catKey].tagCounts[trimmed] ?? 0) + 1
+        const cleanedTags = q.tags.map(t => t.trim()).filter(Boolean)
+        const hasPersonnageTag =
+          catKey === 'anime & manga' && cleanedTags.some(t => t.toLowerCase() === 'personnage')
+
+        for (const trimmed of cleanedTags) {
+          catMap[catKey].tagCounts[trimmed] = (catMap[catKey].tagCounts[trimmed] ?? 0) + 1
+          if (hasPersonnageTag && trimmed.toLowerCase() !== 'personnage') {
+            catMap[catKey].personnageChildren[trimmed] =
+              (catMap[catKey].personnageChildren[trimmed] ?? 0) + 1
           }
         }
       }
@@ -152,7 +191,7 @@ export const questionsRoute = new Elysia({ prefix: '/questions' })
     const allKeys = Array.from(new Set([...Object.keys(catMap), ...registeredMap.keys()]))
 
     const result = allKeys.map(key => {
-      const stats = catMap[key] ?? { count: 0, tagCounts: {} }
+      const stats = catMap[key] ?? { count: 0, tagCounts: {}, personnageChildren: {} }
       const reg = registeredMap.get(key)
       const meta = DEFAULT_CATEGORY_META[key]
 
@@ -168,16 +207,38 @@ export const questionsRoute = new Elysia({ prefix: '/questions' })
         }
       }
 
-      const tags = Object.entries(tagsObj)
+      const sortedTags = Object.entries(tagsObj)
         .map(([tagName, tagCount]) => ({ name: tagName, count: tagCount }))
         .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+
+      // Group co-occurring secondary tags exclusively under "Personnage" for Anime & Manga
+      let finalTags = sortedTags
+      let tagChildren: Record<string, { name: string; count: number }[]> | undefined
+
+      if (key === 'anime & manga') {
+        const parentTag = sortedTags.find(t => t.name.toLowerCase() === 'personnage')
+        if (parentTag) {
+          const childTags = sortedTags.filter(
+            t =>
+              t.name !== parentTag.name &&
+              stats.personnageChildren[t.name] !== undefined &&
+              stats.personnageChildren[t.name] === t.count
+          )
+          if (childTags.length > 0) {
+            const childNameSet = new Set(childTags.map(t => t.name))
+            finalTags = sortedTags.filter(t => !childNameSet.has(t.name))
+            tagChildren = { [parentTag.name]: childTags }
+          }
+        }
+      }
 
       return {
         id: key,
         name,
         icon,
         count: stats.count,
-        tags,
+        tags: finalTags,
+        ...(tagChildren ? { tagChildren } : {}),
       }
     })
 

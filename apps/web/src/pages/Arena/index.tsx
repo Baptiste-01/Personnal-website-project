@@ -13,6 +13,7 @@ import AudioThemeControls from '../../components/AudioThemeControls'
 import TemplateModal from '../../components/TemplateModal/TemplateModal'
 import { soundManager } from '../../utils/sound'
 import { useArenaSocket } from '../../hooks/useArenaSocket'
+import { parseCategoryListParam, serializeCategoryListMap } from '../../utils/tagFilter'
 import { API_URL } from '../../utils/config'
 import './Arena.css'
 
@@ -115,8 +116,13 @@ export default function Arena() {
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false)
   const [templateModalTab, setTemplateModalTab] = useState<'my' | 'public' | 'code' | 'save'>('my')
   const [templateToast, setTemplateToast] = useState<string | null>(null)
+  const [tagModeByCat, setTagModeByCat] = useState<Record<string, 'include' | 'ban'>>({})
+  const [expandedTagDropdowns, setExpandedTagDropdowns] = useState<Record<string, boolean>>({})
+  const [expandedSubTagGroups, setExpandedSubTagGroups] = useState<Record<string, boolean>>({})
+  const [tagSearchByCat, setTagSearchByCat] = useState<Record<string, string>>({})
 
   const [settings, setSettings] = useState<GameSettings>(() => {
+    const categoriesParam = searchParams.get('categories')
     const diff = searchParams.get('difficulty') as Difficulty | null
     const inf = searchParams.get('infiniteRounds')
     const rounds = searchParams.get('rounds')
@@ -124,39 +130,36 @@ export default function Arena() {
     const maxPts = searchParams.get('maxPoints')
     const catDiffsStr = searchParams.get('catDiffs')
     const catTagsStr = searchParams.get('catTags')
+    const bannedCatTagsStr = searchParams.get('bannedCatTags')
     const tagsParam = searchParams.get('tags')
+    const bannedTagsParam = searchParams.get('bannedTags')
+
+    const initialCategories = categoriesParam
+      ? categoriesParam.split(',').map(c => c.trim()).filter(Boolean)
+      : ['mythologie', 'capitale', 'geographie', 'histoire', 'sciences']
 
     const initialCatDiffs: Record<string, Difficulty[]> = { ...DEFAULT_CATEGORY_DIFFICULTIES }
-    if (catDiffsStr) {
-      catDiffsStr.split(',').forEach(p => {
-        const [c, dStr] = p.split(':')
-        if (c && dStr) {
-          const diffs = dStr.split('+').filter(Boolean) as Difficulty[]
-          if (diffs.length > 0) initialCatDiffs[c] = diffs
-        }
-      })
-    }
+    const parsedDiffs = parseCategoryListParam(catDiffsStr)
+    Object.entries(parsedDiffs).forEach(([c, diffs]) => {
+      if (diffs.length > 0) initialCatDiffs[c] = diffs as Difficulty[]
+    })
 
-    const initialCategoryTags: Record<string, string[]> = {}
-    if (catTagsStr) {
-      catTagsStr.split(',').forEach(p => {
-        const [c, tStr] = p.split(':')
-        if (c && tStr) {
-          const tags = tStr.split('+').filter(Boolean)
-          if (tags.length > 0) initialCategoryTags[c] = tags
-        }
-      })
-    }
-
+    const initialCategoryTags = parseCategoryListParam(catTagsStr)
+    const initialBannedCategoryTags = parseCategoryListParam(bannedCatTagsStr)
     const initialTags = tagsParam ? tagsParam.split(',').map(t => t.trim()).filter(Boolean) : []
+    const initialBannedTags = bannedTagsParam
+      ? bannedTagsParam.split(',').map(t => t.trim()).filter(Boolean)
+      : []
 
     return {
-      categories: ['mythologie', 'capitale', 'geographie', 'histoire', 'sciences'],
+      categories: initialCategories.length > 0 ? initialCategories : ['mythologie', 'capitale', 'geographie', 'histoire', 'sciences'],
       difficulty: diff ?? 'facile',
       difficulties: ['facile', 'moyen', 'difficile'],
       categoryDifficulties: initialCatDiffs,
       categoryTags: initialCategoryTags,
+      bannedCategoryTags: initialBannedCategoryTags,
       tags: initialTags,
+      bannedTags: initialBannedTags,
       roundCount: rounds && rounds !== 'infinite' ? Number(rounds) : 10,
       timePerRound: time ? Number(time) : 20,
       maxPoints: maxPts ? Number(maxPts) : 1000,
@@ -167,15 +170,9 @@ export default function Arena() {
 
   // Navigate to play screen
   const navigateToPlay = useCallback(() => {
-    const catDiffsStr = Object.entries(settings.categoryDifficulties)
-      .filter(([cat]) => settings.categories.includes(cat as Category))
-      .map(([cat, diffs]) => `${cat}:${(diffs ?? []).join('+')}`)
-      .join(',')
-
-    const catTagsStr = Object.entries(settings.categoryTags)
-      .filter(([cat, tags]) => settings.categories.includes(cat) && Array.isArray(tags) && tags.length > 0)
-      .map(([cat, tags]) => `${cat}:${tags.join('+')}`)
-      .join(',')
+    const catDiffsStr = serializeCategoryListMap(settings.categoryDifficulties, settings.categories)
+    const catTagsStr = serializeCategoryListMap(settings.categoryTags, settings.categories)
+    const bannedCatTagsStr = serializeCategoryListMap(settings.bannedCategoryTags, settings.categories)
 
     const params = new URLSearchParams({
       categories: settings.categories.join(','),
@@ -188,6 +185,7 @@ export default function Arena() {
       maxPlayers: String(maxPlayers),
       catDiffs: catDiffsStr,
       ...(catTagsStr ? { catTags: catTagsStr } : {}),
+      ...(bannedCatTagsStr ? { bannedCatTags: bannedCatTagsStr } : {}),
     })
     navigate(`/play/${arenaId}?${params.toString()}`)
   }, [settings, arenaId, navigate, maxPlayers])
@@ -199,6 +197,7 @@ export default function Arena() {
     isHost,
     players: wsPlayers,
     settings: wsSettings,
+    roomError,
     actions,
   } = useArenaSocket({
     arenaId,
@@ -219,6 +218,8 @@ export default function Arena() {
         ...wsSettings,
         categoryDifficulties: wsSettings.categoryDifficulties ?? prev.categoryDifficulties,
         categoryTags: wsSettings.categoryTags ?? prev.categoryTags,
+        bannedCategoryTags: wsSettings.bannedCategoryTags ?? prev.bannedCategoryTags,
+        bannedTags: wsSettings.bannedTags ?? prev.bannedTags,
       }))
     }
   }, [wsSettings, isHost])
@@ -277,15 +278,9 @@ export default function Arena() {
 
   /* ─── Dynamic Count of matching questions ─── */
   useEffect(() => {
-    const catDiffsStr = Object.entries(settings.categoryDifficulties)
-      .filter(([cat]) => settings.categories.includes(cat))
-      .map(([cat, diffs]) => `${cat}:${(diffs ?? []).join('+')}`)
-      .join(',')
-
-    const catTagsStr = Object.entries(settings.categoryTags)
-      .filter(([cat, tags]) => settings.categories.includes(cat) && Array.isArray(tags) && tags.length > 0)
-      .map(([cat, tags]) => `${cat}:${tags.join('+')}`)
-      .join(',')
+    const catDiffsStr = serializeCategoryListMap(settings.categoryDifficulties, settings.categories)
+    const catTagsStr = serializeCategoryListMap(settings.categoryTags, settings.categories)
+    const bannedCatTagsStr = serializeCategoryListMap(settings.bannedCategoryTags, settings.categories)
 
     const params = new URLSearchParams()
     if (settings.categories.length > 0) {
@@ -297,6 +292,12 @@ export default function Arena() {
     if (catTagsStr) {
       params.set('catTags', catTagsStr)
     }
+    if (bannedCatTagsStr) {
+      params.set('bannedCatTags', bannedCatTagsStr)
+    }
+    if (settings.bannedTags && settings.bannedTags.length > 0) {
+      params.set('bannedTags', settings.bannedTags.join(','))
+    }
 
     fetch(`${API_URL}/questions/count?${params}`)
       .then(r => r.ok ? r.json() : null)
@@ -306,24 +307,92 @@ export default function Arena() {
         }
       })
       .catch(() => setMatchingQuestionCount(null))
-}, [settings.categories, settings.categoryDifficulties, settings.categoryTags, settings.difficulty])
+}, [settings.categories, settings.categoryDifficulties, settings.categoryTags, settings.bannedCategoryTags, settings.bannedTags, settings.difficulty])
 
-const toggleCategoryTag = (catId: string, tagName: string) => {
+const toggleIncludeCategoryTag = (
+  catId: string,
+  tagName: string,
+  childTagNames: string[] = [],
+  parentTagName?: string
+) => {
   soundManager.playClick()
   setSettings(prev => {
     const currentTags = prev.categoryTags[catId] ?? []
+    const currentBanned = prev.bannedCategoryTags?.[catId] ?? []
     const exists = currentTags.includes(tagName)
-    const nextTags = exists
-      ? currentTags.filter(t => t !== tagName)
-      : [...currentTags, tagName]
+
+    let nextTags: string[]
+    if (exists) {
+      nextTags = currentTags.filter(t => t !== tagName)
+    } else {
+      let filtered = [...currentTags]
+      // Selecting parent tag replaces narrow child inclusions so parent covers all sub-tags
+      if (childTagNames.length > 0) {
+        filtered = filtered.filter(t => !childTagNames.includes(t))
+      }
+      // Selecting a specific child tag replaces parent inclusion so only that child is matched
+      if (parentTagName) {
+        filtered = filtered.filter(t => t !== parentTagName)
+      }
+      nextTags = [...filtered, tagName]
+    }
+
     return {
       ...prev,
       categoryTags: {
         ...prev.categoryTags,
         [catId]: nextTags,
       },
+      // Mutual exclusion: remove from banned list if included
+      bannedCategoryTags: {
+        ...(prev.bannedCategoryTags ?? {}),
+        [catId]: currentBanned.filter(t => t !== tagName),
+      },
     }
   })
+}
+
+const toggleBanCategoryTag = (catId: string, tagName: string, childTagNames: string[] = []) => {
+  soundManager.playClick()
+  setSettings(prev => {
+    const currentBanned = prev.bannedCategoryTags?.[catId] ?? []
+    const currentTags = prev.categoryTags[catId] ?? []
+    const exists = currentBanned.includes(tagName)
+    const nextBanned = exists
+      ? currentBanned.filter(t => t !== tagName)
+      : [...currentBanned, tagName]
+
+    // Mutual exclusion: remove banned tag (and redundant child inclusions if banning parent) from included list
+    const nextIncluded = exists
+      ? currentTags
+      : currentTags.filter(t => t !== tagName && !childTagNames.includes(t))
+
+    return {
+      ...prev,
+      categoryTags: {
+        ...prev.categoryTags,
+        [catId]: nextIncluded,
+      },
+      bannedCategoryTags: {
+        ...(prev.bannedCategoryTags ?? {}),
+        [catId]: nextBanned,
+      },
+    }
+  })
+}
+
+const handleCategoryTagClick = (
+  catId: string,
+  tagName: string,
+  childTagNames: string[] = [],
+  parentTagName?: string
+) => {
+  const mode = tagModeByCat[catId] ?? 'include'
+  if (mode === 'ban') {
+    toggleBanCategoryTag(catId, tagName, childTagNames)
+  } else {
+    toggleIncludeCategoryTag(catId, tagName, childTagNames, parentTagName)
+  }
 }
 
 const clearCategoryTags = (catId: string) => {
@@ -332,7 +401,18 @@ const clearCategoryTags = (catId: string) => {
     ...prev,
     categoryTags: {
       ...prev.categoryTags,
-      [catId]: [], // empty = all questions in this category!
+      [catId]: [], // empty = all questions in this category (excluding any banned tags)
+    },
+  }))
+}
+
+const clearCategoryBans = (catId: string) => {
+  soundManager.playClick()
+  setSettings(prev => ({
+    ...prev,
+    bannedCategoryTags: {
+      ...(prev.bannedCategoryTags ?? {}),
+      [catId]: [],
     },
   }))
 }
@@ -716,14 +796,22 @@ return (
                   <div>
                     <h3 className="settings-label"><IconTarget /> Catégories & Sous-catégories (Tags)</h3>
                     <p className="settings-hint" style={{ marginTop: '2px' }}>
-                      Activez des catégories et affinez vos questions par sous-catégories (tags).
-                      <strong> Si aucun tag n'est sélectionné, toutes les questions de la catégorie sont incluses.</strong>
+                      Activez des catégories, sélectionnez des tags ou passez en mode <strong>🚫 Bannir</strong> (ou clic droit) pour exclure un tag rapidement.
                     </p>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     {matchingQuestionCount !== null && (
-                      <span className="cat-card-count-badge" style={{ color: '#34d399', borderColor: 'rgba(16, 185, 129, 0.4)' }}>
-                        {matchingQuestionCount} question{matchingQuestionCount > 1 ? 's' : ''} disponible{matchingQuestionCount > 1 ? 's' : ''}
+                      <span
+                        className="cat-card-count-badge"
+                        style={
+                          matchingQuestionCount === 0
+                            ? { color: '#f87171', borderColor: 'rgba(239, 68, 68, 0.5)', background: 'rgba(239, 68, 68, 0.12)' }
+                            : { color: '#34d399', borderColor: 'rgba(16, 185, 129, 0.4)' }
+                        }
+                      >
+                        {matchingQuestionCount === 0
+                          ? '⚠️ 0 question disponible'
+                          : `${matchingQuestionCount} question${matchingQuestionCount > 1 ? 's' : ''} disponible${matchingQuestionCount > 1 ? 's' : ''}`}
                       </span>
                     )}
                     <span className="settings-label-count">
@@ -769,6 +857,25 @@ return (
                     const currentDiffs = settings.categoryDifficulties[catId] ?? ['facile', 'moyen', 'difficile']
                     const isAllDiffsSelected = currentDiffs.length === 3
                     const selectedTagsForCat = settings.categoryTags[catId] ?? []
+                    const bannedTagsForCat = settings.bannedCategoryTags?.[catId] ?? []
+                    const tagMode = tagModeByCat[catId] ?? 'include'
+                    const isLargeTagList = (catItem.tags?.length ?? 0) > 10
+                    const isTagDropdownOpen = !isLargeTagList || Boolean(expandedTagDropdowns[catId])
+                    const tagSearchQuery = (tagSearchByCat[catId] ?? '').toLowerCase().trim()
+                    const tagChildrenMap = catItem.tagChildren ?? {}
+                    const filteredTags = (catItem.tags ?? []).filter(t =>
+                      !tagSearchQuery || t.name.toLowerCase().includes(tagSearchQuery)
+                    )
+
+                    const statusParts: string[] = []
+                    if (selectedTagsForCat.length > 0) {
+                      statusParts.push(`${selectedTagsForCat.length} sélectionné(e)s`)
+                    } else {
+                      statusParts.push('✨ Toutes')
+                    }
+                    if (bannedTagsForCat.length > 0) {
+                      statusParts.push(`🚫 ${bannedTagsForCat.length} banni${bannedTagsForCat.length > 1 ? 's' : ''}`)
+                    }
 
                     return (
                         <div key={catId} className={`category-card ${isSelected ? 'category-card--active' : ''}`}>
@@ -792,46 +899,256 @@ return (
 
                           {isSelected && (
                             <div className="category-card-body fade-in">
-                              {/* ── Subcategories (Tags) ── */}
+                              {/* ── Subcategories (Tags & Bans) ── */}
                               {catItem.tags && catItem.tags.length > 0 && (
                                 <div className="category-subcategories-block">
                                   <div className="category-subcategories-header">
-                                    <span className="category-subcategories-label">
-                                      🏷️ Sous-catégories :
-                                    </span>
-                                    <span className="category-subcategories-info">
-                                      {selectedTagsForCat.length === 0
-                                        ? '✨ Toutes les questions (aucun filtre)'
-                                        : `${selectedTagsForCat.length} sélectionné(e)s`}
-                                    </span>
-                                  </div>
-
-                                  <div className="category-subcategories-pills">
-                                    <button
-                                      type="button"
-                                      className={`cat-tag-pill ${selectedTagsForCat.length === 0 ? 'cat-tag-pill--all-active' : ''}`}
-                                      onClick={() => clearCategoryTags(catId)}
-                                      title="Inclure toutes les questions de cette catégorie"
-                                    >
-                                      ✨ Toutes
-                                    </button>
-
-                                    {catItem.tags.map(t => {
-                                      const isTagActive = selectedTagsForCat.includes(t.name)
-                                      return (
+                                    <div className="category-subcategories-title-row">
+                                      <span className="category-subcategories-label">
+                                        🏷️ Tags ({catItem.tags.length}) :
+                                      </span>
+                                      <div className="cat-tag-mode-switch" role="group" aria-label="Mode d'action sur les tags">
                                         <button
-                                          key={t.name}
                                           type="button"
-                                          className={`cat-tag-pill ${isTagActive ? 'cat-tag-pill--active' : ''}`}
-                                          onClick={() => toggleCategoryTag(catId, t.name)}
-                                          id={`cat-tag-${catId}-${t.name.toLowerCase()}`}
+                                          className={`cat-mode-btn ${tagMode === 'include' ? 'cat-mode-btn--include-active' : ''}`}
+                                          onClick={() => setTagModeByCat(prev => ({ ...prev, [catId]: 'include' }))}
+                                          title="Cliquer un tag pour l'inclure"
                                         >
-                                          #{t.name}
-                                          {t.count > 0 && <span className="cat-tag-count">{t.count}</span>}
+                                          🎯 Inclure
                                         </button>
-                                      )
-                                    })}
+                                        <button
+                                          type="button"
+                                          className={`cat-mode-btn ${tagMode === 'ban' ? 'cat-mode-btn--ban-active' : ''}`}
+                                          onClick={() => setTagModeByCat(prev => ({ ...prev, [catId]: 'ban' }))}
+                                          title="Cliquer un tag pour le bannir (ou clic droit à tout moment)"
+                                        >
+                                          🚫 Bannir
+                                        </button>
+                                      </div>
+                                    </div>
+                                    <span className={`category-subcategories-info ${bannedTagsForCat.length > 0 ? 'has-bans' : ''}`}>
+                                      {statusParts.join(' • ')}
+                                    </span>
                                   </div>
+
+                                  {isLargeTagList && (
+                                    <div className="cat-tags-dropdown-bar">
+                                      <button
+                                        type="button"
+                                        className={`cat-tags-dropdown-trigger ${isTagDropdownOpen ? 'is-open' : ''}`}
+                                        onClick={() => setExpandedTagDropdowns(prev => ({ ...prev, [catId]: !prev[catId] }))}
+                                      >
+                                        <span>
+                                          {isTagDropdownOpen
+                                            ? `▲ Masquer les ${catItem.tags.length} tags`
+                                            : `▼ Menu déroulant (${catItem.tags.length} tags disponible${catItem.tags.length > 1 ? 's' : ''})`}
+                                        </span>
+                                        <span className="cat-tags-dropdown-chevron">{isTagDropdownOpen ? '▴' : '▾'}</span>
+                                      </button>
+
+                                      {!isTagDropdownOpen && (selectedTagsForCat.length > 0 || bannedTagsForCat.length > 0) && (
+                                        <div className="category-subcategories-pills cat-active-summary-pills">
+                                          {selectedTagsForCat.map(tag => (
+                                            <button
+                                              key={`sum-inc-${tag}`}
+                                              type="button"
+                                              className="cat-tag-pill cat-tag-pill--active"
+                                              onClick={() => toggleIncludeCategoryTag(catId, tag)}
+                                              title="Cliquer pour retirer ce filtre"
+                                            >
+                                              #{tag} ✕
+                                            </button>
+                                          ))}
+                                          {bannedTagsForCat.map(tag => (
+                                            <button
+                                              key={`sum-ban-${tag}`}
+                                              type="button"
+                                              className="cat-tag-pill cat-tag-pill--banned"
+                                              onClick={() => toggleBanCategoryTag(catId, tag)}
+                                              title="Cliquer pour débannir ce tag"
+                                            >
+                                              🚫 <span className="cat-tag-banned-text">#{tag}</span> ✕
+                                            </button>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+
+                                  {isTagDropdownOpen && (
+                                    <div className={isLargeTagList ? 'cat-tags-dropdown-panel fade-in' : ''}>
+                                      {isLargeTagList && (
+                                        <div className="cat-tags-search-row">
+                                          <input
+                                            type="text"
+                                            className="cat-tags-search-input"
+                                            placeholder={`Filtrer parmi ${catItem.tags.length} tags...`}
+                                            value={tagSearchByCat[catId] ?? ''}
+                                            onChange={e => setTagSearchByCat(prev => ({ ...prev, [catId]: e.target.value }))}
+                                          />
+                                        </div>
+                                      )}
+
+                                      <div className="category-subcategories-pills">
+                                        <button
+                                          type="button"
+                                          className={`cat-tag-pill ${selectedTagsForCat.length === 0 ? 'cat-tag-pill--all-active' : ''}`}
+                                          onClick={() => clearCategoryTags(catId)}
+                                          title="Inclure toutes les questions de cette catégorie (conserve les bans)"
+                                        >
+                                          ✨ Toutes
+                                        </button>
+
+                                        {bannedTagsForCat.length > 0 && (
+                                          <button
+                                            type="button"
+                                            className="cat-tag-pill cat-tag-pill--unban-all"
+                                            onClick={() => clearCategoryBans(catId)}
+                                            title="Supprimer tous les bans de cette catégorie"
+                                          >
+                                            🔓 Débannir ({bannedTagsForCat.length})
+                                          </button>
+                                        )}
+
+                                        {filteredTags.map(t => {
+                                          const childTags = tagChildrenMap[t.name] ?? []
+                                          const childTagNames = childTags.map(c => c.name)
+                                          const isTagActive = selectedTagsForCat.includes(t.name)
+                                          const isTagBanned = bannedTagsForCat.includes(t.name)
+                                          const activeChildIncCount = childTagNames.filter(n => selectedTagsForCat.includes(n)).length
+                                          const activeChildBanCount = childTagNames.filter(n => bannedTagsForCat.includes(n)).length
+                                          const subGroupKey = `${catId}:${t.name}`
+                                          const isSubGroupOpen = Boolean(expandedSubTagGroups[subGroupKey])
+
+                                          if (childTags.length > 0) {
+                                            return (
+                                              <div key={t.name} className="cat-tag-group-wrap">
+                                                <button
+                                                  type="button"
+                                                  className={`cat-tag-pill cat-tag-pill--has-sub ${isTagActive ? 'cat-tag-pill--active' : ''} ${isTagBanned ? 'cat-tag-pill--banned' : ''}`}
+                                                  onClick={() => handleCategoryTagClick(catId, t.name, childTagNames)}
+                                                  onContextMenu={e => {
+                                                    e.preventDefault()
+                                                    toggleBanCategoryTag(catId, t.name, childTagNames)
+                                                  }}
+                                                  id={`cat-tag-${catId}-${t.name.toLowerCase()}`}
+                                                  title={
+                                                    tagMode === 'ban'
+                                                      ? `Cliquer pour bannir/débannir tout #${t.name}`
+                                                      : `Cliquer pour inclure #${t.name} (clic droit pour bannir)`
+                                                  }
+                                                >
+                                                  {isTagBanned ? '🚫 ' : ''}
+                                                  <span className={isTagBanned ? 'cat-tag-banned-text' : ''}>#{t.name}</span>
+                                                  {t.count > 0 && <span className="cat-tag-count">{t.count}</span>}
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  className={`cat-subtag-dropdown-btn ${isSubGroupOpen ? 'is-open' : ''} ${activeChildIncCount > 0 || activeChildBanCount > 0 ? 'has-filters' : ''}`}
+                                                  onClick={() =>
+                                                    setExpandedSubTagGroups(prev => ({
+                                                      ...prev,
+                                                      [subGroupKey]: !prev[subGroupKey],
+                                                    }))
+                                                  }
+                                                  title={`Ouvrir le menu déroulant des seconds tags de ${t.name}`}
+                                                >
+                                                  <span>▾ {childTags.length}</span>
+                                                  {activeChildIncCount > 0 && <span className="subtag-mini-badge subtag-mini-badge--inc">+{activeChildIncCount}</span>}
+                                                  {activeChildBanCount > 0 && <span className="subtag-mini-badge subtag-mini-badge--ban">🚫{activeChildBanCount}</span>}
+                                                </button>
+                                              </div>
+                                            )
+                                          }
+
+                                          return (
+                                            <button
+                                              key={t.name}
+                                              type="button"
+                                              className={`cat-tag-pill ${isTagActive ? 'cat-tag-pill--active' : ''} ${isTagBanned ? 'cat-tag-pill--banned' : ''}`}
+                                              onClick={() => handleCategoryTagClick(catId, t.name)}
+                                              onContextMenu={e => {
+                                                e.preventDefault()
+                                                toggleBanCategoryTag(catId, t.name)
+                                              }}
+                                              id={`cat-tag-${catId}-${t.name.toLowerCase()}`}
+                                              title={
+                                                tagMode === 'ban'
+                                                  ? `Cliquer pour bannir/débannir #${t.name}`
+                                                  : `Cliquer pour inclure #${t.name} (clic droit pour bannir)`
+                                              }
+                                            >
+                                              {isTagBanned ? '🚫 ' : ''}
+                                              <span className={isTagBanned ? 'cat-tag-banned-text' : ''}>#{t.name}</span>
+                                              {t.count > 0 && <span className="cat-tag-count">{t.count}</span>}
+                                            </button>
+                                          )
+                                        })}
+                                      </div>
+
+                                      {/* ── Expanded sub-tag dropdowns (e.g. Personnage -> One Piece / Naruto / Bleach) ── */}
+                                      {Object.entries(tagChildrenMap).map(([parentName, childTags]) => {
+                                        const subGroupKey = `${catId}:${parentName}`
+                                        if (!expandedSubTagGroups[subGroupKey] || childTags.length === 0) return null
+                                        const isParentBanned = bannedTagsForCat.includes(parentName)
+                                        return (
+                                          <div key={subGroupKey} className="cat-subtag-dropdown-panel fade-in">
+                                            <div className="cat-subtag-dropdown-header">
+                                              <span>
+                                                🎭 <strong>{parentName}</strong> — Second tag ({tagMode === 'ban' ? 'clic = bannir' : 'clic = inclure, clic droit = bannir'}) :
+                                              </span>
+                                              <button
+                                                type="button"
+                                                className="cat-subtag-close-btn"
+                                                onClick={() =>
+                                                  setExpandedSubTagGroups(prev => ({ ...prev, [subGroupKey]: false }))
+                                                }
+                                                title="Fermer ce menu"
+                                              >
+                                                ✕
+                                              </button>
+                                            </div>
+                                            {isParentBanned ? (
+                                              <div className="cat-subtag-parent-banned-banner">
+                                                <span>🚫 Tout le tag <strong>#{parentName}</strong> est banni (toutes les séries sont exclues).</span>
+                                                <button
+                                                  type="button"
+                                                  className="cat-tag-pill cat-tag-pill--unban-all"
+                                                  onClick={() => toggleBanCategoryTag(catId, parentName, childTags.map(c => c.name))}
+                                                >
+                                                  🔓 Débannir #{parentName}
+                                                </button>
+                                              </div>
+                                            ) : (
+                                              <div className="category-subcategories-pills">
+                                                {childTags.map(child => {
+                                                  const isChildActive = selectedTagsForCat.includes(child.name)
+                                                  const isChildBanned = bannedTagsForCat.includes(child.name)
+                                                  return (
+                                                    <button
+                                                      key={child.name}
+                                                      type="button"
+                                                      className={`cat-tag-pill ${isChildActive ? 'cat-tag-pill--active' : ''} ${isChildBanned ? 'cat-tag-pill--banned' : ''}`}
+                                                      onClick={() => handleCategoryTagClick(catId, child.name, [], parentName)}
+                                                      onContextMenu={e => {
+                                                        e.preventDefault()
+                                                        toggleBanCategoryTag(catId, child.name)
+                                                      }}
+                                                      id={`cat-subtag-${catId}-${parentName.toLowerCase()}-${child.name.toLowerCase()}`}
+                                                    >
+                                                      {isChildBanned ? '🚫 ' : ''}
+                                                      <span className={isChildBanned ? 'cat-tag-banned-text' : ''}>#{child.name}</span>
+                                                      {child.count > 0 && <span className="cat-tag-count">{child.count}</span>}
+                                                    </button>
+                                                  )
+                                                })}
+                                              </div>
+                                            )}
+                                          </div>
+                                        )
+                                      })}
+                                    </div>
+                                  )}
                                 </div>
                               )}
 
@@ -1175,6 +1492,12 @@ return (
               )}
 
 
+              {(matchingQuestionCount === 0 || roomError) && (
+                <div className="arena-filter-warning-banner fade-in">
+                  ⚠️ {roomError || 'Aucune question disponible avec les catégories, difficultés et tags bannis actuels. Allégez vos filtres avant de lancer.'}
+                </div>
+              )}
+
               {/* ─── Start Button ─── */}
               <div className="settings-footer">
                 <div className="settings-footer-info">
@@ -1194,8 +1517,14 @@ return (
                     className="btn-start-game"
                     onClick={handleStartGame}
                     id="start-game"
-                    disabled={readyCount < 1}
-                    title={readyCount < 1 ? "Au moins un joueur doit être prêt" : "Lancer la partie"}
+                    disabled={readyCount < 1 || matchingQuestionCount === 0}
+                    title={
+                      matchingQuestionCount === 0
+                        ? 'Aucune question disponible avec vos filtres et bans actuels'
+                        : readyCount < 1
+                          ? 'Au moins un joueur doit être prêt'
+                          : 'Lancer la partie'
+                    }
                   >
                     <IconZap />
                     Lancer la partie
@@ -1228,7 +1557,9 @@ return (
           ...newSettings,
           categories: newSettings.categories ?? prev.categories,
           categoryDifficulties: newSettings.categoryDifficulties ?? prev.categoryDifficulties,
-          categoryTags: newSettings.categoryTags ?? prev.categoryTags,
+          categoryTags: newSettings.categoryTags ?? {},
+          bannedCategoryTags: newSettings.bannedCategoryTags ?? {},
+          bannedTags: newSettings.bannedTags ?? [],
         }))
         setTemplateToast(`Modèle "${tplName}" appliqué à l'arène !`)
         setTimeout(() => setTemplateToast(null), 3000)

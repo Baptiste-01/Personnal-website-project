@@ -9,7 +9,7 @@ import { API_URL } from '../../utils/config'
 import {
   fetchMyTemplates, deleteTemplate, updateTemplate, cloneTemplate
 } from '../../utils/templateApi'
-import { CATEGORY_ICONS, CATEGORY_LABELS } from '../../types'
+import { TemplateCategoriesPreview } from '../../components/TemplateModal/TemplateModal'
 import type { GameTemplate } from '../../types'
 import './Profile.css'
 
@@ -379,13 +379,7 @@ export default function Profile() {
                     </div>
 
                     {/* Categories Preview */}
-                    <div className="template-cats-preview">
-                      {(tpl.settings.categories ?? []).map(cat => (
-                        <span key={cat} className="template-cat-tag">
-                          {CATEGORY_ICONS[cat] || '🏷️'} {CATEGORY_LABELS[cat] || cat}
-                        </span>
-                      ))}
-                    </div>
+                    <TemplateCategoriesPreview settings={tpl.settings} />
 
                     {/* Card Actions */}
                     <div className="template-card-actions">
