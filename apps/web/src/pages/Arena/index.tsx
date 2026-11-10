@@ -120,6 +120,7 @@ export default function Arena() {
   const [expandedTagDropdowns, setExpandedTagDropdowns] = useState<Record<string, boolean>>({})
   const [expandedSubTagGroups, setExpandedSubTagGroups] = useState<Record<string, boolean>>({})
   const [tagSearchByCat, setTagSearchByCat] = useState<Record<string, string>>({})
+  const [subTagSearchByGroup, setSubTagSearchByGroup] = useState<Record<string, string>>({})
 
   const [settings, setSettings] = useState<GameSettings>(() => {
     const categoriesParam = searchParams.get('categories')
@@ -1091,6 +1092,10 @@ return (
                                         const subGroupKey = `${catId}:${parentName}`
                                         if (!expandedSubTagGroups[subGroupKey] || childTags.length === 0) return null
                                         const isParentBanned = bannedTagsForCat.includes(parentName)
+                                        const subQuery = (subTagSearchByGroup[subGroupKey] ?? '').trim().toLowerCase()
+                                        const visibleChildTags = childTags.filter(c =>
+                                          !subQuery || c.name.toLowerCase().includes(subQuery)
+                                        )
                                         return (
                                           <div key={subGroupKey} className="cat-subtag-dropdown-panel fade-in">
                                             <div className="cat-subtag-dropdown-header">
@@ -1120,29 +1125,44 @@ return (
                                                 </button>
                                               </div>
                                             ) : (
-                                              <div className="category-subcategories-pills">
-                                                {childTags.map(child => {
-                                                  const isChildActive = selectedTagsForCat.includes(child.name)
-                                                  const isChildBanned = bannedTagsForCat.includes(child.name)
-                                                  return (
-                                                    <button
-                                                      key={child.name}
-                                                      type="button"
-                                                      className={`cat-tag-pill ${isChildActive ? 'cat-tag-pill--active' : ''} ${isChildBanned ? 'cat-tag-pill--banned' : ''}`}
-                                                      onClick={() => handleCategoryTagClick(catId, child.name, [], parentName)}
-                                                      onContextMenu={e => {
-                                                        e.preventDefault()
-                                                        toggleBanCategoryTag(catId, child.name)
-                                                      }}
-                                                      id={`cat-subtag-${catId}-${parentName.toLowerCase()}-${child.name.toLowerCase()}`}
-                                                    >
-                                                      {isChildBanned ? '🚫 ' : ''}
-                                                      <span className={isChildBanned ? 'cat-tag-banned-text' : ''}>#{child.name}</span>
-                                                      {child.count > 0 && <span className="cat-tag-count">{child.count}</span>}
-                                                    </button>
-                                                  )
-                                                })}
-                                              </div>
+                                              <>
+                                                {childTags.length > 10 && (
+                                                  <div className="cat-tags-search-row">
+                                                    <input
+                                                      type="text"
+                                                      className="cat-tags-search-input"
+                                                      placeholder={`Rechercher parmi ${childTags.length} séries...`}
+                                                      value={subTagSearchByGroup[subGroupKey] ?? ''}
+                                                      onChange={e =>
+                                                        setSubTagSearchByGroup(prev => ({ ...prev, [subGroupKey]: e.target.value }))
+                                                      }
+                                                    />
+                                                  </div>
+                                                )}
+                                                <div className="category-subcategories-pills cat-subtag-pills-scroll">
+                                                  {visibleChildTags.map(child => {
+                                                    const isChildActive = selectedTagsForCat.includes(child.name)
+                                                    const isChildBanned = bannedTagsForCat.includes(child.name)
+                                                    return (
+                                                      <button
+                                                        key={child.name}
+                                                        type="button"
+                                                        className={`cat-tag-pill ${isChildActive ? 'cat-tag-pill--active' : ''} ${isChildBanned ? 'cat-tag-pill--banned' : ''}`}
+                                                        onClick={() => handleCategoryTagClick(catId, child.name, [], parentName)}
+                                                        onContextMenu={e => {
+                                                          e.preventDefault()
+                                                          toggleBanCategoryTag(catId, child.name)
+                                                        }}
+                                                        id={`cat-subtag-${catId}-${parentName.toLowerCase()}-${child.name.toLowerCase()}`}
+                                                      >
+                                                        {isChildBanned ? '🚫 ' : ''}
+                                                        <span className={isChildBanned ? 'cat-tag-banned-text' : ''}>#{child.name}</span>
+                                                        {child.count > 0 && <span className="cat-tag-count">{child.count}</span>}
+                                                      </button>
+                                                    )
+                                                  })}
+                                                </div>
+                                              </>
                                             )}
                                           </div>
                                         )

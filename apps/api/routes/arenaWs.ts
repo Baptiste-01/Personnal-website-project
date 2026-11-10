@@ -95,11 +95,7 @@ export const arenaWs = new Elysia()
                   totalRounds: room.settings.infiniteRounds ? 0 : room.settings.roundCount,
                   isInfinite: room.settings.infiniteRounds,
                   timePerRound: room.settings.timePerRound,
-                  question: {
-                    id: q.id,
-                    text: q.text,
-                    imageUrl: q.imageUrl,
-                  },
+                  question: room.getPublicQuestion(q),
                   players: room.getPlayerSummaries(),
                 })
               )
@@ -258,11 +254,7 @@ export const arenaWs = new Elysia()
                   totalRounds: room.settings.infiniteRounds ? 0 : room.settings.roundCount,
                   isInfinite: room.settings.infiniteRounds,
                   timePerRound: room.settings.timePerRound,
-                  question: {
-                    id: q.id,
-                    text: q.text,
-                    imageUrl: q.imageUrl,
-                  },
+                  question: room.getPublicQuestion(q),
                   players: room.getPlayerSummaries(),
                 })
               )

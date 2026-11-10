@@ -97,6 +97,8 @@ export default function Admin() {
   const [showDbQuestions, setShowDbQuestions] = useState(false)
   const [loadingDbQuestions, setLoadingDbQuestions] = useState(false)
   const [diffFilter, setDiffFilter] = useState<'all' | 'facile' | 'moyen' | 'difficile'>('all')
+  const [showAvailableTags, setShowAvailableTags] = useState(false)
+  const [adminTagSearch, setAdminTagSearch] = useState('')
 
   /* Verify admin credentials */
   useEffect(() => {
@@ -471,33 +473,50 @@ export default function Admin() {
             </div>
           )}
 
-          {stats?.topTags && stats.topTags.length > 0 && (
-            <div style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px solid var(--color-border)' }}>
-              <p style={{ fontSize: '0.8125rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem', fontWeight: 600 }}>
-                🏷️ Tags disponibles ({stats.topTags.length}) :
-              </p>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                {stats.topTags.map(({ tag, count }) => (
-                  <span
-                    key={tag}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      padding: '3px 9px',
-                      borderRadius: '999px',
-                      fontSize: '11px',
-                      background: 'rgba(124, 58, 237, 0.15)',
-                      border: '1px solid rgba(139, 92, 246, 0.3)',
-                      color: '#c4b5fd',
-                    }}
-                  >
-                    #{tag} <span style={{ opacity: 0.7 }}>({count})</span>
+          {stats?.topTags && stats.topTags.length > 0 && (() => {
+            const query = adminTagSearch.trim().toLowerCase()
+            const filteredTags = stats.topTags.filter(t => !query || t.tag.toLowerCase().includes(query))
+            return (
+              <div className="admin-tags-section">
+                <button
+                  type="button"
+                  className={`admin-tags-toggle-btn ${showAvailableTags ? 'is-open' : ''}`}
+                  onClick={() => setShowAvailableTags(prev => !prev)}
+                  aria-expanded={showAvailableTags}
+                >
+                  <span>🏷️ Tags disponibles ({stats.topTags.length})</span>
+                  <span className="admin-tags-toggle-chevron">
+                    {showAvailableTags ? '▲ Réduire' : '▼ Afficher'}
                   </span>
-                ))}
+                </button>
+
+                {showAvailableTags && (
+                  <div className="admin-tags-panel fade-in">
+                    {stats.topTags.length > 10 && (
+                      <input
+                        type="text"
+                        className="admin-tags-search"
+                        placeholder={`Filtrer parmi ${stats.topTags.length} tags...`}
+                        value={adminTagSearch}
+                        onChange={e => setAdminTagSearch(e.target.value)}
+                      />
+                    )}
+                    <div className="admin-tags-cloud">
+                      {filteredTags.length > 0 ? (
+                        filteredTags.map(({ tag, count }) => (
+                          <span key={tag} className="admin-tag-chip">
+                            #{tag} <span className="admin-tag-chip-count">({count})</span>
+                          </span>
+                        ))
+                      ) : (
+                        <span className="admin-tags-empty">Aucun tag ne correspond à « {adminTagSearch} ».</span>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-          )}
+            )
+          })()}
         </section>
 
         {/* ── File Upload Section ────────────────────────────── */}

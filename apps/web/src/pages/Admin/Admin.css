@@ -897,3 +897,92 @@
   line-height: 1.5;
   white-space: pre-wrap;
 }
+
+/* ─── Collapsible Available Tags (Admin Stats) ─── */
+.admin-tags-section {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.admin-tags-toggle-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.55rem 0.85rem;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.admin-tags-toggle-btn:hover,
+.admin-tags-toggle-btn.is-open {
+  background: rgba(124, 58, 237, 0.12);
+  border-color: rgba(139, 92, 246, 0.45);
+  color: var(--color-text-primary);
+}
+
+.admin-tags-toggle-chevron {
+  font-size: 0.75rem;
+  color: #c4b5fd;
+  font-weight: 700;
+}
+
+.admin-tags-panel {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.admin-tags-search {
+  width: 100%;
+  padding: 0.45rem 0.75rem;
+  border-radius: var(--radius-sm, 6px);
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-primary);
+  font-size: 0.8rem;
+  outline: none;
+}
+
+.admin-tags-search:focus {
+  border-color: rgba(139, 92, 246, 0.65);
+}
+
+.admin-tags-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.admin-tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  background: rgba(124, 58, 237, 0.15);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  color: #c4b5fd;
+}
+
+.admin-tag-chip-count {
+  opacity: 0.7;
+}
+
+.admin-tags-empty {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  font-style: italic;
+}

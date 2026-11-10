@@ -582,11 +582,7 @@ export class GameRoom {
       totalRounds: this.settings.infiniteRounds ? 0 : this.settings.roundCount,
       isInfinite: this.settings.infiniteRounds,
       timePerRound: this.settings.timePerRound,
-      question: {
-        id: q.id,
-        text: q.text,
-        imageUrl: q.imageUrl,
-      },
+      question: this.getPublicQuestion(q),
       players: this.getPlayerSummaries(),
     })
 
@@ -755,6 +751,17 @@ export class GameRoom {
     })
   }
 
+  /** Serialize question payload for players without leaking answers, hints, or tags. */
+  public getPublicQuestion(q: QuestionData | null = this.getCurrentQuestion()) {
+    if (!q) return null
+    return {
+      id: q.id,
+      text: q.text,
+      imageUrl: q.imageUrl,
+      difficulty: q.difficulty,
+    }
+  }
+
   public getState() {
     const q = this.getCurrentQuestion()
     return {
@@ -772,11 +779,7 @@ export class GameRoom {
         this.status === 'reveal' || this.status === 'finished' ? q?.answer : null,
       question:
         (this.status === 'playing' || this.status === 'reveal') && q
-          ? {
-              id: q.id,
-              text: q.text,
-              imageUrl: q.imageUrl,
-            }
+          ? this.getPublicQuestion(q)
           : null,
     }
   }

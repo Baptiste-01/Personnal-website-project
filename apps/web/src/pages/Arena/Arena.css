@@ -2002,6 +2002,12 @@
   color: #fca5a5;
 }
 
+.cat-subtag-pills-scroll {
+  max-height: 210px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
 .arena-filter-warning-banner {
   margin: 0 0 12px;
   padding: 10px 14px;

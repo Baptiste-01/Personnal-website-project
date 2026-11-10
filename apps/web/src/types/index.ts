@@ -105,7 +105,7 @@ export interface Question {
   acceptedAnswers?: string[]
   imageUrl?: string | null
   category?: Category
-  difficulty?: Difficulty
+  difficulty?: Difficulty | string
   tags?: string[]
 }
 

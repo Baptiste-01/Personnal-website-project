@@ -9,6 +9,15 @@ import { soundManager } from '../../utils/sound'
 import { useArenaSocket } from '../../hooks/useArenaSocket'
 import './FlashGuess.css'
 
+function getDifficultyBadge(difficulty?: string): { key: 'facile' | 'moyen' | 'difficile'; emoji: string; label: string } | null {
+  if (!difficulty) return null
+  const norm = difficulty.toLowerCase().trim()
+  if (norm === 'facile' || norm === 'easy') return { key: 'facile', emoji: '🟢', label: 'Easy (Facile)' }
+  if (norm === 'moyen' || norm === 'normal' || norm === 'medium') return { key: 'moyen', emoji: '🟡', label: 'Normal (Moyen)' }
+  if (norm === 'difficile' || norm === 'hard') return { key: 'difficile', emoji: '🔴', label: 'Hard (Difficile)' }
+  return { key: 'moyen', emoji: '⚪', label: difficulty }
+}
+
 export default function FlashGuess() {
   const { arenaId } = useParams<{ arenaId: string }>()
   const navigate = useNavigate()
@@ -254,8 +263,18 @@ export default function FlashGuess() {
                 </div>
               </div>
 
-              {/* Question prompt: only the question text and image if present */}
+              {/* Question prompt: difficulty badge, question text, and image if present */}
               <div className={`fg-prompt ${roomStatus === 'reveal' ? 'fg-prompt--reveal' : ''}`}>
+                {(() => {
+                  const diffBadge = getDifficultyBadge(currentQuestion.difficulty)
+                  return diffBadge ? (
+                    <div className="fg-prompt-meta">
+                      <span className={`fg-difficulty-badge fg-difficulty-badge--${diffBadge.key}`}>
+                        {diffBadge.emoji} {diffBadge.label}
+                      </span>
+                    </div>
+                  ) : null
+                })()}
                 <p className="fg-prompt-text">{currentQuestion.text}</p>
 
                 {currentQuestion.imageUrl && (
