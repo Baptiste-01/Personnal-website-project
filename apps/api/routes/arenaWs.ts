@@ -88,13 +88,17 @@ export const arenaWs = new Elysia()
           if (room.status === 'playing' || room.status === 'reveal') {
             const q = room.getCurrentQuestion()
             if (q) {
+              const isSpeedrun = room.isQuestionSpeedrun(q)
+              const roundTime = isSpeedrun ? room.getQuestionSpeedrunTime(q) : room.settings.timePerRound
               ws.send(
                 JSON.stringify({
                   type: 'new_round',
                   round: room.currentRoundIndex,
                   totalRounds: room.settings.infiniteRounds ? 0 : room.settings.roundCount,
                   isInfinite: room.settings.infiniteRounds,
-                  timePerRound: room.settings.timePerRound,
+                  timePerRound: room.currentRoundTime || roundTime,
+                  isSpeedrun,
+                  speedrunTime: room.currentRoundTime || roundTime,
                   question: room.getPublicQuestion(q),
                   players: room.getPlayerSummaries(),
                 })
@@ -272,13 +276,10 @@ export const arenaWs = new Elysia()
           const text = String(msg.text || '').trim().slice(0, 150)
           if (!text) return
 
-          room.broadcast({
-            type: 'chat_message',
-            id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          room.addChatMessage({
             playerId: player.id,
             playerName: player.name,
             text,
-            timestamp: Date.now(),
           })
           break
         }

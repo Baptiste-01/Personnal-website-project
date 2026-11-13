@@ -1,4 +1,4 @@
-# 📚 Documentation du Projet - JKLM Clone
+# 📚 Documentation du Projet
 
 ## 🌟 Présentation Générale
 Ce projet est un jeu multijoueur en ligne en temps réel inspiré de la plateforme JKLM, centré sur la rapidité d'esprit, la culture générale et le vocabulaire (notamment le mode **FlashGuess**).
@@ -49,3 +49,4 @@ Chaque commit/étape de développement fait l'objet d'une fiche normalisée (`Ob
 | **28** | 2026-11-06 | `Workspace` | [Tache_28_2026-11-06.md](file:///c:/Users/bapti/Desktop/Moi/Projet-Perso/Personnal-website-project/documentation/fr/Tache_28_2026-11-06.md) | Synchronisation en temps réel du compteur de joueurs et gestion du départ d'une arène |
 | **29** | 2026-11-09 | `Workspace` | [Tache_29_2026-11-09.md](file:///c:/Users/bapti/Desktop/Moi/Projet-Perso/Personnal-website-project/documentation/fr/Tache_29_2026-11-09.md) | Système de modèles de partie (Templates) et partage multijoueur |
 | **30** | 2026-11-10 | `Workspace` | [Tache_30_2026-11-10.md](file:///c:/Users/bapti/Desktop/Moi/Projet-Perso/Personnal-website-project/documentation/fr/Tache_30_2026-11-10.md) | Ban de tags, menus déroulants (>10 tags, `#Personnage`, Admin) & difficulté en arène |
+| **31** | 2026-11-13 | `Workspace` | [Tache_31_2026-11-13.md](file:///c:/Users/bapti/Desktop/Moi/Projet-Perso/Personnal-website-project/documentation/fr/Tache_31_2026-11-13.md) | Mode Speedrun paramétrable par difficulté & Chat multijoueur en temps réel (Salon et FlashGuess) |

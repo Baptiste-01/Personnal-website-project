@@ -37,6 +37,24 @@ export function TemplateCategoriesPreview({ settings }: { settings: Partial<Game
           🚫 #{tag}
         </span>
       ))}
+      {settings.speedrunMode && (
+        <span
+          className="template-cat-tag template-cat-tag--speedrun"
+          title={`Mode Speedrun : ${(settings.speedrunDifficulties || ['facile']).map(d => {
+            const norm = d === 'easy' ? 'facile' : d === 'medium' || d === 'normal' ? 'moyen' : d === 'hard' ? 'difficile' : d
+            const t = settings.difficultySpeedrunTimes?.[norm] ?? (norm === 'facile' ? 3 : norm === 'moyen' ? 5 : 8)
+            const label = norm === 'facile' ? 'Easy' : norm === 'moyen' ? 'Normal' : 'Hard'
+            return `${label} (${t}s)`
+          }).join(', ')}`}
+        >
+          ⚡ Speedrun ({(settings.speedrunDifficulties || ['facile']).map(d => {
+            const norm = d === 'easy' ? 'facile' : d === 'medium' || d === 'normal' ? 'moyen' : d === 'hard' ? 'difficile' : d
+            const t = settings.difficultySpeedrunTimes?.[norm] ?? (norm === 'facile' ? 3 : norm === 'moyen' ? 5 : 8)
+            const label = norm === 'facile' ? 'Easy' : norm === 'moyen' ? 'Normal' : 'Hard'
+            return `${label} ${t}s`
+          }).join(', ')})
+        </span>
+      )}
     </div>
   )
 }
@@ -574,6 +592,16 @@ export default function TemplateModal({
                       {getTemplateTagSummary(currentSettings).totalBanned > 0 && (
                         <span className="setting-pill badge--banned">
                           🚫 {getTemplateTagSummary(currentSettings).totalBanned} tag{getTemplateTagSummary(currentSettings).totalBanned > 1 ? 's' : ''} banni{getTemplateTagSummary(currentSettings).totalBanned > 1 ? 's' : ''}
+                        </span>
+                      )}
+                      {currentSettings.speedrunMode && (
+                        <span className="setting-pill badge--speedrun">
+                          ⚡ Speedrun ({(currentSettings.speedrunDifficulties || ['facile']).map(d => {
+                            const norm = d === 'easy' ? 'facile' : d === 'medium' || d === 'normal' ? 'moyen' : d === 'hard' ? 'difficile' : d
+                            const t = currentSettings.difficultySpeedrunTimes?.[norm] ?? (norm === 'facile' ? 3 : norm === 'moyen' ? 5 : 8)
+                            const label = norm === 'facile' ? 'Easy' : norm === 'moyen' ? 'Normal' : 'Hard'
+                            return `${label} ${t}s`
+                          }).join(', ')})
                         </span>
                       )}
                     </div>

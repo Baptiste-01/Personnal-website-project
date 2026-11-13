@@ -13,6 +13,31 @@
 .fg-topbar-score { font-size: 14px; color: var(--color-text-secondary); padding: 6px 16px; background: var(--color-bg-card); border: 1px solid var(--color-border); border-radius: var(--radius-full); }
 .fg-topbar-score strong { color: var(--color-accent-hover); }
 
+.fg-topbar-chat-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--font-body);
+  color: var(--color-text-secondary);
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.fg-topbar-chat-btn:hover {
+  color: var(--color-text-primary);
+  background: var(--color-bg-card-hover);
+  border-color: rgba(99, 102, 241, 0.4);
+}
+.fg-topbar-chat-btn svg {
+  width: 15px;
+  height: 15px;
+}
+
 /* Grid */
 .fg-layout { display: grid; grid-template-columns: 260px 1fr; flex: 1; min-height: 0; }
 
@@ -488,4 +513,42 @@
 .fg-leaderboard-table tr.fg-row-self {
   background: rgba(168, 85, 247, 0.1);
   font-weight: 700;
+}
+
+/* ─── Speedrun Mode in Game ─── */
+.fg-speedrun-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #fff;
+  background: linear-gradient(135deg, #f59e0b, #ef4444);
+  border: 1px solid rgba(245, 158, 11, 0.6);
+  border-radius: 9999px;
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.45);
+  animation: fgSpeedrunPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes fgSpeedrunPulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 12px rgba(245, 158, 11, 0.45);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.7);
+  }
+}
+
+.fg-timer--speedrun {
+  font-weight: 800;
+  text-shadow: 0 0 10px rgba(245, 158, 11, 0.6);
+}
+
+.fg-timer-fill--speedrun {
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
 }

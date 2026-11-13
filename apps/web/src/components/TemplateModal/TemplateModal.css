@@ -559,3 +559,11 @@
   color: var(--color-accent);
 }
 
+.template-cat-tag--speedrun,
+.badge--speedrun {
+  background: rgba(245, 158, 11, 0.18) !important;
+  border-color: rgba(245, 158, 11, 0.5) !important;
+  color: #fbbf24 !important;
+  font-weight: 700 !important;
+}
+

@@ -58,6 +58,8 @@ export function useArenaSocket({
   const [totalRounds, setTotalRounds] = useState(10)
   const [isInfinite, setIsInfinite] = useState(false)
   const [timeLeft, setTimeLeft] = useState(20)
+  const [roundMaxTime, setRoundMaxTime] = useState(20)
+  const [isSpeedrun, setIsSpeedrun] = useState(false)
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null)
   const [revealedAnswer, setRevealedAnswer] = useState<string | null>(null)
   const [acceptedAnswers, setAcceptedAnswers] = useState<string[]>([])
@@ -163,8 +165,11 @@ export function useArenaSocket({
           if (typeof room.totalRounds === 'number') setTotalRounds(room.totalRounds)
           if (typeof room.isInfinite === 'boolean') setIsInfinite(room.isInfinite)
           if (typeof room.timeLeft === 'number') setTimeLeft(room.timeLeft)
+          if (typeof room.timePerRound === 'number') setRoundMaxTime(room.timePerRound)
+          if (typeof room.isSpeedrun === 'boolean') setIsSpeedrun(room.isSpeedrun)
           if (room.question && room.question.text) setCurrentQuestion(room.question)
           if (room.revealedAnswer) setRevealedAnswer(room.revealedAnswer)
+          if (Array.isArray(room.chatMessages)) setChatMessages(room.chatMessages)
         }
         break
       }
@@ -231,7 +236,11 @@ export function useArenaSocket({
         setCurrentRound(msg.round)
         if (typeof msg.totalRounds === 'number') setTotalRounds(msg.totalRounds)
         if (typeof msg.isInfinite === 'boolean') setIsInfinite(msg.isInfinite)
-        if (typeof msg.timePerRound === 'number') setTimeLeft(msg.timePerRound)
+        if (typeof msg.timePerRound === 'number') {
+          setTimeLeft(msg.timePerRound)
+          setRoundMaxTime(msg.timePerRound)
+        }
+        setIsSpeedrun(Boolean(msg.isSpeedrun))
         if (msg.question) setCurrentQuestion(msg.question)
         if (Array.isArray(msg.players)) setPlayers(msg.players)
 
@@ -328,7 +337,10 @@ export function useArenaSocket({
       }
 
       case 'chat_message': {
-        setChatMessages(prev => [...prev.slice(-30), msg])
+        setChatMessages(prev => {
+          if (prev.some(m => m.id === msg.id)) return prev
+          return [...prev.slice(-49), msg]
+        })
         break
       }
     }
@@ -422,6 +434,8 @@ export function useArenaSocket({
     totalRounds,
     isInfinite,
     timeLeft,
+    roundMaxTime,
+    isSpeedrun,
     currentQuestion,
     revealedAnswer,
     acceptedAnswers,

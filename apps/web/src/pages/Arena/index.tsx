@@ -11,9 +11,15 @@ import {
 import type { Category, Difficulty, GameSettings, CategoryInfo, PlayerSummary } from '../../types'
 import AudioThemeControls from '../../components/AudioThemeControls'
 import TemplateModal from '../../components/TemplateModal/TemplateModal'
+import ArenaChat from '../../components/ArenaChat/ArenaChat'
 import { soundManager } from '../../utils/sound'
 import { useArenaSocket } from '../../hooks/useArenaSocket'
-import { parseCategoryListParam, serializeCategoryListMap } from '../../utils/tagFilter'
+import {
+  parseCategoryListParam,
+  serializeCategoryListMap,
+  parseDifficultyTimesMap,
+  serializeDifficultyTimesMap,
+} from '../../utils/tagFilter'
 import { API_URL } from '../../utils/config'
 import './Arena.css'
 
@@ -166,6 +172,19 @@ export default function Arena() {
       maxPoints: maxPts ? Number(maxPts) : 1000,
       infiniteRounds: inf === 'true' || rounds === 'infinite',
       pointsPerAnswer: 100,
+      speedrunMode: searchParams.get('speedrunMode') === 'true',
+      speedrunDifficulties: searchParams.get('speedrunDiffs')
+        ? (searchParams.get('speedrunDiffs')!.split(',').filter(Boolean) as Difficulty[])
+        : ['facile'],
+      speedrunTime: searchParams.get('speedrunTime')
+        ? Math.max(2, Math.min(30, Number(searchParams.get('speedrunTime'))))
+        : 5,
+      difficultySpeedrunTimes: {
+        facile: 3,
+        moyen: 5,
+        difficile: 8,
+        ...parseDifficultyTimesMap(searchParams.get('diffSpeedrun')),
+      },
     }
   })
 
@@ -187,6 +206,16 @@ export default function Arena() {
       catDiffs: catDiffsStr,
       ...(catTagsStr ? { catTags: catTagsStr } : {}),
       ...(bannedCatTagsStr ? { bannedCatTags: bannedCatTagsStr } : {}),
+      ...(settings.speedrunMode
+        ? {
+            speedrunMode: 'true',
+            speedrunDiffs: (settings.speedrunDifficulties || []).join(','),
+            speedrunTime: String(settings.speedrunTime ?? 5),
+            ...(serializeDifficultyTimesMap(settings.difficultySpeedrunTimes)
+              ? { diffSpeedrun: serializeDifficultyTimesMap(settings.difficultySpeedrunTimes)! }
+              : {}),
+          }
+        : {}),
     })
     navigate(`/play/${arenaId}?${params.toString()}`)
   }, [settings, arenaId, navigate, maxPlayers])
@@ -195,9 +224,11 @@ export default function Arena() {
   const {
     connected,
     selfId,
+    selfName,
     isHost,
     players: wsPlayers,
     settings: wsSettings,
+    chatMessages,
     roomError,
     actions,
   } = useArenaSocket({
@@ -221,6 +252,10 @@ export default function Arena() {
         categoryTags: wsSettings.categoryTags ?? prev.categoryTags,
         bannedCategoryTags: wsSettings.bannedCategoryTags ?? prev.bannedCategoryTags,
         bannedTags: wsSettings.bannedTags ?? prev.bannedTags,
+        speedrunMode: wsSettings.speedrunMode ?? prev.speedrunMode,
+        speedrunDifficulties: (wsSettings.speedrunDifficulties as Difficulty[]) ?? prev.speedrunDifficulties,
+        speedrunTime: wsSettings.speedrunTime ?? prev.speedrunTime,
+        difficultySpeedrunTimes: wsSettings.difficultySpeedrunTimes ?? prev.difficultySpeedrunTimes,
       }))
     }
   }, [wsSettings, isHost])
@@ -1302,6 +1337,181 @@ return (
                       </div>
                     </div>
                   </div>
+
+                  {/* ── Mode Speedrun ── */}
+                  <div className="settings-section speedrun-settings-section">
+                    <div className="settings-row-between">
+                      <div>
+                        <h3 className="settings-label">
+                          <span className="speedrun-icon-bolt">⚡</span> Mode Speedrun
+                        </h3>
+                        <p className="settings-hint">
+                          Réduit drastiquement le chronomètre uniquement pour les questions correspondant aux difficultés choisies.
+                        </p>
+                      </div>
+                      <Toggle
+                        id="toggle-speedrun"
+                        checked={Boolean(settings.speedrunMode)}
+                        onChange={v => setSettings(prev => ({
+                          ...prev,
+                          speedrunMode: v,
+                          speedrunDifficulties: prev.speedrunDifficulties?.length ? prev.speedrunDifficulties : ['facile'],
+                          speedrunTime: prev.speedrunTime ?? 5,
+                        }))}
+                      />
+                    </div>
+
+                    {settings.speedrunMode && (
+                      <div className="speedrun-config-panel fade-in">
+                        {/* Difficultés ciblées et chronos par difficulté */}
+                        <div className="speedrun-subgroup">
+                          <label className="speedrun-sublabel">
+                            Chronomètre Speedrun par difficulté :
+                          </label>
+                          <div className="speedrun-diffs-cards-grid">
+                            {(['facile', 'moyen', 'difficile'] as Difficulty[]).map(d => {
+                              const isChecked = (settings.speedrunDifficulties || []).some(
+                                sd => sd.toLowerCase() === d || (d === 'facile' && sd.toLowerCase() === 'easy') || (d === 'moyen' && (sd.toLowerCase() === 'medium' || sd.toLowerCase() === 'normal')) || (d === 'difficile' && sd.toLowerCase() === 'hard')
+                              )
+                              const labels: Record<string, { emoji: string; text: string; defaultSec: number }> = {
+                                facile: { emoji: '🟢', text: 'Easy (Facile)', defaultSec: 3 },
+                                moyen: { emoji: '🟡', text: 'Normal (Moyen)', defaultSec: 5 },
+                                difficile: { emoji: '🔴', text: 'Hard (Difficile)', defaultSec: 8 },
+                              }
+                              const diffConfig = labels[d]
+                              const currentTime = settings.difficultySpeedrunTimes?.[d] ?? diffConfig.defaultSec
+
+                              return (
+                                <div
+                                  key={d}
+                                  className={`speedrun-diff-card speedrun-diff-card--${d} ${isChecked ? 'speedrun-diff-card--active' : ''}`}
+                                >
+                                  <div
+                                    className="speedrun-diff-card-header"
+                                    onClick={() => {
+                                      setSettings(prev => {
+                                        const current = prev.speedrunDifficulties || []
+                                        const next = isChecked
+                                          ? current.filter(sd => sd.toLowerCase() !== d && !(d === 'facile' && sd.toLowerCase() === 'easy') && !(d === 'moyen' && (sd.toLowerCase() === 'medium' || sd.toLowerCase() === 'normal')) && !(d === 'difficile' && sd.toLowerCase() === 'hard'))
+                                          : [...current, d]
+                                        return { ...prev, speedrunDifficulties: next }
+                                      })
+                                    }}
+                                  >
+                                    <div className="speedrun-diff-card-title">
+                                      <input
+                                        type="checkbox"
+                                        checked={isChecked}
+                                        onChange={() => {}}
+                                        style={{ accentColor: d === 'facile' ? '#22c55e' : d === 'moyen' ? '#f59e0b' : '#ef4444', cursor: 'pointer' }}
+                                      />
+                                      <span className="speedrun-diff-name">{diffConfig.emoji} {diffConfig.text}</span>
+                                    </div>
+                                    <span className={`speedrun-diff-status ${isChecked ? 'speedrun-diff-status--active' : ''}`}>
+                                      {isChecked ? `⚡ ${currentTime}s` : `Standard (${settings.timePerRound}s)`}
+                                    </span>
+                                  </div>
+
+                                  {isChecked ? (
+                                    <div className="speedrun-diff-card-body fade-in">
+                                      <div className="speedrun-diff-pills-row">
+                                        <span className="speedrun-diff-time-label">Chrono accéléré :</span>
+                                        <div className="speedrun-diff-time-pills">
+                                          {[2, 3, 5, 7, 10, 15].map(sec => (
+                                            <button
+                                              key={sec}
+                                              type="button"
+                                              className={`speedrun-time-pill ${currentTime === sec ? 'speedrun-time-pill--active' : ''}`}
+                                              onClick={() => {
+                                                setSettings(prev => ({
+                                                  ...prev,
+                                                  difficultySpeedrunTimes: {
+                                                    ...(prev.difficultySpeedrunTimes || {}),
+                                                    [d]: sec,
+                                                  },
+                                                }))
+                                              }}
+                                            >
+                                              {sec}s
+                                            </button>
+                                          ))}
+                                        </div>
+                                      </div>
+                                      <div className="slider-control-group" style={{ marginTop: 6 }}>
+                                        <div className="slider-input-row">
+                                          <input
+                                            type="range"
+                                            min={2}
+                                            max={20}
+                                            step={1}
+                                            value={currentTime}
+                                            onChange={e => {
+                                              const sec = Number(e.target.value)
+                                              setSettings(prev => ({
+                                                ...prev,
+                                                difficultySpeedrunTimes: {
+                                                  ...(prev.difficultySpeedrunTimes || {}),
+                                                  [d]: sec,
+                                                },
+                                              }))
+                                            }}
+                                            className="settings-range-slider"
+                                            id={`speedrun-slider-${d}`}
+                                          />
+                                          <span className="slider-val-badge">{currentTime}s</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="speedrun-diff-card-disabled">
+                                      <span>Non ciblé par le speedrun (durée : {settings.timePerRound}s)</span>
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </div>
+
+                          {(!settings.speedrunDifficulties || settings.speedrunDifficulties.length === 0) && (
+                            <p className="speedrun-warning-text" style={{ marginTop: 8 }}>
+                              ⚠️ Cochez au moins une difficulté pour activer le mode Speedrun.
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Summary banner */}
+                        <div className="speedrun-summary-banner">
+                          <span className="speedrun-summary-icon">⚡</span>
+                          <div className="speedrun-summary-body">
+                            <div>
+                              Mode Speedrun configuré par difficulté :
+                            </div>
+                            <div className="speedrun-summary-cats">
+                              {(['facile', 'moyen', 'difficile'] as Difficulty[]).map(d => {
+                                const isChecked = (settings.speedrunDifficulties || []).some(
+                                  sd => sd.toLowerCase() === d || (d === 'facile' && sd.toLowerCase() === 'easy') || (d === 'moyen' && (sd.toLowerCase() === 'medium' || sd.toLowerCase() === 'normal')) || (d === 'difficile' && sd.toLowerCase() === 'hard')
+                                )
+                                const labels: Record<string, { emoji: string; text: string; defaultSec: number }> = {
+                                  facile: { emoji: '🟢', text: 'Easy', defaultSec: 3 },
+                                  moyen: { emoji: '🟡', text: 'Normal', defaultSec: 5 },
+                                  difficile: { emoji: '🔴', text: 'Hard', defaultSec: 8 },
+                                }
+                                const currentTime = settings.difficultySpeedrunTimes?.[d] ?? labels[d].defaultSec
+                                return (
+                                  <span
+                                    key={d}
+                                    className={`speedrun-summary-pill ${isChecked ? 'speedrun-summary-pill--custom' : ''}`}
+                                  >
+                                    {labels[d].emoji} {labels[d].text} : <strong>{isChecked ? `⚡ ${currentTime}s` : `Standard (${settings.timePerRound}s)`}</strong>
+                                  </span>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -1584,6 +1794,13 @@ return (
         setTemplateToast(`Modèle "${tplName}" appliqué à l'arène !`)
         setTimeout(() => setTemplateToast(null), 3000)
       }}
+    />
+
+    <ArenaChat
+      messages={chatMessages}
+      onSendMessage={actions.sendChatMessage}
+      selfId={selfId}
+      selfName={myPlayer?.name || selfName || 'Vous'}
     />
   </div>
 )

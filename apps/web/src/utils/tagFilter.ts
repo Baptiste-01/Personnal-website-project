@@ -63,3 +63,61 @@ export function getTemplateTagSummary(settings: Partial<GameSettings>) {
   }
 }
 
+/** Parse difficulty speedrun times encoded as "facile:3,moyen:5,difficile:8" into a Record<string, number>. */
+export function parseDifficultyTimesMap(raw?: string | null): Record<string, number> {
+  const map: Record<string, number> = {}
+  if (!raw) return map
+  raw.split(',').filter(Boolean).forEach(entry => {
+    const colonIdx = entry.indexOf(':')
+    if (colonIdx <= 0) return
+    const diff = entry.slice(0, colonIdx).trim().toLowerCase()
+    const timeVal = Number(entry.slice(colonIdx + 1).trim())
+    if (diff && !isNaN(timeVal) && timeVal > 0) {
+      map[diff] = timeVal
+    }
+  })
+  return map
+}
+
+/** Serialize Record<difficulty, seconds> into "facile:3,moyen:5,difficile:8". */
+export function serializeDifficultyTimesMap(map?: Record<string, number>): string | undefined {
+  if (!map || typeof map !== 'object') return undefined
+  const entries = Object.entries(map).filter(([_, time]) => typeof time === 'number' && time > 0)
+  if (entries.length === 0) return undefined
+  return entries.map(([diff, time]) => `${diff}:${time}`).join(',')
+}
+
+/** Parse category speedrun times encoded as "capitale:3,geographie:5" into a Record<string, number>. */
+export function parseCategoryTimesMap(raw?: string | null): Record<string, number> {
+  const map: Record<string, number> = {}
+  if (!raw) return map
+  raw.split(',').filter(Boolean).forEach(entry => {
+    const colonIdx = entry.indexOf(':')
+    if (colonIdx <= 0) return
+    const cat = entry.slice(0, colonIdx).trim().toLowerCase()
+    const timeVal = Number(entry.slice(colonIdx + 1).trim())
+    if (cat && !isNaN(timeVal) && timeVal > 0) {
+      map[cat] = timeVal
+    }
+  })
+  return map
+}
+
+/** Serialize Record<category, seconds> into "capitale:3,geographie:5". */
+export function serializeCategoryTimesMap(
+  map?: Record<string, number>,
+  activeCategories?: string[]
+): string | undefined {
+  if (!map || typeof map !== 'object') return undefined
+  const activeSet =
+    activeCategories && activeCategories.length > 0
+      ? new Set(activeCategories.map(c => c.toLowerCase().trim()))
+      : null
+  const entries = Object.entries(map).filter(([cat, time]) => {
+    if (typeof time !== 'number' || time <= 0) return false
+    return !activeSet || activeSet.has(cat.toLowerCase().trim())
+  })
+  if (entries.length === 0) return undefined
+  return entries.map(([cat, time]) => `${cat}:${time}`).join(',')
+}
+

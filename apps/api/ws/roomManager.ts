@@ -1,5 +1,5 @@
 import prisma from '../lib/prisma'
-import { buildWhereClause, shuffle } from '../routes/questions'
+import { buildWhereClause, normalizeDifficulty, shuffle } from '../routes/questions'
 
 export interface PlayerSummary {
   id: string
@@ -13,6 +13,15 @@ export interface PlayerSummary {
   hasAnswered: boolean
   answeredCorrectly: boolean
   answerTime: number | null
+}
+
+export interface ChatMessage {
+  id: string
+  playerId: string
+  playerName: string
+  text: string
+  timestamp: number
+  isSystem?: boolean
 }
 
 export interface PlayerSession {
@@ -51,6 +60,12 @@ export interface GameSettings {
   categoryDifficulties?: Record<string, string[]>
   categoryTags?: Record<string, string[]>
   bannedCategoryTags?: Record<string, string[]>
+  speedrunMode?: boolean
+  speedrunDifficulties?: string[]
+  speedrunTime?: number
+  categorySpeedrunTimes?: Record<string, number>
+  difficultySpeedrunTimes?: Record<string, number>
+  catSpeedrunTimes?: string
 }
 
 function serializeCategoryMap(
@@ -235,8 +250,11 @@ export class GameRoom {
   public hostId: string | null = null
   public currentRoundIndex = 0
   public timeLeft = 20
+  public currentRoundTime = 20
+  public isCurrentRoundSpeedrun = false
   public roundStartTime = 0
   public questions: QuestionData[] = []
+  public chatMessages: ChatMessage[] = []
   public timer: any = null
   public revealTimeout: any = null
   public lastActiveAt = Date.now()
@@ -250,6 +268,10 @@ export class GameRoom {
     infiniteRounds: false,
     pointsPerAnswer: 100,
     maxPlayers: 8,
+    speedrunMode: false,
+    speedrunDifficulties: ['facile'],
+    speedrunTime: 5,
+    difficultySpeedrunTimes: { facile: 3, moyen: 5, difficile: 8 },
   }
 
   constructor(id: string, name: string) {
@@ -286,6 +308,36 @@ export class GameRoom {
     return this.questions[this.currentRoundIndex % this.questions.length] ?? null
   }
 
+  public isQuestionSpeedrun(q: QuestionData | null): boolean {
+    if (!q || !this.settings.speedrunMode) return false
+    const diffs = this.settings.speedrunDifficulties
+    if (!Array.isArray(diffs) || diffs.length === 0) return false
+    const qDiff = normalizeDifficulty(q.difficulty)
+    if (!qDiff) return false
+    const normalizedTargetDiffs = diffs.map(d => normalizeDifficulty(d)).filter(Boolean)
+    return normalizedTargetDiffs.includes(qDiff)
+  }
+
+  public getQuestionSpeedrunTime(q: QuestionData | null): number {
+    if (!q) return this.settings.speedrunTime ?? 5
+
+    // Per-difficulty speedrun time override
+    const diffNorm = normalizeDifficulty(q.difficulty)
+    if (diffNorm && this.settings.difficultySpeedrunTimes && typeof this.settings.difficultySpeedrunTimes[diffNorm] === 'number') {
+      const diffTime = this.settings.difficultySpeedrunTimes[diffNorm]
+      if (diffTime > 0) return diffTime
+    }
+
+    // Optional category override if set
+    const catKey = q.category?.toLowerCase().trim()
+    if (catKey && this.settings.categorySpeedrunTimes && typeof this.settings.categorySpeedrunTimes[catKey] === 'number') {
+      const catTime = this.settings.categorySpeedrunTimes[catKey]
+      if (catTime > 0) return catTime
+    }
+
+    return this.settings.speedrunTime ?? 5
+  }
+
   public broadcast(message: Record<string, unknown>, excludePlayerId?: string) {
     this.lastActiveAt = Date.now()
     const payload = JSON.stringify(message)
@@ -309,6 +361,37 @@ export class GameRoom {
     } catch {
       // Socket send failed
     }
+  }
+
+  public addChatMessage(message: {
+    id?: string
+    playerId: string
+    playerName: string
+    text: string
+    timestamp?: number
+    isSystem?: boolean
+  }): ChatMessage {
+    this.lastActiveAt = Date.now()
+    const fullMessage: ChatMessage = {
+      id: message.id || `msg_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      playerId: message.playerId,
+      playerName: message.playerName,
+      text: message.text.slice(0, 200),
+      timestamp: message.timestamp || Date.now(),
+      ...(message.isSystem ? { isSystem: true } : {}),
+    }
+
+    this.chatMessages.push(fullMessage)
+    if (this.chatMessages.length > 50) {
+      this.chatMessages.shift()
+    }
+
+    this.broadcast({
+      type: 'chat_message',
+      ...fullMessage,
+    })
+
+    return fullMessage
   }
 
   public addOrUpdatePlayer(id: string, name: string, ws: any): PlayerSession {
@@ -349,6 +432,14 @@ export class GameRoom {
     }
 
     this.players.set(id, newPlayer)
+
+    this.addChatMessage({
+      playerId: 'system',
+      playerName: 'Système',
+      text: `👋 ${newPlayer.name} a rejoint l'arène.`,
+      isSystem: true,
+    })
+
     return newPlayer
   }
 
@@ -407,6 +498,13 @@ export class GameRoom {
       playerId: id,
       newHostId: this.hostId,
       players: this.getPlayerSummaries(),
+    })
+
+    this.addChatMessage({
+      playerId: 'system',
+      playerName: 'Système',
+      text: `🚪 ${player.name} a quitté l'arène.`,
+      isSystem: true,
     })
 
     // Sync active player count and status to DB
@@ -545,7 +643,12 @@ export class GameRoom {
       arenaId: this.id,
     })
 
-    return true
+    this.addChatMessage({
+      playerId: 'system',
+      playerName: 'Système',
+      text: '🎮 La partie a commencé ! Bonne chance à tous.',
+      isSystem: true,
+    })
 
     // Start round 0 after a short transition buffer (500ms)
     setTimeout(() => {
@@ -553,13 +656,26 @@ export class GameRoom {
         this.startRound(0)
       }
     }, 500)
+
+    return true
   }
 
   public startRound(roundIndex: number) {
     this.clearAllTimers()
     this.status = 'playing'
     this.currentRoundIndex = roundIndex
-    this.timeLeft = this.settings.timePerRound
+
+    const q = this.getCurrentQuestion()
+    if (!q) {
+      this.finishGame()
+      return
+    }
+
+    const isSpeedrun = this.isQuestionSpeedrun(q)
+    const roundTime = isSpeedrun ? this.getQuestionSpeedrunTime(q) : this.settings.timePerRound
+    this.currentRoundTime = roundTime
+    this.isCurrentRoundSpeedrun = isSpeedrun
+    this.timeLeft = roundTime
     this.roundStartTime = Date.now()
 
     // Reset round states
@@ -569,19 +685,15 @@ export class GameRoom {
       player.answerTime = null
     }
 
-    const q = this.getCurrentQuestion()
-    if (!q) {
-      this.finishGame()
-      return
-    }
-
     // Broadcast round info (ANTI-CHEAT: NO answers sent!)
     this.broadcast({
       type: 'new_round',
       round: roundIndex,
       totalRounds: this.settings.infiniteRounds ? 0 : this.settings.roundCount,
       isInfinite: this.settings.infiniteRounds,
-      timePerRound: this.settings.timePerRound,
+      timePerRound: roundTime,
+      isSpeedrun,
+      speedrunTime: roundTime,
       question: this.getPublicQuestion(q),
       players: this.getPlayerSummaries(),
     })
@@ -626,7 +738,8 @@ export class GameRoom {
       player.streak = nextStreak
       player.bestStreak = Math.max(player.bestStreak, nextStreak)
 
-      const speedRatio = Math.max(0, this.timeLeft / this.settings.timePerRound)
+      const effectiveRoundTime = this.currentRoundTime || this.settings.timePerRound || 20
+      const speedRatio = Math.max(0, this.timeLeft / effectiveRoundTime)
       const speedBonus = Math.round(speedRatio * (this.settings.pointsPerAnswer * 0.5))
       const streakMultiplier = nextStreak >= 5 ? 2.0 : nextStreak >= 3 ? 1.5 : 1.0
       const roundPts = Math.round((this.settings.pointsPerAnswer + speedBonus) * streakMultiplier)
@@ -680,11 +793,12 @@ export class GameRoom {
     this.status = 'reveal'
 
     // Penalty / streak reset for players who did not answer
+    const effectiveRoundTime = this.currentRoundTime || this.settings.timePerRound || 20
     for (const player of this.players.values()) {
       if (!player.answeredCorrectly) {
         player.streak = 0
         player.roundScores.push(0)
-        player.reactionTimes.push(this.settings.timePerRound)
+        player.reactionTimes.push(effectiveRoundTime)
       }
     }
 
@@ -726,6 +840,15 @@ export class GameRoom {
       podium: leaderboard.slice(0, 3),
       winner: leaderboard[0] ?? null,
     })
+
+    if (leaderboard[0]) {
+      this.addChatMessage({
+        playerId: 'system',
+        playerName: 'Système',
+        text: `🏆 Fin de partie ! Victoire de ${leaderboard[0].name} (${leaderboard[0].score} pts).`,
+        isSystem: true,
+      })
+    }
   }
 
   public resetToLobby() {
@@ -764,6 +887,7 @@ export class GameRoom {
 
   public getState() {
     const q = this.getCurrentQuestion()
+    const isSpeedrun = this.isQuestionSpeedrun(q)
     return {
       id: this.id,
       name: this.name,
@@ -775,6 +899,10 @@ export class GameRoom {
       totalRounds: this.settings.infiniteRounds ? 0 : this.settings.roundCount,
       isInfinite: this.settings.infiniteRounds,
       timeLeft: this.timeLeft,
+      timePerRound: this.currentRoundTime || this.settings.timePerRound,
+      isSpeedrun,
+      speedrunTime: this.settings.speedrunTime ?? 5,
+      chatMessages: this.chatMessages,
       revealedAnswer:
         this.status === 'reveal' || this.status === 'finished' ? q?.answer : null,
       question:

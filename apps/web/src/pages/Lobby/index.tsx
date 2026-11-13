@@ -13,7 +13,7 @@ import type { SlideItem } from '../../components/Slider/Slider'
 import AudioThemeControls from '../../components/AudioThemeControls'
 import TemplateModal from '../../components/TemplateModal/TemplateModal'
 import { fetchTemplateByCode } from '../../utils/templateApi'
-import { serializeCategoryListMap } from '../../utils/tagFilter'
+import { serializeCategoryListMap, serializeDifficultyTimesMap } from '../../utils/tagFilter'
 import { soundManager } from '../../utils/sound'
 import { API_URL } from '../../utils/config'
 import './Lobby.css'
@@ -114,6 +114,10 @@ interface CreateArenaSettings {
   timePerRound: number
   maxPoints: number
   maxPlayers: number
+  speedrunMode?: boolean
+  speedrunDifficulties?: ('facile' | 'moyen' | 'difficile' | 'easy' | 'normal' | 'hard' | string)[]
+  speedrunTime?: number
+  difficultySpeedrunTimes?: Record<string, number>
 }
 
 function buildPrefilledArenaSettings(tplSettings: GameSettings, name: string): Partial<CreateArenaSettings> {
@@ -131,6 +135,10 @@ function buildPrefilledArenaSettings(tplSettings: GameSettings, name: string): P
     timePerRound: tplSettings.timePerRound ?? 20,
     maxPoints: tplSettings.maxPoints ?? 1000,
     maxPlayers: tplSettings.maxPlayers ?? 8,
+    speedrunMode: tplSettings.speedrunMode ?? false,
+    speedrunDifficulties: tplSettings.speedrunDifficulties,
+    speedrunTime: tplSettings.speedrunTime ?? 5,
+    difficultySpeedrunTimes: tplSettings.difficultySpeedrunTimes ?? { facile: 3, moyen: 5, difficile: 8 },
   }
 }
 
@@ -981,6 +989,14 @@ export default function Lobby() {
       ...(bannedCatTagsStr ? { bannedCatTags: bannedCatTagsStr } : {}),
       ...(settings.tags && settings.tags.length > 0 ? { tags: settings.tags.join(',') } : {}),
       ...(settings.bannedTags && settings.bannedTags.length > 0 ? { bannedTags: settings.bannedTags.join(',') } : {}),
+      ...(settings.speedrunMode ? {
+        speedrunMode: 'true',
+        speedrunDiffs: (settings.speedrunDifficulties || []).join(','),
+        speedrunTime: String(settings.speedrunTime ?? 5),
+        ...(serializeDifficultyTimesMap(settings.difficultySpeedrunTimes)
+          ? { diffSpeedrun: serializeDifficultyTimesMap(settings.difficultySpeedrunTimes)! }
+          : {}),
+      } : {}),
     })
     navigate(`/arena/${data.id}?${query.toString()}`)
   }

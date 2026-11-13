@@ -1,4 +1,4 @@
-# 📚 Project Documentation - JKLM Clone
+# 📚 Project Documentation
 
 ## 🌟 General Overview
 This project is a high-performance, real-time multiplayer word and trivia party game inspired by JKLM, centered on speed, knowledge, and vocabulary (notably featuring the **FlashGuess** game mode).
@@ -48,6 +48,7 @@ Each commit/task is documented following a standardized format (`Objective`, `Ac
 | **28** | 2026-11-06 | `Workspace` | [Task_28_2026-11-06.md](file:///c:/Users/bapti/Desktop/Moi/Projet-Perso/Personnal-website-project/documentation/en/Task_28_2026-11-06.md) | Real-Time Arena Player Counter Synchronization and Leave Handling |
 | **29** | 2026-11-09 | `Workspace` | [Task_29_2026-11-09.md](file:///c:/Users/bapti/Desktop/Moi/Projet-Perso/Personnal-website-project/documentation/en/Task_29_2026-11-09.md) | Game Configuration Templates System & Multiplayer Sharing |
 | **30** | 2026-11-10 | `Workspace` | [Task_30_2026-11-10.md](file:///c:/Users/bapti/Desktop/Moi/Projet-Perso/Personnal-website-project/documentation/en/Task_30_2026-11-10.md) | Tag Ban System, Smart Dropdowns (>10 tags, `#Personnage`, Admin) & In-Game Difficulty |
+| **31** | 2026-11-13 | `Workspace` | [Task_31_2026-11-13.md](file:///c:/Users/bapti/Desktop/Moi/Projet-Perso/Personnal-website-project/documentation/en/Task_31_2026-11-13.md) | Configurable Speedrun Mode by Difficulty & Real-Time Multiplayer Arena Chat (Lobby and FlashGuess) |
 
 ---
 

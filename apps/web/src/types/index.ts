@@ -137,6 +137,7 @@ export interface ChatMessage {
   playerName: string
   text: string
   timestamp: number
+  isSystem?: boolean
 }
 
 export interface GameSettings {
@@ -154,6 +155,11 @@ export interface GameSettings {
   infiniteRounds: boolean
   pointsPerAnswer: number   // points for the 1st (fastest) correct answer
   maxPlayers?: number
+  speedrunMode?: boolean
+  speedrunDifficulties?: ('facile' | 'moyen' | 'difficile' | 'easy' | 'normal' | 'hard' | string)[]
+  speedrunTime?: number
+  categorySpeedrunTimes?: Record<string, number>
+  difficultySpeedrunTimes?: Record<string, number>
 }
 
 export interface TemplateAuthor {

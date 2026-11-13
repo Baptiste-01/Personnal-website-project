@@ -2,9 +2,11 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   IconArrowLeft, IconGamepad, IconUser, IconCrown, IconHash, IconClock,
-  IconCheck, IconX, IconInfinity, IconTrophy, IconFlame, IconTarget, IconZap
+  IconCheck, IconX, IconInfinity, IconTrophy, IconFlame, IconTarget, IconZap,
+  IconMessageCircle
 } from '../../components/Icons'
 import AudioThemeControls from '../../components/AudioThemeControls'
+import ArenaChat from '../../components/ArenaChat/ArenaChat'
 import { soundManager } from '../../utils/sound'
 import { useArenaSocket } from '../../hooks/useArenaSocket'
 import './FlashGuess.css'
@@ -25,6 +27,7 @@ export default function FlashGuess() {
 
   const [answer, setAnswer] = useState('')
   const [modalImage, setModalImage] = useState<string | null>(null)
+  const [isChatOpen, setIsChatOpen] = useState(false)
 
   const {
     connected,
@@ -38,6 +41,8 @@ export default function FlashGuess() {
     totalRounds,
     isInfinite,
     timeLeft,
+    roundMaxTime,
+    isSpeedrun,
     currentQuestion,
     revealedAnswer,
     acceptedAnswers,
@@ -46,6 +51,7 @@ export default function FlashGuess() {
     leaderboard,
     podium,
     winner,
+    chatMessages,
     actions,
   } = useArenaSocket({
     arenaId,
@@ -76,14 +82,15 @@ export default function FlashGuess() {
   const sortedPlayers = [...players].sort((a, b) => b.score - a.score)
 
   // Timer visualization
-  const maxTime = settings?.timePerRound ?? 20
+  const maxTime = roundMaxTime || settings?.timePerRound || 20
   const timerPct = Math.max(0, Math.min(100, (timeLeft / maxTime) * 100))
-  const timerColor =
-    timeLeft > maxTime * 0.5
-      ? 'var(--color-status-live)'
-      : timeLeft > maxTime * 0.25
-        ? 'var(--color-status-waiting)'
-        : '#ef4444'
+  const timerColor = isSpeedrun
+    ? (timeLeft > maxTime * 0.5 ? '#f59e0b' : timeLeft > maxTime * 0.25 ? '#f97316' : '#ef4444')
+    : (timeLeft > maxTime * 0.5
+        ? 'var(--color-status-live)'
+        : timeLeft > maxTime * 0.25
+          ? 'var(--color-status-waiting)'
+          : '#ef4444')
 
   // Final performance calculations
   const effectiveLeaderboard = leaderboard.length > 0 ? leaderboard : sortedPlayers
@@ -114,6 +121,19 @@ export default function FlashGuess() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <button
+            type="button"
+            className="fg-topbar-chat-btn"
+            onClick={() => {
+              soundManager.playClick()
+              setIsChatOpen(prev => !prev)
+            }}
+            title="Ouvrir / Fermer le chat de l'arène"
+            id="fg-topbar-toggle-chat"
+          >
+            <IconMessageCircle />
+            <span>Chat</span>
+          </button>
           <AudioThemeControls compact />
           <div className="fg-topbar-score">
             Score: <strong>{myPlayer?.score ?? 0} pts</strong>
@@ -251,13 +271,13 @@ export default function FlashGuess() {
                       </>
                     )}
                   </span>
-                  <span className="fg-timer" style={{ color: timerColor }}>
-                    <IconClock /> {timeLeft}s
+                  <span className={`fg-timer ${isSpeedrun ? 'fg-timer--speedrun' : ''}`} style={{ color: timerColor }}>
+                    {isSpeedrun ? '⚡ ' : <IconClock />} {timeLeft}s
                   </span>
                 </div>
                 <div className="fg-timer-track">
                   <div
-                    className="fg-timer-fill"
+                    className={`fg-timer-fill ${isSpeedrun ? 'fg-timer-fill--speedrun' : ''}`}
                     style={{ width: `${timerPct}%`, backgroundColor: timerColor }}
                   />
                 </div>
@@ -267,11 +287,18 @@ export default function FlashGuess() {
               <div className={`fg-prompt ${roomStatus === 'reveal' ? 'fg-prompt--reveal' : ''}`}>
                 {(() => {
                   const diffBadge = getDifficultyBadge(currentQuestion.difficulty)
-                  return diffBadge ? (
+                  return (diffBadge || isSpeedrun) ? (
                     <div className="fg-prompt-meta">
-                      <span className={`fg-difficulty-badge fg-difficulty-badge--${diffBadge.key}`}>
-                        {diffBadge.emoji} {diffBadge.label}
-                      </span>
+                      {diffBadge && (
+                        <span className={`fg-difficulty-badge fg-difficulty-badge--${diffBadge.key}`}>
+                          {diffBadge.emoji} {diffBadge.label}
+                        </span>
+                      )}
+                      {isSpeedrun && (
+                        <span className="fg-speedrun-badge">
+                          ⚡ SPEEDRUN ({roundMaxTime ?? 5}s)
+                        </span>
+                      )}
                     </div>
                   ) : null
                 })()}
@@ -579,6 +606,15 @@ export default function FlashGuess() {
           </div>
         </div>
       )}
+      {/* Arena Chat Component */}
+      <ArenaChat
+        messages={chatMessages}
+        onSendMessage={actions.sendChatMessage}
+        selfId={selfId}
+        selfName={myPlayer?.name || 'Vous'}
+        isOpenExternal={isChatOpen}
+        onToggleExternal={() => setIsChatOpen(prev => !prev)}
+      />
     </div>
   )
 }
