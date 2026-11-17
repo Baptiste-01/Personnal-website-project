@@ -1,5 +1,6 @@
 import prisma from '../lib/prisma'
 import { buildWhereClause, normalizeDifficulty, shuffle } from '../routes/questions'
+import { mutedQuestionsStore } from '../lib/mutedQuestions'
 
 export interface PlayerSummary {
   id: string
@@ -13,6 +14,10 @@ export interface PlayerSummary {
   hasAnswered: boolean
   answeredCorrectly: boolean
   answerTime: number | null
+  firstAnswersCount?: number
+  correctAnswersCount?: number
+  totalAnswersCount?: number
+  averageReactionTime?: number | null
 }
 
 export interface ChatMessage {
@@ -33,6 +38,9 @@ export interface PlayerSession {
   score: number
   streak: number
   bestStreak: number
+  firstAnswersCount: number
+  correctAnswersCount: number
+  totalAnswersCount: number
   roundScores: number[]
   reactionTimes: number[]
   hasAnswered: boolean
@@ -280,19 +288,34 @@ export class GameRoom {
   }
 
   public getPlayerSummaries(): PlayerSummary[] {
-    return Array.from(this.players.values()).map(p => ({
-      id: p.id,
-      name: p.name,
-      isHost: p.isHost,
-      isReady: p.isReady,
-      isOnline: p.isOnline,
-      score: p.score,
-      streak: p.streak,
-      bestStreak: p.bestStreak,
-      hasAnswered: p.hasAnswered,
-      answeredCorrectly: p.answeredCorrectly,
-      answerTime: p.answerTime,
-    }))
+    return Array.from(this.players.values()).map(p => {
+      const avgReaction =
+        p.reactionTimes && p.reactionTimes.length > 0
+          ? Math.round(
+              (p.reactionTimes.reduce((acc, t) => acc + t, 0) /
+                p.reactionTimes.length) *
+                10
+            ) / 10
+          : null
+
+      return {
+        id: p.id,
+        name: p.name,
+        isHost: p.isHost,
+        isReady: p.isReady,
+        isOnline: p.isOnline,
+        score: p.score,
+        streak: p.streak,
+        bestStreak: p.bestStreak,
+        hasAnswered: p.hasAnswered,
+        answeredCorrectly: p.answeredCorrectly,
+        answerTime: p.answerTime,
+        firstAnswersCount: p.firstAnswersCount || 0,
+        correctAnswersCount: p.correctAnswersCount || 0,
+        totalAnswersCount: p.totalAnswersCount || 0,
+        averageReactionTime: avgReaction,
+      }
+    })
   }
 
   public getActivePlayerCount(): number {
@@ -422,6 +445,9 @@ export class GameRoom {
       score: 0,
       streak: 0,
       bestStreak: 0,
+      firstAnswersCount: 0,
+      correctAnswersCount: 0,
+      totalAnswersCount: 0,
       roundScores: [],
       reactionTimes: [],
       hasAnswered: false,
@@ -551,6 +577,9 @@ export class GameRoom {
       player.score = 0
       player.streak = 0
       player.bestStreak = 0
+      player.firstAnswersCount = 0
+      player.correctAnswersCount = 0
+      player.totalAnswersCount = 0
       player.roundScores = []
       player.reactionTimes = []
       player.hasAnswered = false
@@ -629,9 +658,12 @@ export class GameRoom {
       return false
     }
 
+    // Filter out any question marked as muted (containing errors)
+    loadedQuestions = loadedQuestions.filter(q => !mutedQuestionsStore.isMuted(q))
+
     // Fallback: guaranteed question list if database returned empty (no DB records)
     if (loadedQuestions.length === 0) {
-      loadedQuestions = [...FALLBACK_QUESTIONS]
+      loadedQuestions = FALLBACK_QUESTIONS.filter(q => !mutedQuestionsStore.isMuted(q))
     }
 
     this.questions = shuffle(loadedQuestions)
@@ -727,8 +759,16 @@ export class GameRoom {
       q.acceptedAnswers.some(a => normalizeAnswer(a) === normalized)
 
     if (isCorrect) {
+      const isFirst = !Array.from(this.players.values()).some(
+        p => p.id !== playerId && p.answeredCorrectly
+      )
+
       player.answeredCorrectly = true
       player.hasAnswered = true
+      player.correctAnswersCount = (player.correctAnswersCount || 0) + 1
+      if (isFirst) {
+        player.firstAnswersCount = (player.firstAnswersCount || 0) + 1
+      }
 
       const timeTaken = Math.max(0.5, (Date.now() - this.roundStartTime) / 1000)
       player.answerTime = timeTaken
@@ -754,6 +794,9 @@ export class GameRoom {
         points: roundPts,
         score: player.score,
         streak: player.streak,
+        bestStreak: player.bestStreak,
+        isFirst,
+        firstAnswersCount: player.firstAnswersCount,
       })
 
       // Broadcast public live update to everyone
@@ -764,6 +807,9 @@ export class GameRoom {
         isCorrect: true,
         score: player.score,
         streak: player.streak,
+        bestStreak: player.bestStreak,
+        isFirst,
+        firstAnswersCount: player.firstAnswersCount,
         answerTime: timeTaken,
       })
 
@@ -793,13 +839,12 @@ export class GameRoom {
     this.status = 'reveal'
 
     // Penalty / streak reset for players who did not answer
-    const effectiveRoundTime = this.currentRoundTime || this.settings.timePerRound || 20
     for (const player of this.players.values()) {
       if (!player.answeredCorrectly) {
         player.streak = 0
         player.roundScores.push(0)
-        player.reactionTimes.push(effectiveRoundTime)
       }
+      player.totalAnswersCount = (player.totalAnswersCount || 0) + 1
     }
 
     const q = this.getCurrentQuestion()
@@ -860,6 +905,9 @@ export class GameRoom {
       p.score = 0
       p.streak = 0
       p.bestStreak = 0
+      p.firstAnswersCount = 0
+      p.correctAnswersCount = 0
+      p.totalAnswersCount = 0
       p.roundScores = []
       p.reactionTimes = []
       p.hasAnswered = false
@@ -874,6 +922,22 @@ export class GameRoom {
     })
   }
 
+  public async muteQuestion(questionId: string, reason?: string, byPlayerName?: string) {
+    await mutedQuestionsStore.mute(questionId, reason)
+    this.broadcast({
+      type: 'question_muted',
+      questionId,
+      reason,
+      byPlayerName,
+    })
+    this.addChatMessage({
+      playerId: 'system',
+      playerName: 'Système',
+      text: `🔇 La question #${questionId} a été mise en sourdine${byPlayerName ? ` par ${byPlayerName}` : ''}${reason ? ` (${reason})` : ''}.`,
+      isSystem: true,
+    })
+  }
+
   /** Serialize question payload for players without leaking answers, hints, or tags. */
   public getPublicQuestion(q: QuestionData | null = this.getCurrentQuestion()) {
     if (!q) return null
@@ -882,6 +946,7 @@ export class GameRoom {
       text: q.text,
       imageUrl: q.imageUrl,
       difficulty: q.difficulty,
+      isMuted: mutedQuestionsStore.isMuted(q),
     }
   }
 

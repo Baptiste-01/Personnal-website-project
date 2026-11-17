@@ -283,6 +283,20 @@ export const arenaWs = new Elysia()
           })
           break
         }
+
+        case 'admin_mute_question': {
+          const playerId = data.playerId
+          if (!playerId) return
+          const player = room.players.get(playerId)
+          if (!player) return
+
+          const questionId = String(msg.questionId || '').trim()
+          if (!questionId) return
+
+          const reason = typeof msg.reason === 'string' ? msg.reason.trim() : undefined
+          await room.muteQuestion(questionId, reason, player.name)
+          break
+        }
       }
     },
 

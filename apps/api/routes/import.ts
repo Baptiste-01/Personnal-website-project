@@ -1,6 +1,7 @@
 import Elysia from 'elysia'
 import * as XLSX from 'xlsx'
 import prisma from '../lib/prisma'
+import { mutedQuestionsStore } from '../lib/mutedQuestions'
 
 /* ─── Types ──────────────────────────────────────────────────── */
 interface ExcelRow {
@@ -890,10 +891,44 @@ export const importRoute = new Elysia({ prefix: '/admin' })
       await prisma.question.delete({
         where: { id },
       })
+      await mutedQuestionsStore.unmute(id)
       return { success: true, message: 'Question supprimée avec succès.' }
     } catch (err) {
       set.status = 500
       return { error: `Impossible de supprimer la question : ${String(err)}` }
+    }
+  })
+
+  /** POST /admin/questions/:id/mute — mute a question that contains errors */
+  .post('/questions/:id/mute', async ({ params, body, set }) => {
+    try {
+      const id = params.id
+      const b = (body || {}) as { reason?: string }
+      const res = await mutedQuestionsStore.mute(id, b.reason)
+      return { success: true, message: res.message, id }
+    } catch (err) {
+      set.status = 500
+      return { error: `Impossible de mettre la question en sourdine : ${String(err)}` }
+    }
+  })
+
+  /** POST /admin/questions/:id/unmute — unmute a question */
+  .post('/questions/:id/unmute', async ({ params, set }) => {
+    try {
+      const id = params.id
+      const res = await mutedQuestionsStore.unmute(id)
+      return { success: true, message: res.message, id }
+    } catch (err) {
+      set.status = 500
+      return { error: `Impossible de retirer la question de la sourdine : ${String(err)}` }
+    }
+  })
+
+  /** GET /admin/questions/muted — list all muted question IDs and records */
+  .get('/questions/muted', () => {
+    return {
+      mutedIds: mutedQuestionsStore.getMutedIds(),
+      records: mutedQuestionsStore.getAllRecords(),
     }
   })
 

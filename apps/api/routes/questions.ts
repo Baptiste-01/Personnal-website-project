@@ -1,5 +1,6 @@
 import Elysia from 'elysia'
 import prisma from '../lib/prisma'
+import { mutedQuestionsStore } from '../lib/mutedQuestions'
 
 /** Fisher-Yates shuffle */
 export function shuffle<T>(arr: T[]): T[] {
@@ -61,7 +62,10 @@ export function buildWhereClause(query: Record<string, string | undefined>) {
   })
   const catTagsMap = parseCategoryListMap(query.catTags)
   const bannedCatTagsMap = parseCategoryListMap(query.bannedCatTags)
-  const globalBannedTags = query.bannedTags?.split(',').map(t => t.trim()).filter(Boolean) ?? []
+  const userBannedTags = query.bannedTags?.split(',').map(t => t.trim()).filter(Boolean) ?? []
+  const globalBannedTags = Array.from(new Set([...userBannedTags, 'sourdine', 'muted']))
+  const mutedIds = mutedQuestionsStore.getMutedIds()
+  const notMutedIdCondition = mutedIds.length > 0 ? { id: { notIn: mutedIds } } : {}
 
   // Active categories from query.categories or category maps
   const activeCategories = query.categories
@@ -99,16 +103,15 @@ export function buildWhereClause(query: Record<string, string | undefined>) {
       return cond
     })
 
+    const andClauses: Record<string, unknown>[] = [{ OR: orClauses }]
     if (globalBannedTags.length > 0) {
-      return {
-        AND: [
-          { OR: orClauses },
-          { NOT: { tags: { hasSome: globalBannedTags } } },
-        ],
-      }
+      andClauses.push({ NOT: { tags: { hasSome: globalBannedTags } } })
+    }
+    if (mutedIds.length > 0) {
+      andClauses.push(notMutedIdCondition)
     }
 
-    return { OR: orClauses }
+    return andClauses.length > 1 ? { AND: andClauses } : { OR: orClauses }
   }
 
   const globalTags = query.tags?.split(',').map(t => t.trim()).filter(Boolean) ?? []
@@ -121,6 +124,7 @@ export function buildWhereClause(query: Record<string, string | undefined>) {
     ...(normDiffs.length > 0 && normDiffs.length < 3 ? { difficulty: { in: normDiffs } } : {}),
     ...(globalTags.length > 0 ? { tags: { hasSome: globalTags } } : {}),
     ...(globalBannedTags.length > 0 ? { NOT: { tags: { hasSome: globalBannedTags } } } : {}),
+    ...notMutedIdCondition,
   }
 }
 

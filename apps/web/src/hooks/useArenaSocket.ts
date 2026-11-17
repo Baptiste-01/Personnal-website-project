@@ -4,14 +4,14 @@ import { soundManager } from '../utils/sound'
 import { triggerVictoryConfetti, triggerStreakConfetti } from '../utils/confetti'
 import { WS_URL } from '../utils/config'
 
-export function getLocalPlayer(): { id: string; name: string } {
+export function getLocalPlayer(): { id: string; name: string; isAdmin: boolean } {
   try {
     const raw = localStorage.getItem('auth_user')
     if (raw) {
       const u = JSON.parse(raw)
       const name = u.displayName || u.username || 'Vous'
       const id = u.id || `user_${name.toLowerCase().replace(/[^a-z0-9]/g, '_')}`
-      return { id, name }
+      return { id, name, isAdmin: Boolean(u.isAdmin) }
     }
   } catch {}
 
@@ -27,7 +27,7 @@ export function getLocalPlayer(): { id: string; name: string } {
     sessionStorage.setItem('sp_anon_name', anonName)
   }
 
-  return { id: anonId, name: anonName }
+  return { id: anonId, name: anonName, isAdmin: false }
 }
 
 export type RoomStatus = 'waiting' | 'starting' | 'playing' | 'reveal' | 'finished'
@@ -48,10 +48,12 @@ export function useArenaSocket({
   const [connected, setConnected] = useState(false)
   const [selfId, setSelfId] = useState<string>(() => getLocalPlayer().id)
   const [selfName, setSelfName] = useState<string>(() => getLocalPlayer().name)
+  const [isAdmin, setIsAdmin] = useState<boolean>(() => getLocalPlayer().isAdmin)
   const [isHost, setIsHost] = useState(false)
   const [players, setPlayers] = useState<PlayerSummary[]>([])
   const [roomStatus, setRoomStatus] = useState<RoomStatus>('waiting')
   const [settings, setSettings] = useState<GameSettings | null>(null)
+  const [mutedQuestions, setMutedQuestions] = useState<string[]>([])
 
   // Game state
   const [currentRound, setCurrentRound] = useState(0)
@@ -65,6 +67,7 @@ export function useArenaSocket({
   const [acceptedAnswers, setAcceptedAnswers] = useState<string[]>([])
   const [answerFeedback, setAnswerFeedback] = useState<'none' | 'correct' | 'wrong'>('none')
   const [lastEarnedPoints, setLastEarnedPoints] = useState<number>(0)
+  const [wasFirstAnswerer, setWasFirstAnswerer] = useState<boolean>(false)
   const [leaderboard, setLeaderboard] = useState<PlayerSummary[]>([])
   const [podium, setPodium] = useState<PlayerSummary[]>([])
   const [winner, setWinner] = useState<PlayerSummary | null>(null)
@@ -89,6 +92,7 @@ export function useArenaSocket({
     const player = getLocalPlayer()
     setSelfId(player.id)
     setSelfName(player.name)
+    setIsAdmin(player.isAdmin)
 
     const wsUrl = `${WS_URL}/ws/arena/${arenaId}?playerId=${encodeURIComponent(player.id)}&playerName=${encodeURIComponent(player.name)}`
 
@@ -249,6 +253,7 @@ export function useArenaSocket({
         setRevealedAnswer(null)
         setAcceptedAnswers([])
         setLastEarnedPoints(0)
+        setWasFirstAnswerer(false)
         break
       }
 
@@ -269,6 +274,9 @@ export function useArenaSocket({
           if (typeof msg.points === 'number') {
             setLastEarnedPoints(msg.points)
           }
+          if (msg.isFirst) {
+            setWasFirstAnswerer(true)
+          }
           if (msg.streak && msg.streak >= 3) {
             triggerStreakConfetti()
           }
@@ -283,7 +291,7 @@ export function useArenaSocket({
       }
 
       case 'player_answered': {
-        // Update players list with the new score & streak
+        // Update players list with the new score, streak & first answers count
         setPlayers(prev =>
           prev.map(p =>
             p.id === msg.playerId
@@ -291,6 +299,14 @@ export function useArenaSocket({
                   ...p,
                   score: msg.score,
                   streak: msg.streak,
+                  bestStreak:
+                    typeof msg.bestStreak === 'number'
+                      ? msg.bestStreak
+                      : Math.max(p.bestStreak, msg.streak),
+                  firstAnswersCount:
+                    typeof msg.firstAnswersCount === 'number'
+                      ? msg.firstAnswersCount
+                      : p.firstAnswersCount,
                   hasAnswered: true,
                   answeredCorrectly: msg.isCorrect,
                   answerTime: msg.answerTime ?? p.answerTime,
@@ -324,6 +340,7 @@ export function useArenaSocket({
         setRoomStatus('waiting')
         setAnswerFeedback('none')
         setRevealedAnswer(null)
+        setWasFirstAnswerer(false)
         setLeaderboard([])
         setPodium([])
         setWinner(null)
@@ -341,6 +358,13 @@ export function useArenaSocket({
           if (prev.some(m => m.id === msg.id)) return prev
           return [...prev.slice(-49), msg]
         })
+        break
+      }
+
+      case 'question_muted': {
+        const qId = String(msg.questionId)
+        setMutedQuestions(prev => (prev.includes(qId) ? prev : [...prev, qId]))
+        setCurrentQuestion(prev => (prev && String(prev.id) === qId ? { ...prev, isMuted: true } : prev))
         break
       }
     }
@@ -396,6 +420,13 @@ export function useArenaSocket({
     send({ type: 'request_current_round' })
   }, [send])
 
+  const muteQuestion = useCallback(
+    (questionId: string | number, reason?: string) => {
+      send({ type: 'admin_mute_question', questionId: String(questionId), reason })
+    },
+    [send]
+  )
+
   const leaveArena = useCallback(() => {
     try {
       if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
@@ -425,6 +456,7 @@ export function useArenaSocket({
     connected,
     selfId,
     selfName,
+    isAdmin,
     isHost,
     myPlayer,
     players,
@@ -437,10 +469,12 @@ export function useArenaSocket({
     roundMaxTime,
     isSpeedrun,
     currentQuestion,
+    mutedQuestions,
     revealedAnswer,
     acceptedAnswers,
     answerFeedback,
     lastEarnedPoints,
+    wasFirstAnswerer,
     leaderboard,
     podium,
     winner,
@@ -454,6 +488,7 @@ export function useArenaSocket({
       restartGame,
       sendChatMessage,
       requestCurrentRound,
+      muteQuestion,
       leaveArena,
     },
   }

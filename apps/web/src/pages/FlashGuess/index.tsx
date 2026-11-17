@@ -3,12 +3,13 @@ import { useParams, useNavigate } from 'react-router-dom'
 import {
   IconArrowLeft, IconGamepad, IconUser, IconCrown, IconHash, IconClock,
   IconCheck, IconX, IconInfinity, IconTrophy, IconFlame, IconTarget, IconZap,
-  IconMessageCircle
+  IconMessageCircle, IconVolumeMute
 } from '../../components/Icons'
 import AudioThemeControls from '../../components/AudioThemeControls'
 import ArenaChat from '../../components/ArenaChat/ArenaChat'
 import { soundManager } from '../../utils/sound'
 import { useArenaSocket } from '../../hooks/useArenaSocket'
+import { API_URL } from '../../utils/config'
 import './FlashGuess.css'
 
 function getDifficultyBadge(difficulty?: string): { key: 'facile' | 'moyen' | 'difficile'; emoji: string; label: string } | null {
@@ -28,10 +29,12 @@ export default function FlashGuess() {
   const [answer, setAnswer] = useState('')
   const [modalImage, setModalImage] = useState<string | null>(null)
   const [isChatOpen, setIsChatOpen] = useState(false)
+  const [muteFeedback, setMuteFeedback] = useState<string | null>(null)
 
   const {
     connected,
     selfId,
+    isAdmin,
     isHost,
     myPlayer,
     players,
@@ -44,10 +47,12 @@ export default function FlashGuess() {
     roundMaxTime,
     isSpeedrun,
     currentQuestion,
+    mutedQuestions,
     revealedAnswer,
     acceptedAnswers,
     answerFeedback,
     lastEarnedPoints,
+    wasFirstAnswerer,
     leaderboard,
     podium,
     winner,
@@ -78,6 +83,34 @@ export default function FlashGuess() {
     }
   }
 
+  // Admin action: mute question that contains errors
+  const handleAdminMuteQuestion = async () => {
+    if (!isAdmin || !currentQuestion) return
+    soundManager.playClick()
+    const qId = String(currentQuestion.id)
+
+    // 1. Real-time WebSocket notification to all players in arena
+    actions.muteQuestion(qId, 'Erreur signalée par admin en cours de partie')
+
+    // 2. Direct HTTP API persistence
+    try {
+      const token = localStorage.getItem('auth_token')
+      await fetch(`${API_URL}/admin/questions/${encodeURIComponent(qId)}/mute`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ reason: 'Erreur signalée par admin en cours de partie' }),
+      })
+    } catch {
+      // Offline / fallback handled by WebSocket & local state
+    }
+
+    setMuteFeedback('Question mise en sourdine avec succès.')
+    setTimeout(() => setMuteFeedback(null), 3500)
+  }
+
   // Sorted players for real-time leaderboard
   const sortedPlayers = [...players].sort((a, b) => b.score - a.score)
 
@@ -96,6 +129,24 @@ export default function FlashGuess() {
   const effectiveLeaderboard = leaderboard.length > 0 ? leaderboard : sortedPlayers
   const effectivePodium = podium.length > 0 ? podium : effectiveLeaderboard.slice(0, 3)
   const effectiveWinner = winner || effectiveLeaderboard[0] || null
+
+  // Special distinction honors & top performers
+  const topSpeedPlayer = [...effectiveLeaderboard].sort(
+    (a, b) => (b.firstAnswersCount ?? 0) - (a.firstAnswersCount ?? 0)
+  )[0]
+  const bestStreakPlayer = [...effectiveLeaderboard].sort(
+    (a, b) => (b.bestStreak ?? 0) - (a.bestStreak ?? 0)
+  )[0]
+  const topAccuracyPlayer = [...effectiveLeaderboard].sort(
+    (a, b) => (b.correctAnswersCount ?? 0) - (a.correctAnswersCount ?? 0)
+  )[0]
+
+  // Personal player statistics
+  const myLeaderboardRank = effectiveLeaderboard.findIndex(p => p.id === selfId) + 1
+  const myTotalRounds = myPlayer?.totalAnswersCount || (isInfinite ? currentRound + 1 : totalRounds || 10)
+  const myAccuracyRate = myTotalRounds > 0
+    ? Math.round(((myPlayer?.correctAnswersCount ?? 0) / myTotalRounds) * 100)
+    : 0
 
   return (
     <div className="fg" id="flashguess-page">
@@ -198,7 +249,25 @@ export default function FlashGuess() {
                     )
                   )}
 
-                  {p.streak >= 3 && <span className="fg-streak-badge">x{p.streak} 🔥</span>}
+                  {/* Real-time badges for streak & first-to-answer */}
+                  <div className="fg-player-badges">
+                    {(p.firstAnswersCount ?? 0) > 0 && (
+                      <span
+                        className="fg-first-badge"
+                        title={`${p.firstAnswersCount} fois 1er à répondre correctement`}
+                      >
+                        ⚡ {p.firstAnswersCount}
+                      </span>
+                    )}
+                    {p.streak >= 2 && (
+                      <span
+                        className={`fg-streak-badge ${p.streak >= 5 ? 'fg-streak-badge--fire' : ''}`}
+                        title={`Série en cours : ${p.streak} bonnes réponses d'affilée`}
+                      >
+                        x{p.streak} 🔥
+                      </span>
+                    )}
+                  </div>
                 </div>
               )
             })}
@@ -207,7 +276,20 @@ export default function FlashGuess() {
           <div className="fg-stats">
             <div className="fg-stat">
               <span className="fg-stat-label">Série</span>
-              <span className="fg-stat-value">{myPlayer?.streak ?? 0}</span>
+              <span className="fg-stat-value">
+                {myPlayer?.streak ?? 0} 🔥
+                {myPlayer?.streak && myPlayer.streak >= 5 ? (
+                  <span className="fg-stat-sub">(x2.0)</span>
+                ) : myPlayer?.streak && myPlayer.streak >= 3 ? (
+                  <span className="fg-stat-sub">(x1.5)</span>
+                ) : null}
+              </span>
+            </div>
+            <div className="fg-stat">
+              <span className="fg-stat-label">1er (Top)</span>
+              <span className="fg-stat-value fg-stat-value--first">
+                ⚡ {myPlayer?.firstAnswersCount ?? 0}
+              </span>
             </div>
             <div className="fg-stat">
               <span className="fg-stat-label">Manche</span>
@@ -287,7 +369,10 @@ export default function FlashGuess() {
               <div className={`fg-prompt ${roomStatus === 'reveal' ? 'fg-prompt--reveal' : ''}`}>
                 {(() => {
                   const diffBadge = getDifficultyBadge(currentQuestion.difficulty)
-                  return (diffBadge || isSpeedrun) ? (
+                  const isCurrentMuted = Boolean(
+                    currentQuestion.isMuted || mutedQuestions.includes(String(currentQuestion.id))
+                  )
+                  return (diffBadge || isSpeedrun || isAdmin) ? (
                     <div className="fg-prompt-meta">
                       {diffBadge && (
                         <span className={`fg-difficulty-badge fg-difficulty-badge--${diffBadge.key}`}>
@@ -299,9 +384,38 @@ export default function FlashGuess() {
                           ⚡ SPEEDRUN ({roundMaxTime ?? 5}s)
                         </span>
                       )}
+                      {/* Action Admin : Mettre en sourdine la question contenant une erreur */}
+                      {isAdmin && (
+                        <div className="fg-admin-action-wrapper">
+                          {isCurrentMuted ? (
+                            <span
+                              className="fg-admin-muted-badge"
+                              title="Cette question a été mise en sourdine car elle contient une erreur."
+                            >
+                              <IconVolumeMute /> En sourdine (Erreur signalée)
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              className="fg-admin-mute-btn"
+                              onClick={handleAdminMuteQuestion}
+                              title="Mettre en sourdine cette question (visible uniquement par les admins)"
+                              id="btn-admin-mute-question"
+                            >
+                              <IconVolumeMute />
+                              <span>Mettre en sourdine</span>
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ) : null
                 })()}
+                {isAdmin && muteFeedback && (
+                  <div className="fg-admin-toast fade-in" id="fg-admin-mute-feedback">
+                    {muteFeedback}
+                  </div>
+                )}
                 <p className="fg-prompt-text">{currentQuestion.text}</p>
 
                 {currentQuestion.imageUrl && (
@@ -335,7 +449,12 @@ export default function FlashGuess() {
                 myPlayer?.answeredCorrectly ? (
                   <div className="fg-answered-notice">
                     <IconCheck />
-                    <span>Bonne réponse trouvée ! (+{lastEarnedPoints} pts) En attente des autres joueurs...</span>
+                    <span>
+                      {wasFirstAnswerer ? '⚡ 1er à trouver ! ' : ''}
+                      Bonne réponse trouvée ! (+{lastEarnedPoints} pts)
+                      {myPlayer?.streak && myPlayer.streak > 1 ? ` • 🔥 Série x${myPlayer.streak}` : ''}
+                      {' '}— En attente des autres joueurs...
+                    </span>
                   </div>
                 ) : (
                   <div
@@ -377,6 +496,10 @@ export default function FlashGuess() {
                     {myPlayer?.answeredCorrectly ? (
                       <>
                         <IconCheck /> Bonne réponse (+{lastEarnedPoints} pts)
+                        {wasFirstAnswerer && <span className="fg-reveal-subtag">⚡ 1er</span>}
+                        {myPlayer?.streak && myPlayer.streak > 1 && (
+                          <span className="fg-reveal-subtag">🔥 Série x{myPlayer.streak}</span>
+                        )}
                       </>
                     ) : (
                       <>
@@ -402,7 +525,7 @@ export default function FlashGuess() {
 
           {/* Celebratory Multiplayer Podium & Results Screen */}
           {roomStatus === 'finished' && (
-            <div className="fg-results-card fade-in" style={{ maxWidth: 650, width: '100%' }}>
+            <div className="fg-results-card fade-in" style={{ maxWidth: 740, width: '100%' }}>
               <div className="fg-results-icon">
                 <IconTrophy />
               </div>
@@ -487,59 +610,154 @@ export default function FlashGuess() {
                 </div>
               )}
 
-              {/* Full Multiplayer Leaderboard Table */}
-              <table className="fg-leaderboard-table">
-                <thead>
-                  <tr>
-                    <th>Rang</th>
-                    <th>Joueur</th>
-                    <th>Score</th>
-                    <th>Meilleure Série</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {effectiveLeaderboard.map((p, idx) => (
-                    <tr key={p.id} className={p.id === selfId ? 'fg-row-self' : ''}>
-                      <td>{idx === 0 ? '🥇 1er' : idx === 1 ? '🥈 2e' : idx === 2 ? '🥉 3e' : `#${idx + 1}`}</td>
-                      <td>
-                        {p.name}
-                        {p.id === selfId && ' (Vous)'}
-                        {p.isHost && ' 👑'}
-                      </td>
-                      <td>
-                        <strong>{p.score} pts</strong>
-                      </td>
-                      <td>{p.bestStreak > 0 ? `${p.bestStreak} 🔥` : '-'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              {/* Trophées d'Honneur / Distinctions */}
+              <div className="fg-awards-grid">
+                {effectiveWinner && (
+                  <div className="fg-award-card fg-award-card--gold">
+                    <span className="fg-award-icon">👑</span>
+                    <span className="fg-award-title">Champion</span>
+                    <span className="fg-award-winner">{effectiveWinner.name}</span>
+                    <span className="fg-award-detail">{effectiveWinner.score} pts</span>
+                  </div>
+                )}
+                {topSpeedPlayer && (topSpeedPlayer.firstAnswersCount ?? 0) > 0 && (
+                  <div className="fg-award-card fg-award-card--speed">
+                    <span className="fg-award-icon">⚡</span>
+                    <span className="fg-award-title">Le Plus Rapide</span>
+                    <span className="fg-award-winner">{topSpeedPlayer.name}</span>
+                    <span className="fg-award-detail">{topSpeedPlayer.firstAnswersCount}x en 1er</span>
+                  </div>
+                )}
+                {bestStreakPlayer && (bestStreakPlayer.bestStreak ?? 0) > 1 && (
+                  <div className="fg-award-card fg-award-card--streak">
+                    <span className="fg-award-icon">🔥</span>
+                    <span className="fg-award-title">Série Légendaire</span>
+                    <span className="fg-award-winner">{bestStreakPlayer.name}</span>
+                    <span className="fg-award-detail">{bestStreakPlayer.bestStreak} à la suite</span>
+                  </div>
+                )}
+                {topAccuracyPlayer && (topAccuracyPlayer.correctAnswersCount ?? 0) > 0 && (
+                  <div className="fg-award-card fg-award-card--accuracy">
+                    <span className="fg-award-icon">🎯</span>
+                    <span className="fg-award-title">Sniper Précision</span>
+                    <span className="fg-award-winner">{topAccuracyPlayer.name}</span>
+                    <span className="fg-award-detail">{topAccuracyPlayer.correctAnswersCount} réussies</span>
+                  </div>
+                )}
+              </div>
 
               {/* Performance Metrics for Current Player */}
-              <div className="fg-metrics-grid">
-                <div className="fg-metric-card">
-                  <span className="fg-metric-icon">
-                    <IconTarget />
-                  </span>
-                  <span className="fg-metric-label">Mon Score</span>
-                  <span className="fg-metric-val">{myPlayer?.score ?? 0}</span>
+              <div className="fg-personal-stats">
+                <h3 className="fg-section-subtitle">Vos Statistiques</h3>
+                <div className="fg-metrics-grid">
+                  <div className="fg-metric-card">
+                    <span className="fg-metric-icon">
+                      <IconTrophy />
+                    </span>
+                    <span className="fg-metric-label">Rang & Score</span>
+                    <span className="fg-metric-val">
+                      {myLeaderboardRank > 0 ? `#${myLeaderboardRank}` : '-'} • {myPlayer?.score ?? 0} pts
+                    </span>
+                  </div>
+                  <div className="fg-metric-card">
+                    <span className="fg-metric-icon">
+                      <IconCheck />
+                    </span>
+                    <span className="fg-metric-label">Bonnes Réponses</span>
+                    <span className="fg-metric-val">
+                      {myPlayer?.correctAnswersCount ?? 0} / {myTotalRounds} ({myAccuracyRate}%)
+                    </span>
+                  </div>
+                  <div className="fg-metric-card">
+                    <span className="fg-metric-icon">
+                      <IconZap />
+                    </span>
+                    <span className="fg-metric-label">1er à Répondre</span>
+                    <span className="fg-metric-val" style={{ color: '#38bdf8' }}>
+                      ⚡ {myPlayer?.firstAnswersCount ?? 0} fois
+                    </span>
+                  </div>
+                  <div className="fg-metric-card">
+                    <span className="fg-metric-icon">
+                      <IconFlame />
+                    </span>
+                    <span className="fg-metric-label">Meilleure Série</span>
+                    <span className="fg-metric-val" style={{ color: '#f97316' }}>
+                      {myPlayer?.bestStreak ?? 0} 🔥
+                    </span>
+                  </div>
+                  <div className="fg-metric-card">
+                    <span className="fg-metric-icon">
+                      <IconClock />
+                    </span>
+                    <span className="fg-metric-label">Temps Moyen</span>
+                    <span className="fg-metric-val">
+                      {myPlayer?.averageReactionTime ? `${myPlayer.averageReactionTime}s` : '-'}
+                    </span>
+                  </div>
+                  <div className="fg-metric-card">
+                    <span className="fg-metric-icon">
+                      <IconTarget />
+                    </span>
+                    <span className="fg-metric-label">Série Finale</span>
+                    <span className="fg-metric-val">
+                      {myPlayer?.streak ?? 0} 🔥
+                    </span>
+                  </div>
                 </div>
-                <div className="fg-metric-card">
-                  <span className="fg-metric-icon">
-                    <IconFlame />
-                  </span>
-                  <span className="fg-metric-label">Max Série</span>
-                  <span className="fg-metric-val">{myPlayer?.bestStreak ?? 0} 🔥</span>
-                </div>
-                <div className="fg-metric-card">
-                  <span className="fg-metric-icon">
-                    <IconTrophy />
-                  </span>
-                  <span className="fg-metric-label">Classement</span>
-                  <span className="fg-metric-val">
-                    #{effectiveLeaderboard.findIndex(p => p.id === selfId) + 1}
-                  </span>
-                </div>
+              </div>
+
+              {/* Full Multiplayer Leaderboard Table */}
+              <div className="fg-leaderboard-container">
+                <h3 className="fg-section-subtitle">Tableau Récapitulatif Complet</h3>
+                <table className="fg-leaderboard-table">
+                  <thead>
+                    <tr>
+                      <th>Rang</th>
+                      <th>Joueur</th>
+                      <th>Score</th>
+                      <th title="Nombre de questions trouvées">Bonnes rép.</th>
+                      <th title="Nombre de fois premier à répondre correctement">⚡ 1er</th>
+                      <th title="Meilleure série de réponses consécutives">🔥 Série Max</th>
+                      <th title="Temps de réaction moyen sur les bonnes réponses">⏱️ Temps Moy.</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {effectiveLeaderboard.map((p, idx) => (
+                      <tr key={p.id} className={p.id === selfId ? 'fg-row-self' : ''}>
+                        <td>{idx === 0 ? '🥇 1er' : idx === 1 ? '🥈 2e' : idx === 2 ? '🥉 3e' : `#${idx + 1}`}</td>
+                        <td>
+                          <strong>{p.name}</strong>
+                          {p.id === selfId && <span className="ap-self-badge" style={{ marginLeft: 6 }}>Vous</span>}
+                          {p.isHost && ' 👑'}
+                        </td>
+                        <td>
+                          <strong style={{ color: idx === 0 ? '#facc15' : 'var(--color-text-primary)' }}>
+                            {p.score} pts
+                          </strong>
+                        </td>
+                        <td>{p.correctAnswersCount ?? 0}</td>
+                        <td>
+                          {(p.firstAnswersCount ?? 0) > 0 ? (
+                            <span className="fg-table-speed-pill">⚡ {p.firstAnswersCount}</span>
+                          ) : (
+                            '0'
+                          )}
+                        </td>
+                        <td>
+                          {p.bestStreak > 0 ? (
+                            <span className="fg-table-streak-pill">{p.bestStreak} 🔥</span>
+                          ) : (
+                            '-'
+                          )}
+                        </td>
+                        <td>
+                          {p.averageReactionTime ? `${p.averageReactionTime}s` : '-'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
 
               <div className="fg-results-actions">

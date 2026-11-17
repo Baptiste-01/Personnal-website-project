@@ -107,6 +107,7 @@ export interface Question {
   category?: Category
   difficulty?: Difficulty | string
   tags?: string[]
+  isMuted?: boolean
 }
 
 export interface Player {
@@ -129,6 +130,10 @@ export interface PlayerSummary {
   hasAnswered: boolean
   answeredCorrectly: boolean
   answerTime: number | null
+  firstAnswersCount?: number
+  correctAnswersCount?: number
+  totalAnswersCount?: number
+  averageReactionTime?: number | null
 }
 
 export interface ChatMessage {
