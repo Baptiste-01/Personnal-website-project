@@ -1,5 +1,5 @@
 {
-  "name": "jklm-clone",
+  "name": "smik-party",
   "version": "1.0.0",
   "private": true,
   "workspaces": [
@@ -7,12 +7,15 @@
     "packages/*"
   ],
   "scripts": {
+    "start": "bun run start:api",
+    "start:api": "cd packages/database && bun x prisma db push --skip-generate && cd ../../apps/api && bun run index.ts",
+    "build:api": "cd packages/database && bun x prisma generate",
+    "build": "cd apps/web && bun run build",
     "dev": "bun ./node_modules/concurrently/dist/bin/concurrently.js \"bun run dev:api\" \"bun run dev:web\"",
     "dev:api": "cd apps/api && bun --env-file=../../.env run --hot index.ts",
     "dev:web": "cd apps/web && bun run dev",
     "tunnel": "bun run scripts/tunnel.ts",
     "online": "bun ./node_modules/concurrently/dist/bin/concurrently.js \"bun run dev:api\" \"bun run dev:web\" \"bun run tunnel\"",
-    "build": "cd apps/web && bun run build",
     "db:generate": "cd packages/database && bun x prisma generate",
     "db:push": "cd packages/database && bun --env-file=../../.env run db:push",
     "db:push:prod": "cd packages/database && bun --env-file=../../.env.production run db:push",

@@ -8,7 +8,7 @@ services:
     dockerfilePath: ./Dockerfile.api
     plan: free
     region: frankfurt # Low latency in Europe
-    healthCheckPath: /
+    healthCheckPath: /health
     autoDeploy: true
     envVars:
       - key: DATABASE_URL
