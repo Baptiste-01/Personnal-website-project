@@ -1,5 +1,5 @@
 /**
- * Theme Manager for JKLM Clone (Smik Party)
+ * Theme Manager for Smik Party
  * Supports dynamic CSS variable switching and persistent local storage.
  */
 

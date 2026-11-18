@@ -35,6 +35,10 @@ export default function Profile() {
   const [error, setError] = useState('')
   const [activeTab, setActiveTab] = useState<'overview' | 'templates'>('overview')
 
+  useEffect(() => {
+    document.title = 'Mon Profil — Smik Party'
+  }, [])
+
   // Templates state
   const [templates, setTemplates] = useState<GameTemplate[]>([])
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false)

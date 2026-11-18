@@ -37,6 +37,6 @@ COPY apps/api ./apps/api
 # Expose default HTTP & WebSocket port
 EXPOSE 3000
 
-# Start server
+# Start server (auto-synchronize Prisma schema with database on startup then start API)
 WORKDIR /app/apps/api
-CMD ["bun", "run", "index.ts"]
+CMD ["sh", "-c", "bun --cwd /app/packages/database x prisma db push --skip-generate || true; bun run index.ts"]

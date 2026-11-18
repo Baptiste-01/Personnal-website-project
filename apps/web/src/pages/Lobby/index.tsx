@@ -15,7 +15,7 @@ import TemplateModal from '../../components/TemplateModal/TemplateModal'
 import { fetchTemplateByCode } from '../../utils/templateApi'
 import { serializeCategoryListMap, serializeDifficultyTimesMap } from '../../utils/tagFilter'
 import { soundManager } from '../../utils/sound'
-import { API_URL } from '../../utils/config'
+import { API_URL, setCustomApiUrl } from '../../utils/config'
 import './Lobby.css'
 
 /* ─── Types ─── */
@@ -860,6 +860,10 @@ export default function Lobby() {
   const [favorites, setFavorites] = useState<Set<string>>(new Set())
   const [activeRuleTab, setActiveRuleTab] = useState<'all' | 'favorites'>('all')
 
+  useEffect(() => {
+    document.title = 'Smik Party — Salons & Arènes de Jeu'
+  }, [])
+
   // Check URL query parameters for template code (e.g. ?template=TMPL-XXXX)
   useEffect(() => {
     const tmplCode = searchParams.get('template')
@@ -1118,9 +1122,26 @@ export default function Lobby() {
           {fetchState === 'error' && (
             <div className="error-banner fade-in" role="alert">
               <IconAlertCircle />
-              <span className="error-banner-text">
-                Impossible de joindre le serveur. Vérifiez que l'API tourne sur le port 3000.
-              </span>
+              <div className="error-banner-content">
+                <span className="error-banner-text">
+                  {typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
+                    ? "Connexion au serveur de jeu impossible ou en cours de réveil. Sur l'hébergement gratuit Render, le démarrage initial peut prendre jusqu'à 45 secondes."
+                    : "Impossible de joindre le serveur local. Vérifiez que l'API tourne sur le port 3000."}
+                </span>
+                <div className="error-banner-subtext">
+                  <span>Cible API : <code>{API_URL}</code></span>
+                  <button
+                    type="button"
+                    className="error-banner-change-btn"
+                    onClick={() => {
+                      const input = window.prompt("Modifier l'URL de l'API (ex: https://smik-party-api.onrender.com) :", API_URL)
+                      if (input !== null) setCustomApiUrl(input.trim() || null)
+                    }}
+                  >
+                    Changer d'URL
+                  </button>
+                </div>
+              </div>
               <button className="error-banner-retry" onClick={() => fetchArenas()}>Réessayer</button>
             </div>
           )}

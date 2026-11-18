@@ -470,6 +470,10 @@ useEffect(() => {
     .catch(() => setArenaName('Mon Arène'))
 }, [arenaId])
 
+useEffect(() => {
+  document.title = arenaName && arenaName !== 'Chargement...' ? `${arenaName} — Smik Party` : 'Arène — Smik Party'
+}, [arenaName])
+
 const handleMaxPlayersChange = (val: number) => {
   soundManager.playClick()
   const cleanVal = Math.max(0, val)

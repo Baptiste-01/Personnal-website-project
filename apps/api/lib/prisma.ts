@@ -1,19 +1,24 @@
+import 'dotenv/config'
 import { PrismaClient } from '@prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
 
-// DATABASE_URL is injected via --env-file=.env in local dev or cloud environment variables (e.g. Neon, Render)
+// DATABASE_URL is injected via .env in local dev or cloud environment variables (Neon, Render)
 const DATABASE_URL = process.env.DATABASE_URL
-if (!DATABASE_URL) throw new Error('❌ DATABASE_URL missing — ensure DATABASE_URL is set in environment')
+if (!DATABASE_URL) {
+  console.warn('⚠️ [Prisma] DATABASE_URL absente dans l\'environnement.')
+}
 
 const isRemoteDb =
-  DATABASE_URL.includes('neon.tech') ||
-  DATABASE_URL.includes('supabase') ||
-  DATABASE_URL.includes('sslmode=require') ||
-  process.env.NODE_ENV === 'production'
+  Boolean(DATABASE_URL && (
+    DATABASE_URL.includes('neon.tech') ||
+    DATABASE_URL.includes('supabase') ||
+    DATABASE_URL.includes('sslmode=require') ||
+    process.env.NODE_ENV === 'production'
+  ))
 
-// Prisma v7: requires a driver adapter
+// Prisma v7: requires driver adapter
 const adapter = new PrismaPg({
-  connectionString: DATABASE_URL,
+  connectionString: DATABASE_URL || 'postgresql://localhost:5432/smik_party',
   ssl: isRemoteDb ? { rejectUnauthorized: false } : undefined,
 })
 
