@@ -238,4 +238,50 @@ export const DEFAULT_GAME_SETTINGS: GameSettings = {
   maxPoints: 1000,
   infiniteRounds: false,
   pointsPerAnswer: 100,
+  maxPlayers: 8,
+}
+
+export interface SuspendedQuestion {
+  id: string
+  text: string
+  answer: string
+  acceptedAnswers: string[]
+  category: string
+  difficulty: string
+  hint?: string | null
+  imageUrl?: string | null
+  tags?: string[]
+  reason?: string
+  mutedAt?: number
+}
+
+export interface AdminUser {
+  id: string
+  username: string
+  displayName: string
+  avatarUrl?: string | null
+  bio?: string | null
+  isAdmin: boolean
+  level: number
+  xp: number
+  totalPoints: number
+  gamesPlayed: number
+  gamesWon: number
+  createdAt: string
+  updatedAt: string
+  _count?: {
+    templates: number
+    achievements: number
+    gameHistory: number
+  }
+}
+
+export interface AdminUsersStats {
+  totalUsers: number
+  totalAdmins: number
+  totalPlayers: number
+  totalGamesPlayed: number
+  totalGamesWon: number
+  totalXp: number
+  totalPoints: number
 }

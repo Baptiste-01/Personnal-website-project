@@ -2,6 +2,7 @@ import Elysia from 'elysia'
 import * as XLSX from 'xlsx'
 import prisma from '../lib/prisma'
 import { mutedQuestionsStore } from '../lib/mutedQuestions'
+import { FALLBACK_QUESTIONS } from '../ws/roomManager'
 
 /* ─── Types ──────────────────────────────────────────────────── */
 interface ExcelRow {
@@ -924,11 +925,113 @@ export const importRoute = new Elysia({ prefix: '/admin' })
     }
   })
 
-  /** GET /admin/questions/muted — list all muted question IDs and records */
-  .get('/questions/muted', () => {
+  /** GET /admin/questions/muted — list all muted question IDs, records and full question details */
+  .get('/questions/muted', async () => {
+    const mutedIds = mutedQuestionsStore.getMutedIds()
+    const records = mutedQuestionsStore.getAllRecords()
+
+    let dbQuestions: any[] = []
+    try {
+      dbQuestions = await prisma.question.findMany({
+        where: {
+          OR: [
+            { id: { in: mutedIds } },
+            { tags: { hasSome: ['sourdine', 'muted'] } },
+          ],
+        },
+      })
+    } catch {
+      dbQuestions = []
+    }
+
+    const recordMap = new Map(records.map(r => [r.id, r]))
+    const questionMap = new Map<string, any>(dbQuestions.map(q => [q.id, q]))
+
+    // Also check FALLBACK_QUESTIONS
+    for (const fb of FALLBACK_QUESTIONS) {
+      if (mutedQuestionsStore.isMuted(fb.id) && !questionMap.has(fb.id)) {
+        questionMap.set(fb.id, fb)
+      }
+    }
+
+    // Build unified list
+    const allIds = Array.from(new Set([...mutedIds, ...Array.from(questionMap.keys())]))
+    const questions = allIds.map(id => {
+      const q = questionMap.get(id)
+      const rec = recordMap.get(id)
+      return {
+        id,
+        text: q ? q.text : `Question #${id} (Données indisponibles)`,
+        answer: q ? q.answer : '',
+        acceptedAnswers: q ? (Array.isArray(q.acceptedAnswers) ? q.acceptedAnswers : [q.answer]) : [],
+        category: q ? q.category : 'Inconnue',
+        difficulty: q ? q.difficulty : 'moyen',
+        hint: q ? q.hint : null,
+        imageUrl: q ? q.imageUrl : null,
+        tags: q ? (Array.isArray(q.tags) ? q.tags : []) : ['sourdine'],
+        reason: rec?.reason || 'Erreur signalée par admin en cours de partie',
+        mutedAt: rec?.mutedAt || Date.now(),
+      }
+    })
+
     return {
-      mutedIds: mutedQuestionsStore.getMutedIds(),
-      records: mutedQuestionsStore.getAllRecords(),
+      mutedIds: allIds,
+      records,
+      questions,
+      count: questions.length,
+    }
+  })
+
+  /** PUT /admin/questions/:id — edit a question and optionally unmute it */
+  .put('/questions/:id', async ({ params, body, set }) => {
+    try {
+      const id = params.id
+      const b = (body || {}) as {
+        text?: string
+        answer?: string
+        acceptedAnswers?: string[]
+        category?: string
+        difficulty?: string
+        hint?: string | null
+        imageUrl?: string | null
+        unmute?: boolean
+      }
+
+      let updatedQuestion: any = null
+      try {
+        updatedQuestion = await prisma.question.update({
+          where: { id },
+          data: {
+            ...(b.text ? { text: b.text.trim() } : {}),
+            ...(b.answer ? { answer: b.answer.trim() } : {}),
+            ...(Array.isArray(b.acceptedAnswers)
+              ? { acceptedAnswers: b.acceptedAnswers.map(a => a.trim()).filter(Boolean) }
+              : {}),
+            ...(b.category ? { category: b.category.trim().toLowerCase() } : {}),
+            ...(b.difficulty ? { difficulty: b.difficulty.trim().toLowerCase() } : {}),
+            ...(b.hint !== undefined ? { hint: b.hint } : {}),
+            ...(b.imageUrl !== undefined ? { imageUrl: b.imageUrl } : {}),
+          },
+        })
+      } catch {
+        updatedQuestion = { id, ...b }
+      }
+
+      if (b.unmute !== false) {
+        await mutedQuestionsStore.unmute(id)
+      }
+
+      return {
+        success: true,
+        message:
+          b.unmute !== false
+            ? 'Question corrigée et réactivée avec succès dans les arènes !'
+            : 'Question modifiée avec succès.',
+        question: updatedQuestion,
+      }
+    } catch (err) {
+      set.status = 500
+      return { error: `Impossible de modifier la question : ${String(err)}` }
     }
   })
 

@@ -50,6 +50,7 @@ Each commit/task is documented following a standardized format (`Objective`, `Ac
 | **30** | 2026-11-10 | `Workspace` | [Task_30_2026-11-10.md](file:///c:/Users/bapti/Desktop/Moi/Projet-Perso/Personnal-website-project/documentation/en/Task_30_2026-11-10.md) | Tag Ban System, Smart Dropdowns (>10 tags, `#Personnage`, Admin) & In-Game Difficulty |
 | **31** | 2026-11-13 | `Workspace` | [Task_31_2026-11-13.md](file:///c:/Users/bapti/Desktop/Moi/Projet-Perso/Personnal-website-project/documentation/en/Task_31_2026-11-13.md) | Configurable Speedrun Mode by Difficulty & Real-Time Multiplayer Arena Chat (Lobby and FlashGuess) |
 | **32** | 2026-11-17 | `Workspace` | [Task_32_2026-11-17.md](file:///c:/Users/bapti/Desktop/Moi/Projet-Perso/Personnal-website-project/documentation/en/Task_32_2026-11-17.md) | Admin question muting, streak indicators, top speed first answer counter & complete end-game stats |
+| **33** | 2026-11-18 | `Workspace` | [Task_33_2026-11-18.md](file:///c:/Users/bapti/Desktop/Moi/Projet-Perso/Personnal-website-project/documentation/en/Task_33_2026-11-18.md) | Sidebar navigation, multi-game hub, suspended questions moderation & admin user management |
 
 ---
 

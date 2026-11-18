@@ -6,6 +6,7 @@ import { arenaWs } from './routes/arenaWs'
 import { importRoute } from './routes/import'
 import { authRoute } from './routes/auth'
 import { templatesRoute } from './routes/templates'
+import { adminUsersRoute } from './routes/adminUsers'
 import prisma from './lib/prisma'
 import { roomManager } from './ws/roomManager'
 
@@ -48,6 +49,7 @@ const app = new Elysia()
   .use(questionsRoute)
   .use(arenasRoute)
   .use(importRoute)
+  .use(adminUsersRoute)
   .use(arenaWs)
 
   /* Legacy alias /rooms → /arenas */

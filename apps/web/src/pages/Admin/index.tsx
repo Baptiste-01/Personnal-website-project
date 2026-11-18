@@ -1,9 +1,27 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { API_URL } from '../../utils/config'
+import type { SuspendedQuestion } from '../../types'
+import { soundManager } from '../../utils/sound'
 import './Admin.css'
+import './AdminUsers.css'
 
 const API = API_URL
+
+const ALL_ADMIN_CATEGORIES = [
+  'geographie',
+  'histoire',
+  'sciences',
+  'cinema',
+  'musique',
+  'sport',
+  'litterature',
+  'gastronomie',
+  'capitale',
+  'drapeau',
+  'warframe',
+  'anime & manga',
+]
 
 /* ─── Types ─────────────────────────────────────────────────── */
 interface ImportDetail {
@@ -78,6 +96,56 @@ function formatSize(bytes: number): string {
 /* ─── Component ──────────────────────────────────────────────── */
 export default function Admin() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [adminTab, setAdminTab] = useState<'bank' | 'suspended'>(() => {
+    return searchParams.get('tab') === 'suspended' ? 'suspended' : 'bank'
+  })
+
+  // Synchronize adminTab when searchParams change externally
+  useEffect(() => {
+    const tabParam = searchParams.get('tab')
+    if (tabParam === 'suspended' && adminTab !== 'suspended') {
+      setAdminTab('suspended')
+    }
+  }, [searchParams, adminTab])
+
+  const handleTabChange = (tab: 'bank' | 'suspended') => {
+    setAdminTab(tab)
+    if (tab === 'suspended') {
+      setSearchParams({ tab: 'suspended' })
+    } else {
+      setSearchParams({})
+    }
+  }
+
+  /* Suspended questions states */
+  const [suspendedQuestions, setSuspendedQuestions] = useState<SuspendedQuestion[]>([])
+  const [loadingSuspended, setLoadingSuspended] = useState(false)
+  const [suspendedError, setSuspendedError] = useState<string | null>(null)
+  const [suspendedSearch, setSuspendedSearch] = useState('')
+  const [suspendedCategory, setSuspendedCategory] = useState<string>('all')
+  const [suspendedDiff, setSuspendedDiff] = useState<string>('all')
+  const [actionToast, setActionToast] = useState<string | null>(null)
+
+  /* Edit suspended question modal states */
+  const [editingQuestion, setEditingQuestion] = useState<SuspendedQuestion | null>(null)
+  const [editForm, setEditForm] = useState({
+    text: '',
+    answer: '',
+    acceptedAnswers: '',
+    category: 'geographie',
+    difficulty: 'moyen',
+    unmuteOnSave: true,
+  })
+  const [savingEdit, setSavingEdit] = useState(false)
+
+  // Auto-dismiss action toast
+  useEffect(() => {
+    if (!actionToast) return
+    const timer = setTimeout(() => setActionToast(null), 3500)
+    return () => clearTimeout(timer)
+  }, [actionToast])
+
   const [file, setFile] = useState<File | null>(null)
   const [dragOver, setDragOver] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -99,29 +167,32 @@ export default function Admin() {
   const [diffFilter, setDiffFilter] = useState<'all' | 'facile' | 'moyen' | 'difficile'>('all')
   const [showAvailableTags, setShowAvailableTags] = useState(false)
   const [adminTagSearch, setAdminTagSearch] = useState('')
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [authChecked, setAuthChecked] = useState(false)
 
   /* Verify admin credentials */
   useEffect(() => {
     const userStr = localStorage.getItem('auth_user')
     const token = localStorage.getItem('auth_token')
-    if (!token || !userStr) {
-      navigate('/login')
-      return
-    }
-    try {
-      const u = JSON.parse(userStr)
-      if (!u?.isAdmin) {
-        navigate('/')
+    if (token && userStr) {
+      try {
+        const u = JSON.parse(userStr)
+        setIsAdmin(Boolean(u?.isAdmin))
+      } catch {
+        setIsAdmin(false)
       }
-    } catch {
-      navigate('/')
+    } else {
+      setIsAdmin(false)
     }
-  }, [navigate])
-
-  /* Fetch stats on mount */
-  useEffect(() => {
-    fetchStats()
+    setAuthChecked(true)
   }, [])
+
+  /* Fetch stats on mount if admin */
+  useEffect(() => {
+    if (isAdmin) {
+      fetchStats()
+    }
+  }, [isAdmin])
 
   async function fetchStats() {
     try {
@@ -136,6 +207,165 @@ export default function Admin() {
       setStatsError(true)
     }
   }
+
+  /* ── Suspended Questions Handlers ──────────────────────────── */
+  const fetchSuspendedQuestions = useCallback(async () => {
+    setLoadingSuspended(true)
+    setSuspendedError(null)
+    try {
+      const res = await fetch(`${API}/admin/questions/muted`)
+      if (res.ok) {
+        const data = (await res.json()) as { questions?: SuspendedQuestion[] }
+        setSuspendedQuestions(data.questions || [])
+      } else {
+        setSuspendedError('Impossible de charger les questions suspendues.')
+      }
+    } catch (err) {
+      setSuspendedError(`Erreur réseau : ${String(err)}`)
+    } finally {
+      setLoadingSuspended(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (isAdmin) {
+      fetchSuspendedQuestions()
+    }
+  }, [isAdmin, fetchSuspendedQuestions])
+
+  const handleStartEdit = (q: SuspendedQuestion) => {
+    setEditingQuestion(q)
+    setEditForm({
+      text: q.text,
+      answer: q.answer,
+      acceptedAnswers:
+        q.acceptedAnswers && q.acceptedAnswers.length > 0
+          ? q.acceptedAnswers.join(', ')
+          : q.answer,
+      category: q.category || 'geographie',
+      difficulty: q.difficulty || 'moyen',
+      unmuteOnSave: true,
+    })
+  }
+
+  const handleCancelEdit = () => {
+    setEditingQuestion(null)
+  }
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingQuestion) return
+    const trimmedText = editForm.text.trim()
+    const trimmedAns = editForm.answer.trim()
+    if (!trimmedText || !trimmedAns) {
+      alert('Le texte de la question et la réponse officielle sont obligatoires.')
+      return
+    }
+
+    setSavingEdit(true)
+    try {
+      const answersArr = editForm.acceptedAnswers
+        .split(',')
+        .map(a => a.trim())
+        .filter(Boolean)
+      if (!answersArr.includes(trimmedAns)) {
+        answersArr.unshift(trimmedAns)
+      }
+
+      const res = await fetch(`${API}/admin/questions/${editingQuestion.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: trimmedText,
+          answer: trimmedAns,
+          acceptedAnswers: answersArr,
+          category: editForm.category,
+          difficulty: editForm.difficulty,
+          unmute: editForm.unmuteOnSave,
+        }),
+      })
+
+      if (!res.ok) {
+        const errJson = (await res.json().catch(() => ({}))) as { error?: string }
+        throw new Error(errJson.error || `Erreur HTTP ${res.status}`)
+      }
+
+      const data = (await res.json()) as { message?: string }
+      setActionToast(data.message || 'Question modifiée avec succès.')
+      setEditingQuestion(null)
+      await fetchSuspendedQuestions()
+      await fetchStats()
+    } catch (err) {
+      alert(`Erreur lors de la modification : ${String(err)}`)
+    } finally {
+      setSavingEdit(false)
+    }
+  }
+
+  const handleUnmuteQuestion = async (q: SuspendedQuestion) => {
+    try {
+      const res = await fetch(`${API}/admin/questions/${q.id}/unmute`, {
+        method: 'POST',
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = (await res.json()) as { message?: string }
+      setActionToast(data.message || 'Question réactivée dans les arènes !')
+      setSuspendedQuestions(prev => prev.filter(item => item.id !== q.id))
+      await fetchStats()
+    } catch (err) {
+      alert(`Impossible de réactiver la question : ${String(err)}`)
+    }
+  }
+
+  const handleDeleteSuspendedQuestion = async (q: SuspendedQuestion) => {
+    if (
+      !window.confirm(
+        `⚠️ Supprimer définitivement cette question ?\n"${q.text.slice(0, 60)}..."\nCette action est irréversible.`
+      )
+    ) {
+      return
+    }
+
+    try {
+      const res = await fetch(`${API}/admin/questions/${q.id}`, {
+        method: 'DELETE',
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      setActionToast('Question supprimée définitivement.')
+      setSuspendedQuestions(prev => prev.filter(item => item.id !== q.id))
+      await fetchStats()
+    } catch (err) {
+      alert(`Impossible de supprimer la question : ${String(err)}`)
+    }
+  }
+
+  const filteredSuspended = useMemo(() => {
+    return suspendedQuestions.filter(q => {
+      if (
+        suspendedCategory !== 'all' &&
+        q.category.toLowerCase() !== suspendedCategory.toLowerCase()
+      ) {
+        return false
+      }
+      if (
+        suspendedDiff !== 'all' &&
+        q.difficulty.toLowerCase() !== suspendedDiff.toLowerCase()
+      ) {
+        return false
+      }
+      if (suspendedSearch.trim()) {
+        const searchLower = suspendedSearch.toLowerCase()
+        const matchText = q.text.toLowerCase().includes(searchLower)
+        const matchAns = q.answer.toLowerCase().includes(searchLower)
+        const matchVar = q.acceptedAnswers?.some(a =>
+          a.toLowerCase().includes(searchLower)
+        )
+        const matchReason = q.reason?.toLowerCase().includes(searchLower)
+        if (!matchText && !matchAns && !matchVar && !matchReason) return false
+      }
+      return true
+    })
+  }, [suspendedQuestions, suspendedCategory, suspendedDiff, suspendedSearch])
 
   /* ── Database Question Manager Handlers ────────────────────── */
   async function handleToggleDbQuestions() {
@@ -397,6 +627,84 @@ export default function Admin() {
   }, [activeQuestionsList, showDbQuestions, previewFilter, diffFilter, previewCategory, previewSearch])
 
   /* ─── Render ─────────────────────────────────────────────────── */
+  if (authChecked && !isAdmin) {
+    return (
+      <main className="admin-page">
+        <header className="admin-header">
+          <button
+            className="admin-back-btn"
+            onClick={() => navigate('/')}
+            title="Retour au salon principal"
+          >
+            ← Retour au Lobby
+          </button>
+          <div className="admin-header-title-row">
+            <div className="admin-header-icon">🔒</div>
+            <div>
+              <h1 className="admin-header-title">Espace Questions & Administration</h1>
+              <p className="admin-header-sub">Banque de questions, import/export et modération</p>
+            </div>
+          </div>
+        </header>
+
+        <div className="admin-content" style={{ maxWidth: 600, margin: '60px auto', textAlign: 'center' }}>
+          <div
+            style={{
+              background: 'var(--color-bg-card)',
+              padding: '40px 32px',
+              borderRadius: 'var(--radius-xl)',
+              border: '1px solid var(--color-border)',
+              boxShadow: '0 12px 36px rgba(0, 0, 0, 0.4)',
+            }}
+          >
+            <div style={{ fontSize: 48, marginBottom: 16 }}>🛡️</div>
+            <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 10, color: 'var(--color-text-primary)' }}>
+              Accès Administrateur Requis
+            </h2>
+            <p style={{ color: 'var(--color-text-secondary)', fontSize: 14, lineHeight: 1.6, marginBottom: 28 }}>
+              Cet onglet est réservé à l'administration des questions, l'importation de fichiers Excel (.xlsx), CSV (.csv) ou Markdown (.md), et à la mise en sourdine. Veuillez vous connecter avec un compte administrateur pour gérer la base.
+            </p>
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+              <button
+                type="button"
+                onClick={() => navigate('/login')}
+                style={{
+                  padding: '10px 22px',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'var(--color-accent)',
+                  color: '#fff',
+                  fontWeight: 700,
+                  fontSize: 13,
+                  border: 'none',
+                  cursor: 'pointer',
+                  boxShadow: '0 0 16px var(--color-accent-glow)',
+                }}
+              >
+                Se connecter
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/')}
+                style={{
+                  padding: '10px 22px',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  color: 'var(--color-text-primary)',
+                  fontWeight: 600,
+                  fontSize: 13,
+                  border: '1px solid var(--color-border)',
+                  cursor: 'pointer',
+                }}
+              >
+                Retour aux arènes
+              </button>
+            </div>
+          </div>
+        </div>
+      </main>
+    )
+  }
+
   return (
     <main className="admin-page">
       {/* Header */}
@@ -409,17 +717,90 @@ export default function Admin() {
           ← Retour au Lobby
         </button>
         <div className="admin-header-title-row">
-          <div className="admin-header-icon">📊</div>
+          <div className="admin-header-icon">{adminTab === 'bank' ? '📊' : '🔇'}</div>
           <div>
-            <h1 className="admin-header-title">Gestion des questions</h1>
-            <p className="admin-header-sub">Importez et exportez vos questions en Excel (.xlsx), CSV (.csv) ou Markdown (.md)</p>
+            <h1 className="admin-header-title">
+              {adminTab === 'bank' ? 'Gestion des questions' : 'Questions Suspendues'}
+            </h1>
+            <p className="admin-header-sub">
+              {adminTab === 'bank'
+                ? 'Importez, exportez et gérez vos questions en Excel (.xlsx), CSV (.csv) ou Markdown (.md)'
+                : 'Modérez, corrigez et réactivez les questions mises en sourdine par les administrateurs'}
+            </p>
           </div>
+        </div>
+
+        {/* ── Primary Page Navigation Tabs (Questions vs Utilisateurs) ── */}
+        <div className="admin-page-tabs" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={true}
+            className="admin-page-tab-btn admin-page-tab-btn--active"
+            onClick={() => {
+              soundManager.playClick()
+              navigate('/admin')
+            }}
+          >
+            <span className="admin-page-tab-icon">❓</span>
+            <span className="admin-page-tab-label">Questions</span>
+          </button>
+
+          <button
+            type="button"
+            role="tab"
+            aria-selected={false}
+            className="admin-page-tab-btn"
+            onClick={() => {
+              soundManager.playClick()
+              navigate('/admin/users')
+            }}
+          >
+            <span className="admin-page-tab-icon">👥</span>
+            <span className="admin-page-tab-label">Utilisateurs</span>
+          </button>
+        </div>
+
+        {/* Tab switcher */}
+        <div className="admin-tabs-nav" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={adminTab === 'bank'}
+            className={`admin-tab-btn ${adminTab === 'bank' ? 'admin-tab-btn--active' : ''}`}
+            onClick={() => handleTabChange('bank')}
+          >
+            <span className="admin-tab-icon">🗄️</span>
+            <span className="admin-tab-label">Banque & Import / Export</span>
+            {stats && <span className="admin-tab-count">{stats.total}</span>}
+          </button>
+
+          <button
+            type="button"
+            role="tab"
+            aria-selected={adminTab === 'suspended'}
+            className={`admin-tab-btn ${adminTab === 'suspended' ? 'admin-tab-btn--active' : ''}`}
+            onClick={() => handleTabChange('suspended')}
+          >
+            <span className="admin-tab-icon">🔇</span>
+            <span className="admin-tab-label">Questions Suspendues</span>
+            <span
+              className={`admin-tab-badge ${
+                suspendedQuestions.length > 0
+                  ? 'admin-tab-badge--alert'
+                  : 'admin-tab-badge--zero'
+              }`}
+            >
+              {suspendedQuestions.length}
+            </span>
+          </button>
         </div>
       </header>
 
       <div className="admin-content">
-
-        {/* ── Database Stats ─────────────────────────────────── */}
+        {adminTab === 'bank' && (
+          <>
+            {/* ── Database Stats ─────────────────────────────────── */}
         <section className="admin-card" aria-label="Statistiques base de données">
           <h2 className="admin-card-title">
             🗄️ Base de données
@@ -1012,8 +1393,317 @@ sciences,Quel est le symbole chimique de l'eau ?,H2O,h2o,facile,,Chimie`}
             </pre>
           </div>
         </section>
+      </>
+    )}
 
+    {adminTab === 'suspended' && (
+      <section className="admin-suspended-section" aria-label="Espace Questions Suspendues">
+        {/* Banner */}
+        <div className="admin-suspended-banner">
+          <div className="admin-suspended-banner-icon">🔇</div>
+          <div className="admin-suspended-banner-body">
+            <h2 className="admin-suspended-banner-title">Questions Mises en Sourdine</h2>
+            <p className="admin-suspended-banner-desc">
+              Lorsqu'une question est mise en sourdine en jeu par un administrateur (via le bouton 🔇), elle est immédiatement retirée de la rotation des arènes pour ne pas pénaliser les joueurs.
+              Corrigez les erreurs ou coquilles ci-dessous et réactivez la question en un clic.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="admin-suspended-refresh-btn"
+            onClick={fetchSuspendedQuestions}
+            disabled={loadingSuspended}
+            title="Actualiser la liste"
+          >
+            {loadingSuspended ? 'Chargement…' : '🔄 Actualiser'}
+          </button>
+        </div>
+
+        {/* Toolbar: Search & Filters */}
+        <div className="admin-suspended-toolbar">
+          <div className="admin-suspended-search-box">
+            <span className="admin-search-icon">🔍</span>
+            <input
+              type="text"
+              placeholder="Rechercher une question, une réponse, ou un motif…"
+              value={suspendedSearch}
+              onChange={e => setSuspendedSearch(e.target.value)}
+              className="admin-suspended-search-input"
+            />
+            {suspendedSearch && (
+              <button
+                type="button"
+                className="admin-search-clear"
+                onClick={() => setSuspendedSearch('')}
+              >
+                ✕
+              </button>
+            )}
+          </div>
+
+          <div className="admin-suspended-filters">
+            <select
+              value={suspendedCategory}
+              onChange={e => setSuspendedCategory(e.target.value)}
+              className="admin-suspended-select"
+            >
+              <option value="all">Toutes les catégories</option>
+              {ALL_ADMIN_CATEGORIES.map(cat => (
+                <option key={cat} value={cat}>
+                  {CAT_EMOJI[cat] ?? '❓'} {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={suspendedDiff}
+              onChange={e => setSuspendedDiff(e.target.value)}
+              className="admin-suspended-select"
+            >
+              <option value="all">Toutes difficultés</option>
+              <option value="facile">🟢 Facile</option>
+              <option value="moyen">🟡 Moyen</option>
+              <option value="difficile">🔴 Difficile</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Error State */}
+        {suspendedError && (
+          <div className="admin-suspended-error">
+            ⚠️ {suspendedError}
+          </div>
+        )}
+
+        {/* Loading or List */}
+        {loadingSuspended ? (
+          <div className="admin-suspended-loading">
+            <p>Chargement des questions suspendues…</p>
+          </div>
+        ) : filteredSuspended.length === 0 ? (
+          <div className="admin-suspended-empty">
+            {suspendedQuestions.length === 0 ? (
+              <>
+                <div className="admin-empty-icon">🎉</div>
+                <h3 className="admin-empty-title">Aucune question suspendue</h3>
+                <p className="admin-empty-desc">
+                  Toutes les questions sont actuellement actives et disponibles pour les parties dans les arènes.
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="admin-empty-icon">🔍</div>
+                <h3 className="admin-empty-title">Aucun résultat</h3>
+                <p className="admin-empty-desc">
+                  Aucune question suspendue ne correspond à vos critères de recherche actuels.
+                </p>
+              </>
+            )}
+          </div>
+        ) : (
+          <div className="admin-suspended-list">
+            {filteredSuspended.map(q => (
+              <article key={q.id} className="admin-suspended-card" id={`suspended-card-${q.id}`}>
+                <div className="admin-suspended-card-top">
+                  <div className="admin-suspended-meta">
+                    <span className="admin-meta-cat">
+                      {CAT_EMOJI[q.category] ?? '❓'} {q.category}
+                    </span>
+                    <span className={`admin-meta-diff admin-meta-diff--${q.difficulty}`}>
+                      {q.difficulty}
+                    </span>
+                    {q.mutedAt && (
+                      <span className="admin-meta-date">
+                        🕒 {new Date(q.mutedAt).toLocaleDateString('fr-FR', {
+                          day: '2-digit',
+                          month: 'short',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="admin-suspended-reason">
+                    <span className="admin-reason-badge">
+                      ⚠️ Motif : {q.reason || 'Signalée par un admin en direct'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="admin-suspended-card-body">
+                  <p className="admin-suspended-question-text">{q.text}</p>
+
+                  <div className="admin-suspended-answers-box">
+                    <div className="admin-answer-item admin-answer-item--official">
+                      <span className="admin-answer-label">Réponse officielle :</span>
+                      <span className="admin-answer-value">{q.answer || '—'}</span>
+                    </div>
+
+                    {q.acceptedAnswers && q.acceptedAnswers.length > 0 && (
+                      <div className="admin-answer-item admin-answer-item--variants">
+                        <span className="admin-answer-label">Variantes acceptées :</span>
+                        <div className="admin-answer-tags">
+                          {q.acceptedAnswers.map((ans, idx) => (
+                            <span key={idx} className="admin-answer-tag">{ans}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="admin-suspended-card-actions">
+                  <button
+                    type="button"
+                    className="admin-act-btn admin-act-btn--edit"
+                    onClick={() => handleStartEdit(q)}
+                    title="Modifier l'énoncé, la réponse ou les variantes"
+                  >
+                    ✏️ Corriger & Réactiver
+                  </button>
+
+                  <button
+                    type="button"
+                    className="admin-act-btn admin-act-btn--unmute"
+                    onClick={() => handleUnmuteQuestion(q)}
+                    title="Réactiver directement dans les arènes"
+                  >
+                    🔊 Réactiver (Unmute)
+                  </button>
+
+                  <button
+                    type="button"
+                    className="admin-act-btn admin-act-btn--delete"
+                    onClick={() => handleDeleteSuspendedQuestion(q)}
+                    title="Supprimer définitivement de la base"
+                  >
+                    🗑️ Supprimer
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+    )}
+  </div>
+
+  {/* Edit Modal for Suspended Question */}
+  {editingQuestion && (
+    <div className="admin-modal-overlay" onClick={handleCancelEdit}>
+      <div className="admin-modal-card" onClick={e => e.stopPropagation()}>
+        <div className="admin-modal-header">
+          <div className="admin-modal-title-group">
+            <span className="admin-modal-icon">✏️</span>
+            <div>
+              <h3 className="admin-modal-title">Corriger la question suspendue</h3>
+              <p className="admin-modal-subtitle">Modifiez le libellé, la réponse ou les variantes avant de la réactiver</p>
+            </div>
+          </div>
+          <button type="button" className="admin-modal-close" onClick={handleCancelEdit}>✕</button>
+        </div>
+
+        <form onSubmit={handleSaveEdit} className="admin-modal-form">
+          <div className="admin-form-group">
+            <label className="admin-form-label">Libellé de la question</label>
+            <textarea
+              rows={3}
+              className="admin-form-textarea"
+              value={editForm.text}
+              onChange={e => setEditForm(prev => ({ ...prev, text: e.target.value }))}
+              required
+              placeholder="Écrivez le texte de la question..."
+            />
+          </div>
+
+          <div className="admin-form-row">
+            <div className="admin-form-group" style={{ flex: 1 }}>
+              <label className="admin-form-label">Réponse exacte (officielle)</label>
+              <input
+                type="text"
+                className="admin-form-input"
+                value={editForm.answer}
+                onChange={e => setEditForm(prev => ({ ...prev, answer: e.target.value }))}
+                required
+                placeholder="Ex: Paris"
+              />
+            </div>
+
+            <div className="admin-form-group" style={{ flex: 1 }}>
+              <label className="admin-form-label">Difficulté</label>
+              <select
+                className="admin-form-select"
+                value={editForm.difficulty}
+                onChange={e => setEditForm(prev => ({ ...prev, difficulty: e.target.value }))}
+              >
+                <option value="facile">🟢 Facile</option>
+                <option value="moyen">🟡 Moyen</option>
+                <option value="difficile">🔴 Difficile</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="admin-form-group">
+            <label className="admin-form-label">
+              Variantes acceptées
+              <span className="admin-form-help"> (séparées par une virgule)</span>
+            </label>
+            <input
+              type="text"
+              className="admin-form-input"
+              value={editForm.acceptedAnswers}
+              onChange={e => setEditForm(prev => ({ ...prev, acceptedAnswers: e.target.value }))}
+              placeholder="Ex: Paris, la ville lumière, ville de paris"
+            />
+          </div>
+
+          <div className="admin-form-group">
+            <label className="admin-form-label">Catégorie</label>
+            <select
+              className="admin-form-select"
+              value={editForm.category}
+              onChange={e => setEditForm(prev => ({ ...prev, category: e.target.value }))}
+            >
+              {ALL_ADMIN_CATEGORIES.map(cat => (
+                <option key={cat} value={cat}>
+                  {CAT_EMOJI[cat] ?? '❓'} {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="admin-form-checkbox-row">
+            <label className="admin-checkbox-label">
+              <input
+                type="checkbox"
+                checked={editForm.unmuteOnSave}
+                onChange={e => setEditForm(prev => ({ ...prev, unmuteOnSave: e.target.checked }))}
+              />
+              <span>Réactiver immédiatement dans les arènes (retirer de la sourdine)</span>
+            </label>
+          </div>
+
+          <div className="admin-modal-actions">
+            <button type="button" className="admin-btn-secondary" onClick={handleCancelEdit} disabled={savingEdit}>
+              Annuler
+            </button>
+            <button type="submit" className="admin-btn-primary" disabled={savingEdit}>
+              {savingEdit ? 'Enregistrement…' : 'Enregistrer les modifications'}
+            </button>
+          </div>
+        </form>
       </div>
+    </div>
+  )}
+
+  {/* Floating Action Toast */}
+  {actionToast && (
+    <div className="admin-action-toast fade-in">
+      <span>✨</span>
+      <span>{actionToast}</span>
+    </div>
+  )}
 
       {/* Image Modal Preview */}
       {previewModalImage && (

@@ -1635,8 +1635,8 @@
 }
 
 /* ─── Responsive ─── */
-@media (max-width: 768px) {
-  .lobby-nav { padding: 10px 16px; }
+@media (max-width: 860px) {
+  .lobby-nav { display: none !important; }
   .lobby-header { padding: 8px 16px 28px; }
   .lobby-title { font-size: 34px; }
   .lobby-subtitle { font-size: 14px; }

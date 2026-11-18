@@ -4,7 +4,7 @@ import {
   IconGamepad, IconRefresh, IconZap, IconUser,
   IconInbox, IconAlertCircle, IconLogin,
   IconBookOpen, IconHeart, IconLock, IconChevronRight, IconTarget, IconTrophy, IconX,
-  IconInfinity, IconClock, IconTemplate, IconCheck
+  IconInfinity, IconClock, IconTemplate, IconCheck, IconDice
 } from '../../components/Icons'
 import { DIFFICULTY_LABELS, CATEGORY_LABELS, ALL_CATEGORIES, CATEGORY_ICONS, DEFAULT_CATEGORY_DIFFICULTIES } from '../../types'
 import type { Difficulty, GameSettings } from '../../types'
@@ -1162,9 +1162,36 @@ export default function Lobby() {
               <div className="games-section-icon"><IconBookOpen /></div>
               <div>
                 <h2 className="games-section-title">Modes de jeu</h2>
-                <p className="games-section-subtitle">Règles disponibles — choisissez votre style</p>
+                <p className="games-section-subtitle">Règles FlashGuess disponibles — choisissez votre style</p>
               </div>
             </div>
+
+            <button
+              type="button"
+              className="btn-discover-hub"
+              onClick={() => {
+                soundManager.playClick()
+                navigate('/games')
+              }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '8px 14px',
+                borderRadius: 'var(--radius-md)',
+                background: 'rgba(99, 102, 241, 0.14)',
+                border: '1px solid rgba(99, 102, 241, 0.35)',
+                color: 'var(--color-accent)',
+                fontSize: '13px',
+                fontWeight: '700',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+              }}
+              title="Voir tous les jeux disponibles et à venir sur Smik Party"
+            >
+              <IconDice />
+              <span>Catalogue & Nouveaux Jeux ➔</span>
+            </button>
 
             <div className="games-tabs" id="games-tabs">
               <button
