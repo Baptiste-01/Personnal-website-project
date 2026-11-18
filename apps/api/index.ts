@@ -80,9 +80,12 @@ const app = new Elysia()
     }
   })
 
-  .listen(3000)
+  const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000
+  const hostname = process.env.HOST || '0.0.0.0'
 
-console.log(`✅ Smik Party API running at ${app.server?.hostname}:${app.server?.port}`)
+  app.listen({ port, hostname })
+
+  console.log(`✅ Smik Party API running at http://${hostname}:${port}`)
 console.log(`   → DB: postgresql (Prisma)`)
 console.log(`   → Import Excel: POST http://localhost:3000/admin/import`)
 console.log(`   → Template:     GET  http://localhost:3000/admin/template`)

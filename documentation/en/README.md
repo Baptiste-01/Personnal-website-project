@@ -52,6 +52,7 @@ Each commit/task is documented following a standardized format (`Objective`, `Ac
 | **32** | 2026-11-17 | `Workspace` | [Task_32_2026-11-17.md](file:///c:/Users/bapti/Desktop/Moi/Projet-Perso/Personnal-website-project/documentation/en/Task_32_2026-11-17.md) | Admin question muting, streak indicators, top speed first answer counter & complete end-game stats |
 | **33** | 2026-11-18 | `Workspace` | [Task_33_2026-11-18.md](file:///c:/Users/bapti/Desktop/Moi/Projet-Perso/Personnal-website-project/documentation/en/Task_33_2026-11-18.md) | Sidebar navigation, multi-game hub, suspended questions moderation & admin user management |
 | **34** | 2026-11-18 | `Workspace` | [Task_34_2026-11-18.md](file:///c:/Users/bapti/Desktop/Moi/Projet-Perso/Personnal-website-project/documentation/en/Task_34_2026-11-18.md) | Source Code Protection & Strict Proprietary License (Portfolio Showcase) |
+| **35** | 2026-11-18 | `Workspace` | [Task_35_2026-11-18.md](file:///c:/Users/bapti/Desktop/Moi/Projet-Perso/Personnal-website-project/documentation/en/Task_35_2026-11-18.md) | 100% Free Cloud Deployment Configuration (Vercel, Render, Neon) |
 
 ---
 
