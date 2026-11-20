@@ -10,7 +10,6 @@ import { DIFFICULTY_LABELS, CATEGORY_LABELS, ALL_CATEGORIES, CATEGORY_ICONS, DEF
 import type { Difficulty, GameSettings } from '../../types'
 import Slider from '../../components/Slider/Slider'
 import type { SlideItem } from '../../components/Slider/Slider'
-import AudioThemeControls from '../../components/AudioThemeControls'
 import TemplateModal from '../../components/TemplateModal/TemplateModal'
 import { fetchTemplateByCode } from '../../utils/templateApi'
 import { serializeCategoryListMap, serializeDifficultyTimesMap } from '../../utils/tagFilter'
@@ -1017,35 +1016,9 @@ export default function Lobby() {
 
   return (
     <div className="lobby">
-      <div className="lobby-bg-orb lobby-bg-orb--1" />
-      <div className="lobby-bg-orb lobby-bg-orb--2" />
-      <div className="lobby-bg-orb lobby-bg-orb--3" />
-
-      {/* ─── Navbar ─── */}
-      <nav className="lobby-nav" id="lobby-nav">
-        <AudioThemeControls />
-        {isConnected && authUser?.isAdmin && (
-          <button
-            className="btn-login"
-            id="admin-button"
-            onClick={() => navigate('/admin')}
-            title="Administration & Importation de questions"
-          >
-            <span style={{ fontSize: '14px' }}>📊</span> Admin
-          </button>
-        )}
-        {isConnected && authUser ? (
-          <button className="btn-login" id="profile-button" onClick={() => navigate('/profile')}>
-            <IconUser />
-            {authUser.username}
-          </button>
-        ) : (
-          <button className="btn-login" id="login-button" onClick={() => navigate('/login')}>
-            <IconLogin />
-            Se connecter
-          </button>
-        )}
-      </nav>
+      {/* ─── Modern Arcade Pixel Ambiance ─── */}
+      <div className="arcade-grid-bg" aria-hidden="true" />
+      <div className="arcade-starfield" aria-hidden="true" />
 
       {/* ─── Header ─── */}
       <header className="lobby-header" id="lobby-header">
@@ -1054,6 +1027,7 @@ export default function Lobby() {
           <h1 className="lobby-title">
             Smik <span className="lobby-title-accent">Party</span>
           </h1>
+          <span className="lobby-badge-arcade">ARCADE MULTI</span>
         </div>
         <p className="lobby-subtitle">
           Testez vos connaissances en temps réel. Rejoignez une arène et prouvez que vous êtes le plus rapide.

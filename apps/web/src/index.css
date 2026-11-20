@@ -3,7 +3,8 @@
 /* ─── Design Tokens (Default: Neo-Arcade / Retro) ─── */
 :root {
   /* Typography */
-  --font-display: 'Outfit', system-ui, sans-serif;
+  --font-display: 'Pixelify Sans', 'Outfit', system-ui, sans-serif;
+  --font-pixel: 'Press Start 2P', monospace;
   --font-body: 'Inter', system-ui, sans-serif;
 
   /* Core palette — Dark night retro arcade */
