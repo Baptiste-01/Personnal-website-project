@@ -1,4 +1,4 @@
-# 🎮 Project JKLM Clone
+# 🎮 Personnal-Project
 
 A high-performance, real-time multiplayer word game. Built with speed, type-safety, and scalability in mind.
 
