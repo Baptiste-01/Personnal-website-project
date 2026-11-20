@@ -1,4 +1,4 @@
-# 🎮 Smik Party — Real-Time Multiplayer Gaming Platform
+# 🎮 Personnal-Project
 
 <div align="center">
 
