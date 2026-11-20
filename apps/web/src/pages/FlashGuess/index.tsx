@@ -31,6 +31,10 @@ export default function FlashGuess() {
   const [isChatOpen, setIsChatOpen] = useState(false)
   const [muteFeedback, setMuteFeedback] = useState<string | null>(null)
 
+  useEffect(() => {
+    document.title = 'FlashGuess en direct — Smik Party'
+  }, [])
+
   const {
     connected,
     selfId,

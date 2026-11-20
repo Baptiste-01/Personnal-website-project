@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { GAME_CATALOG, type GameInfo, type GameStatus } from '../../data/games'
 import {
@@ -19,6 +19,10 @@ export default function GamesHub() {
   const [activeFilter, setActiveFilter] = useState<'all' | GameStatus>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedGame, setSelectedGame] = useState<GameInfo | null>(null)
+
+  useEffect(() => {
+    document.title = 'Smik Party — Catalogue de Jeux'
+  }, [])
   const [votedGames, setVotedGames] = useState<Set<string>>(() => {
     try {
       const saved = localStorage.getItem('smik_game_votes')

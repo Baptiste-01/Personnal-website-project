@@ -1,0 +1,19 @@
+# ─────────────────────────────────────────────────────────────
+# Smik Party — Render Blueprint (100% Free Web Service)
+# ─────────────────────────────────────────────────────────────
+services:
+  - type: web
+    name: smik-party-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile.api
+    plan: free
+    region: frankfurt # Low latency in Europe
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL
+        sync: false # Set manually in Render dashboard with your free Neon.tech connection string
+      - key: JWT_SECRET
+        generateValue: true # Render automatically generates a secure 256-bit secret
+      - key: NODE_ENV
+        value: production

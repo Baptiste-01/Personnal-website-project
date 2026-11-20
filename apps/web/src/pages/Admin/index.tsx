@@ -228,6 +228,10 @@ export default function Admin() {
   }, [])
 
   useEffect(() => {
+    document.title = 'Administration — Smik Party'
+  }, [])
+
+  useEffect(() => {
     if (isAdmin) {
       fetchSuspendedQuestions()
     }

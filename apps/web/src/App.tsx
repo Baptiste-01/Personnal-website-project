@@ -1,4 +1,4 @@
-import { createBrowserRouter, RouterProvider } from 'react-router-dom'
+import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom'
 import MainLayout from './layouts/MainLayout'
 import Lobby from './pages/Lobby/index'
 import Arena from './pages/Arena/index'
@@ -25,6 +25,7 @@ const router = createBrowserRouter([
   },
   { path: '/arena/:arenaId', element: <Arena /> },
   { path: '/play/:arenaId', element: <FlashGuess /> },
+  { path: '*', element: <Navigate to="/" replace /> },
 ])
 
 function App() {
