@@ -46,6 +46,29 @@ export async function bootstrapDatabase(): Promise<BootstrapSummary> {
     summary.connected = true
     console.log('✅ [Database] Connexion à la base de données établie avec succès.')
 
+    // Ensure database tables exist (if fresh Neon database)
+    try {
+      await prisma.arena.count()
+    } catch {
+      console.log('📦 [Bootstrap] Tables absentes dans Neon. Synchronisation automatique (prisma db push)...')
+      try {
+        const { execSync } = await import('child_process')
+        const path = await import('path')
+        const fs = await import('fs')
+        const dbPath = path.resolve(process.cwd(), '../../packages/database')
+        const altPath = path.resolve(process.cwd(), 'packages/database')
+        const targetDir = fs.existsSync(dbPath) ? dbPath : altPath
+        execSync('bun x prisma db push --accept-data-loss', {
+          cwd: targetDir,
+          stdio: 'inherit',
+          env: process.env,
+        })
+        console.log('✅ [Bootstrap] Tables créées dans Neon avec succès.')
+      } catch (e) {
+        console.warn('⚠️ [Bootstrap] Échec du db push automatique :', e)
+      }
+    }
+
     // 2. Reset orphaned arenas
     await prisma.arena
       .updateMany({

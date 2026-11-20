@@ -935,7 +935,8 @@ export default function Lobby() {
       const data: ArenaItem[] = await res.json()
       setArenas(data)
       setFetchState('success')
-    } catch {
+    } catch (err) {
+      console.error('[Lobby] Erreur chargement arènes :', err)
       if (!mode) setFetchState('error')
     } finally {
       if (mode === 'manual') setIsRefreshing(false)

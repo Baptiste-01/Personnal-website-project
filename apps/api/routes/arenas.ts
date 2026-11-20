@@ -4,16 +4,21 @@ import { roomManager } from '../ws/roomManager'
 
 export const arenasRoute = new Elysia({ prefix: '/arenas' })
   .get('/', async () => {
-    const arenas = await prisma.arena.findMany({ orderBy: { createdAt: 'asc' } })
-    return arenas.map(a => {
-      const room = roomManager.get(a.id)
-      const activePlayers = room ? room.getActivePlayerCount() : (a.players || 0)
-      return {
-        ...a,
-        players: activePlayers,
-        status: room ? (activePlayers === 0 ? 'waiting' : room.status) : a.status,
-      }
-    })
+    try {
+      const arenas = await prisma.arena.findMany({ orderBy: { createdAt: 'asc' } })
+      return arenas.map(a => {
+        const room = roomManager.get(a.id)
+        const activePlayers = room ? room.getActivePlayerCount() : (a.players || 0)
+        return {
+          ...a,
+          players: activePlayers,
+          status: room ? (activePlayers === 0 ? 'waiting' : room.status) : a.status,
+        }
+      })
+    } catch (err) {
+      console.error('⚠️ [Arenas] Erreur récupération arènes (fallback tableau vide):', err)
+      return []
+    }
   })
   .get('/:id', async ({ params, set }) => {
     const arena = await prisma.arena.findUnique({ where: { id: params.id } })
