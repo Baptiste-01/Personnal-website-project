@@ -14,7 +14,7 @@ import TemplateModal from '../../components/TemplateModal/TemplateModal'
 import { fetchTemplateByCode } from '../../utils/templateApi'
 import { serializeCategoryListMap, serializeDifficultyTimesMap } from '../../utils/tagFilter'
 import { soundManager } from '../../utils/sound'
-import { API_URL } from '../../utils/config'
+import { API_URL, setCustomApiUrl } from '../../utils/config'
 import ArcadeBackground from '../../components/ArcadeBackground/ArcadeBackground'
 import './Lobby.css'
 
