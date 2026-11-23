@@ -1,7 +1,8 @@
 @import "tailwindcss";
 
 /* ─── Design Tokens (Default: Neo-Arcade / Retro) ─── */
-:root {
+:root,
+[data-theme="retro"] {
   /* Typography */
   --font-display: 'Pixelify Sans', 'Outfit', system-ui, sans-serif;
   --font-pixel: 'Press Start 2P', monospace;
@@ -14,23 +15,23 @@
   --color-bg-card-hover: #162135;
   --color-bg-elevated:   #1a2840;
 
-  --color-border:        rgba(59, 130, 246, 0.08);
-  --color-border-hover:  rgba(59, 130, 246, 0.2);
+  --color-border:        rgba(59, 130, 246, 0.16);
+  --color-border-hover:  rgba(59, 130, 246, 0.35);
 
   --color-text-primary:   #e8eef8;
   --color-text-secondary: #7a94b8;
   --color-text-muted:     #4a6080;
 
-  /* Accent — Bright blue */
+  /* Accent — Arcade Electric Blue */
   --color-accent:        #3b82f6;
   --color-accent-hover:  #60a5fa;
   --color-accent-dark:   #1d4ed8;
-  --color-accent-subtle: rgba(59, 130, 246, 0.10);
-  --color-accent-glow:   rgba(59, 130, 246, 0.22);
+  --color-accent-subtle: rgba(59, 130, 246, 0.12);
+  --color-accent-glow:   rgba(59, 130, 246, 0.30);
 
-  /* Secondary accent — Deep cyan blue */
+  /* Secondary accent — Cyan */
   --color-accent2:       #0ea5e9;
-  --color-accent2-glow:  rgba(14, 165, 233, 0.18);
+  --color-accent2-glow:  rgba(14, 165, 233, 0.22);
 
   /* Status */
   --color-status-live:        #22c55e;
@@ -60,10 +61,10 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  transition: background-color var(--transition-base), color var(--transition-base);
+  transition: background-color var(--transition-base), color var(--transition-base), border-color var(--transition-base);
 }
 
-/* ─── Theme: Dark Zinc / Minimalist ─── */
+/* ─── Theme: Dark Zinc / Violet Minimalist ─── */
 [data-theme="dark"] {
   --color-bg-primary:    #09090b;
   --color-bg-secondary:  #121216;
@@ -71,24 +72,25 @@
   --color-bg-card-hover: #222227;
   --color-bg-elevated:   #27272a;
 
-  --color-border:        rgba(255, 255, 255, 0.08);
-  --color-border-hover:  rgba(255, 255, 255, 0.20);
+  --color-border:        rgba(139, 92, 246, 0.16);
+  --color-border-hover:  rgba(139, 92, 246, 0.35);
 
   --color-text-primary:   #fafafa;
   --color-text-secondary: #a1a1aa;
   --color-text-muted:     #71717a;
 
+  /* Accent — Deep Violet / Purple */
   --color-accent:        #8b5cf6;
   --color-accent-hover:  #a78bfa;
   --color-accent-dark:   #6d28d9;
-  --color-accent-subtle: rgba(139, 92, 246, 0.12);
-  --color-accent-glow:   rgba(139, 92, 246, 0.28);
+  --color-accent-subtle: rgba(139, 92, 246, 0.14);
+  --color-accent-glow:   rgba(139, 92, 246, 0.32);
 
   --color-accent2:       #06b6d4;
   --color-accent2-glow:  rgba(6, 182, 212, 0.20);
 }
 
-/* ─── Theme: Cyberpunk Neon ─── */
+/* ─── Theme: Cyberpunk Neon Pink ─── */
 [data-theme="cyberpunk"] {
   --color-bg-primary:    #0c0414;
   --color-bg-secondary:  #150824;
@@ -103,6 +105,7 @@
   --color-text-secondary: #e9d5ff;
   --color-text-muted:     #a855f7;
 
+  /* Accent — Hot Neon Pink */
   --color-accent:        #ec4899;
   --color-accent-hover:  #f472b6;
   --color-accent-dark:   #be185d;

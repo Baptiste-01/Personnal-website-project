@@ -15,6 +15,7 @@ import { fetchTemplateByCode } from '../../utils/templateApi'
 import { serializeCategoryListMap, serializeDifficultyTimesMap } from '../../utils/tagFilter'
 import { soundManager } from '../../utils/sound'
 import { API_URL } from '../../utils/config'
+import ArcadeBackground from '../../components/ArcadeBackground/ArcadeBackground'
 import './Lobby.css'
 
 /* ─── Types ─── */
@@ -1016,9 +1017,8 @@ export default function Lobby() {
 
   return (
     <div className="lobby">
-      {/* ─── Modern Arcade Pixel Ambiance ─── */}
-      <div className="arcade-grid-bg" aria-hidden="true" />
-      <div className="arcade-starfield" aria-hidden="true" />
+      {/* ─── Modern Retro Pixel Ambiance with animated vignettes ─── */}
+      <ArcadeBackground />
 
       {/* ─── Header ─── */}
       <header className="lobby-header" id="lobby-header">

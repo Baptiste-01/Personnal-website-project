@@ -76,34 +76,38 @@
   width: 40px;
   height: 40px;
   border-radius: var(--radius-md);
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.25) 0%, rgba(168, 85, 247, 0.25) 100%);
-  border: 1px solid rgba(129, 140, 248, 0.35);
+  background: linear-gradient(135deg, var(--color-accent-subtle) 0%, var(--color-accent-glow) 100%);
+  border: 1.5px solid var(--color-accent);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  box-shadow: 0 0 16px rgba(99, 102, 241, 0.25);
+  color: var(--color-accent);
+  box-shadow: 0 0 16px var(--color-accent-glow);
   transition: all 0.2s ease;
   position: relative;
 }
 
 .as-brand-icon:hover {
   transform: scale(1.05);
-  box-shadow: 0 0 20px rgba(99, 102, 241, 0.4);
+  box-shadow: 0 0 20px var(--color-accent-glow);
+  border-color: var(--color-accent-hover);
+  color: var(--color-accent-hover);
 }
 
 .as-brand-icon--toggle {
   cursor: pointer;
   padding: 0;
-  border: 1px solid rgba(129, 140, 248, 0.35);
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.25) 0%, rgba(168, 85, 247, 0.25) 100%);
+  border: 1.5px solid var(--color-accent);
+  background: linear-gradient(135deg, var(--color-accent-subtle) 0%, var(--color-accent-glow) 100%);
   color: var(--color-accent);
 }
 
 .as-brand-icon--toggle:hover {
   transform: scale(1.08);
-  box-shadow: 0 0 20px rgba(99, 102, 241, 0.5);
-  border-color: rgba(129, 140, 248, 0.65);
+  box-shadow: 0 0 20px var(--color-accent-glow);
+  border-color: var(--color-accent-hover);
+  color: var(--color-accent-hover);
 }
 
 .as-brand-icon--toggle:active {
@@ -120,7 +124,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(99, 102, 241, 0.9);
+  background: var(--color-accent);
   border-radius: var(--radius-md);
   opacity: 0;
   transform: scale(0.85);
@@ -163,8 +167,12 @@
 }
 
 .as-brand-accent {
-  color: var(--color-accent);
-  text-shadow: 0 0 10px var(--color-accent-glow);
+  background: linear-gradient(130deg, var(--color-accent-hover) 0%, var(--color-accent) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  filter: drop-shadow(0 0 10px var(--color-accent-glow));
+  transition: all var(--transition-base);
 }
 
 .as-brand-tag {
@@ -331,16 +339,16 @@
 
 .as-nav-link--active {
   color: #fff;
-  background: linear-gradient(90deg, rgba(99, 102, 241, 0.22) 0%, rgba(168, 85, 247, 0.12) 100%);
-  border-color: rgba(129, 140, 248, 0.35);
+  background: linear-gradient(90deg, var(--color-accent-subtle) 0%, transparent 100%);
+  border-color: var(--color-accent);
   font-weight: 700;
-  box-shadow: 0 0 18px rgba(99, 102, 241, 0.15);
+  box-shadow: 0 0 18px var(--color-accent-glow);
 }
 
 .as-sidebar--collapsed .as-nav-link--active {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.3) 0%, rgba(168, 85, 247, 0.2) 100%);
-  border-color: rgba(129, 140, 248, 0.45);
-  box-shadow: 0 0 16px rgba(99, 102, 241, 0.25);
+  background: linear-gradient(135deg, var(--color-accent-subtle) 0%, var(--color-accent-glow) 100%);
+  border-color: var(--color-accent);
+  box-shadow: 0 0 16px var(--color-accent-glow);
 }
 
 .as-nav-icon {
@@ -671,25 +679,25 @@
   gap: 8px;
   padding: 10px 14px;
   border-radius: var(--radius-md);
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  background: linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-dark) 100%);
   color: #fff;
-  border: 2px solid #60a5fa;
+  border: 2px solid var(--color-accent-hover);
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
   transition: all 0.12s ease;
-  box-shadow: 0 4px 0 #1d4ed8, 0 0 14px var(--color-accent-glow);
+  box-shadow: 0 4px 0 var(--color-accent-dark), 0 0 14px var(--color-accent-glow);
 }
 
 .as-login-btn:hover {
   transform: translateY(-1px);
-  box-shadow: 0 5px 0 #1d4ed8, 0 0 18px var(--color-accent-glow);
+  box-shadow: 0 5px 0 var(--color-accent-dark), 0 0 18px var(--color-accent-glow);
   filter: brightness(1.1);
 }
 
 .as-login-btn:active {
   transform: translateY(3px);
-  box-shadow: 0 1px 0 #1d4ed8;
+  box-shadow: 0 1px 0 var(--color-accent-dark);
 }
 
 .as-login-btn svg {
@@ -701,14 +709,14 @@
   width: 42px;
   height: 42px;
   border-radius: var(--radius-md);
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  background: linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-dark) 100%);
   color: #fff;
-  border: 2px solid #60a5fa;
+  border: 2px solid var(--color-accent-hover);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: 0 3px 0 #1d4ed8, 0 0 12px var(--color-accent-glow);
+  box-shadow: 0 3px 0 var(--color-accent-dark), 0 0 12px var(--color-accent-glow);
   transition: all 0.12s ease;
 }
 

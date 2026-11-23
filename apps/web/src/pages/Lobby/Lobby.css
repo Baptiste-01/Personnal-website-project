@@ -8,42 +8,6 @@
   overflow-x: hidden;
 }
 
-/* ─── Modern Arcade Pixel Ambiance ─── */
-.arcade-grid-bg {
-  position: fixed;
-  inset: 0;
-  background-image: 
-    linear-gradient(rgba(59, 130, 246, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(59, 130, 246, 0.06) 1px, transparent 1px);
-  background-size: 32px 32px;
-  background-position: center center;
-  pointer-events: none;
-  z-index: 0;
-  mask-image: radial-gradient(ellipse at 50% 25%, black 40%, transparent 85%);
-  -webkit-mask-image: radial-gradient(ellipse at 50% 25%, black 40%, transparent 85%);
-}
-
-.arcade-starfield {
-  position: fixed;
-  inset: 0;
-  background: 
-    radial-gradient(1px 1px at 15% 20%, rgba(255, 255, 255, 0.6) 100%, transparent),
-    radial-gradient(1.5px 1.5px at 35% 65%, rgba(96, 165, 250, 0.7) 100%, transparent),
-    radial-gradient(1px 1px at 75% 15%, rgba(255, 255, 255, 0.6) 100%, transparent),
-    radial-gradient(1.5px 1.5px at 85% 75%, rgba(244, 114, 182, 0.6) 100%, transparent),
-    radial-gradient(1px 1px at 50% 85%, rgba(255, 255, 255, 0.5) 100%, transparent),
-    radial-gradient(circle at 50% 20%, rgba(59, 130, 246, 0.12) 0%, transparent 65%);
-  pointer-events: none;
-  z-index: 0;
-  animation: starTwinkle 6s ease-in-out infinite alternate;
-}
-
-@keyframes starTwinkle {
-  0%   { opacity: 0.75; }
-  50%  { opacity: 1; }
-  100% { opacity: 0.85; }
-}
-
 /* ─── Navbar ─── */
 .lobby-nav {
   position: relative;
@@ -101,14 +65,15 @@
 .lobby-brand-icon {
   width: 52px;
   height: 52px;
-  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
-  border: 2px solid #60a5fa;
+  background: linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-dark) 100%);
+  border: 2px solid var(--color-accent-hover);
   border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 0 #1e3a8a, 0 0 24px rgba(59, 130, 246, 0.4);
+  box-shadow: 0 4px 0 var(--color-accent-dark), 0 0 24px var(--color-accent-glow);
   animation: brandPop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: background var(--transition-base), border-color var(--transition-base), box-shadow var(--transition-base);
 }
 
 @keyframes brandPop {
@@ -125,8 +90,9 @@
   letter-spacing: 0.01em;
   color: var(--color-text-primary);
   line-height: 1.05;
-  text-shadow: 0 4px 0 rgba(0, 0, 0, 0.65), 0 0 24px rgba(59, 130, 246, 0.35);
+  text-shadow: 0 4px 0 rgba(0, 0, 0, 0.65), 0 0 24px var(--color-accent-glow);
   animation: slideUp 0.6s cubic-bezier(0.34, 1.1, 0.64, 1) 0.08s both;
+  transition: text-shadow var(--transition-base);
 }
 
 .lobby-badge-arcade {
@@ -135,21 +101,22 @@
   font-weight: 700;
   letter-spacing: 0.08em;
   padding: 4px 10px;
-  background: rgba(59, 130, 246, 0.16);
+  background: var(--color-accent-subtle);
   border: 1.5px solid var(--color-accent);
-  color: #60a5fa;
+  color: var(--color-accent-hover);
   border-radius: 4px;
-  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.4), 0 0 10px rgba(59, 130, 246, 0.3);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.4), 0 0 10px var(--color-accent-glow);
   text-transform: uppercase;
   animation: pulseNeon 2.5s infinite ease-in-out;
+  transition: all var(--transition-base);
 }
 
 @keyframes pulseNeon {
   0%, 100% {
-    box-shadow: 0 2px 0 rgba(0, 0, 0, 0.4), 0 0 8px rgba(59, 130, 246, 0.25);
+    box-shadow: 0 2px 0 rgba(0, 0, 0, 0.4), 0 0 8px var(--color-accent-glow);
   }
   50% {
-    box-shadow: 0 2px 0 rgba(0, 0, 0, 0.4), 0 0 16px rgba(59, 130, 246, 0.55);
+    box-shadow: 0 2px 0 rgba(0, 0, 0, 0.4), 0 0 16px var(--color-accent-glow);
   }
 }
 
@@ -159,10 +126,12 @@
 }
 
 .lobby-title-accent {
-  background: linear-gradient(130deg, #60a5fa 0%, #38bdf8 100%);
+  background: linear-gradient(130deg, var(--color-accent-hover) 0%, var(--color-accent) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  filter: drop-shadow(0 0 16px var(--color-accent-glow));
+  transition: all var(--transition-base);
 }
 
 .lobby-subtitle {
@@ -202,10 +171,11 @@
 /* ─── Panel (Arcade Machine Frame) ─── */
 .lobby-panel {
   background: rgba(13, 21, 37, 0.95);
-  border: 2px solid rgba(59, 130, 246, 0.25);
+  border: 2px solid var(--color-border);
   border-radius: var(--radius-xl);
   overflow: hidden;
   box-shadow: 0 8px 0 rgba(0, 0, 0, 0.35), 0 12px 35px rgba(0, 0, 0, 0.45);
+  transition: border-color var(--transition-base);
 }
 
 .lobby-panel-header {
@@ -213,8 +183,9 @@
   align-items: center;
   justify-content: space-between;
   padding: 18px 24px;
-  border-bottom: 2px solid rgba(59, 130, 246, 0.15);
+  border-bottom: 2px solid var(--color-border);
   background: rgba(17, 27, 46, 0.6);
+  transition: border-color var(--transition-base);
 }
 
 .lobby-panel-title-group {
@@ -236,13 +207,14 @@
   font-family: var(--font-pixel);
   font-size: 9px;
   font-weight: 700;
-  color: #60a5fa;
-  background: rgba(59, 130, 246, 0.15);
-  border: 1.5px solid rgba(59, 130, 246, 0.35);
+  color: var(--color-accent-hover);
+  background: var(--color-accent-subtle);
+  border: 1.5px solid var(--color-accent);
   border-radius: 4px;
   padding: 3px 8px;
   letter-spacing: 0.05em;
   box-shadow: 0 2px 0 rgba(0, 0, 0, 0.3);
+  transition: all var(--transition-base);
 }
 
 .lobby-panel-actions {
@@ -261,23 +233,23 @@
   font-weight: 700;
   font-family: var(--font-body);
   color: white;
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-  border: 2px solid #60a5fa;
+  background: linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-dark) 100%);
+  border: 2px solid var(--color-accent-hover);
   border-radius: var(--radius-md);
   cursor: pointer;
-  box-shadow: 0 4px 0 #1d4ed8, 0 0 16px rgba(59, 130, 246, 0.35);
+  box-shadow: 0 4px 0 var(--color-accent-dark), 0 0 16px var(--color-accent-glow);
   transition: all 0.12s ease;
 }
 
 .btn-create:hover {
   transform: translateY(-1px);
-  box-shadow: 0 5px 0 #1d4ed8, 0 0 22px rgba(59, 130, 246, 0.55);
+  box-shadow: 0 5px 0 var(--color-accent-dark), 0 0 22px var(--color-accent-glow);
   filter: brightness(1.1);
 }
 
 .btn-create:active {
   transform: translateY(3px);
-  box-shadow: 0 1px 0 #1d4ed8;
+  box-shadow: 0 1px 0 var(--color-accent-dark);
 }
 
 .btn-create svg { width: 15px; height: 15px; }
@@ -347,7 +319,7 @@
 .btn-header-templates:hover {
   color: var(--color-text-primary);
   background: var(--color-bg-card-hover);
-  border-color: rgba(59, 130, 246, 0.4);
+  border-color: var(--color-accent);
   transform: translateY(-1px);
   box-shadow: 0 5px 0 rgba(0, 0, 0, 0.45);
 }
@@ -369,7 +341,7 @@
   cursor: pointer;
   transition: all 0.15s ease;
   background: rgba(17, 27, 46, 0.7);
-  border: 2px solid rgba(59, 130, 246, 0.15);
+  border: 2px solid var(--color-border);
   box-shadow: 0 4px 0 rgba(0, 0, 0, 0.35);
   gap: 16px;
   margin-bottom: 10px;
@@ -378,12 +350,12 @@
 
 .arena-card:hover {
   background: rgba(22, 33, 53, 0.95);
-  border-color: rgba(59, 130, 246, 0.5);
+  border-color: var(--color-accent);
   transform: translateY(-2px);
-  box-shadow: 0 6px 0 rgba(0, 0, 0, 0.45), 0 0 16px rgba(59, 130, 246, 0.2);
+  box-shadow: 0 6px 0 rgba(0, 0, 0, 0.45), 0 0 16px var(--color-accent-glow);
 }
 
-.arena-card:hover .arena-name { color: #60a5fa; }
+.arena-card:hover .arena-name { color: var(--color-accent-hover); }
 
 .arena-card-left {
   display: flex;
@@ -565,24 +537,24 @@
   font-weight: 700;
   font-family: var(--font-body);
   color: white;
-  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-  border: 2px solid #60a5fa;
+  background: linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-dark) 100%);
+  border: 2px solid var(--color-accent-hover);
   border-radius: var(--radius-md);
-  box-shadow: 0 3px 0 #1e3a8a;
+  box-shadow: 0 3px 0 var(--color-accent-dark);
   cursor: pointer;
   transition: all 0.12s ease;
   white-space: nowrap;
 }
 
 .btn-join:hover {
-  background: #3b82f6;
+  background: var(--color-accent-hover);
   transform: translateY(-1px);
-  box-shadow: 0 4px 0 #1e3a8a, 0 0 16px rgba(59, 130, 246, 0.4);
+  box-shadow: 0 4px 0 var(--color-accent-dark), 0 0 16px var(--color-accent-glow);
 }
 
 .btn-join:active {
   transform: translateY(2px);
-  box-shadow: 0 1px 0 #1e3a8a;
+  box-shadow: 0 1px 0 var(--color-accent-dark);
 }
 
 .btn-join--disabled,
@@ -1481,34 +1453,34 @@
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: var(--color-accent, #3b82f6);
+  background: var(--color-accent);
   border: 2px solid #ffffff;
-  box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+  box-shadow: 0 0 10px var(--color-accent-glow);
   cursor: pointer;
   transition: transform 0.15s ease, background 0.15s ease;
 }
 
 .settings-range-slider::-webkit-slider-thumb:hover {
   transform: scale(1.2);
-  background: #60a5fa;
+  background: var(--color-accent-hover);
 }
 
 .settings-range-slider::-moz-range-thumb {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: var(--color-accent, #3b82f6);
+  background: var(--color-accent);
   border: 2px solid #ffffff;
-  box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+  box-shadow: 0 0 10px var(--color-accent-glow);
   cursor: pointer;
 }
 
 .slider-val-badge {
   font-size: 12px;
   font-weight: 700;
-  color: #60a5fa;
-  background: rgba(59, 130, 246, 0.12);
-  border: 1px solid rgba(59, 130, 246, 0.3);
+  color: var(--color-accent-hover);
+  background: var(--color-accent-subtle);
+  border: 1px solid var(--color-accent);
   padding: 3px 8px;
   border-radius: 6px;
   min-width: 64px;

@@ -9,13 +9,12 @@ import { templatesRoute } from './routes/templates'
 import { adminUsersRoute } from './routes/adminUsers'
 import prisma from './lib/prisma'
 import { roomManager } from './ws/roomManager'
+import { bootstrapDatabase } from './lib/bootstrap'
 
-// Reset active players count to 0 on server cold start
-prisma.arena
-  .updateMany({
-    data: { players: 0, status: 'waiting' },
-  })
-  .catch(() => {})
+// Auto-bootstrap database on server start (admin, questions, arenas, cleanup)
+bootstrapDatabase().catch(err => {
+  console.warn('⚠️ [Bootstrap Error]:', err)
+})
 
 /* ─── Graceful shutdown ──────────────────────────────────────── */
 process.on('beforeExit', async () => {
@@ -24,7 +23,14 @@ process.on('beforeExit', async () => {
 
 /* ─── App ────────────────────────────────────────────────────── */
 const app = new Elysia()
-  .use(cors())
+  .use(
+    cors({
+      origin: true,
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+      credentials: true,
+    })
+  )
 
   /* Health check */
   .get('/', async () => {
@@ -38,6 +44,20 @@ const app = new Elysia()
     return {
       name: 'Smik Party API',
       status: 'online',
+      db: dbStatus,
+      serverTime: new Date().toISOString(),
+    }
+  })
+  .get('/health', async () => {
+    let dbStatus = 'disconnected'
+    try {
+      await prisma.$queryRaw`SELECT 1`
+      dbStatus = 'connected'
+    } catch {
+      dbStatus = 'disconnected'
+    }
+    return {
+      status: dbStatus === 'connected' ? 'ok' : 'degraded',
       db: dbStatus,
       serverTime: new Date().toISOString(),
     }
@@ -80,10 +100,13 @@ const app = new Elysia()
     }
   })
 
-  .listen(3000)
+const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000
+const hostname = process.env.HOST || '0.0.0.0'
 
-console.log(`✅ Smik Party API running at ${app.server?.hostname}:${app.server?.port}`)
+app.listen({ port, hostname })
+
+console.log(`✅ Smik Party API running at http://${hostname}:${port}`)
 console.log(`   → DB: postgresql (Prisma)`)
-console.log(`   → Import Excel: POST http://localhost:3000/admin/import`)
-console.log(`   → Template:     GET  http://localhost:3000/admin/template`)
-console.log(`   → Stats:        GET  http://localhost:3000/admin/stats`)
+console.log(`   → Import Excel: POST http://localhost:${port}/admin/import`)
+console.log(`   → Template:     GET  http://localhost:${port}/admin/template`)
+console.log(`   → Stats:        GET  http://localhost:${port}/admin/stats`)
