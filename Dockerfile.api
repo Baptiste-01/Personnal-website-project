@@ -1,0 +1,42 @@
+# ─────────────────────────────────────────────────────────────
+# Smik Party — Backend API Dockerfile (Bun + Elysia + WebSockets)
+# Optimized for free cloud platforms (Render.com, Koyeb, Railway)
+# ─────────────────────────────────────────────────────────────
+
+FROM oven/bun:1.2-alpine AS runner
+
+WORKDIR /app
+
+# Set production environment
+ENV NODE_ENV=production
+ENV PORT=3000
+ENV HOST=0.0.0.0
+
+# Copy root manifests
+COPY package.json bun.lock ./
+
+# Copy subpackages manifests
+COPY packages/database/package.json ./packages/database/
+COPY packages/database/prisma.config.ts ./packages/database/
+COPY packages/database/prisma ./packages/database/prisma
+COPY packages/shared/package.json ./packages/shared/
+COPY apps/api/package.json ./apps/api/
+
+# Install dependencies
+RUN bun install --production
+
+# Generate Prisma Client
+WORKDIR /app/packages/database
+RUN bun x prisma generate
+
+# Copy source code
+WORKDIR /app
+COPY packages/shared ./packages/shared
+COPY apps/api ./apps/api
+
+# Expose default HTTP & WebSocket port
+EXPOSE 3000
+
+# Start server (auto-synchronize Prisma schema with database on startup then start API)
+WORKDIR /app/apps/api
+CMD ["sh", "-c", "bun --cwd /app/packages/database x prisma db push --skip-generate || true; bun run index.ts"]

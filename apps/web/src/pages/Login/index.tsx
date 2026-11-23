@@ -68,6 +68,10 @@ export default function LoginPage() {
   const navigate = useNavigate()
   const [tab, setTab] = useState<Tab>('login')
 
+  useEffect(() => {
+    document.title = tab === 'login' ? 'Connexion — Smik Party' : 'Inscription — Smik Party'
+  }, [tab])
+
   // Login state
   const [loginUsername, setLoginUsername] = useState('')
   const [loginPassword, setLoginPassword] = useState('')
