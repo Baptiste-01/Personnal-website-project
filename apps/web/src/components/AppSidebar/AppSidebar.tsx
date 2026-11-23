@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import {
   IconGamepad,
+  IconZap,
   IconDice,
   IconHelpCircle,
   IconChevronDoubleLeft,
@@ -94,10 +95,19 @@ export default function AppSidebar({
   const navItems = [
     {
       to: '/',
-      label: 'Arènes',
-      shortLabel: 'Arènes',
-      tooltip: 'Arènes & Salons — Parties multijoueurs en temps réel',
+      label: 'Accueil',
+      shortLabel: 'Accueil',
+      tooltip: 'Accueil — Présentation de Smik Party & Hub des Jeux',
       icon: <IconGamepad />,
+      badge: 'Hub',
+      badgeClass: 'as-badge--new',
+    },
+    {
+      to: '/speedsmik',
+      label: 'SpeedSmik',
+      shortLabel: 'SpeedSmik',
+      tooltip: 'SpeedSmik (Clone JKLM) — Arènes & Salons multijoueurs en direct',
+      icon: <IconZap />,
       badge: 'En direct',
       badgeClass: 'as-badge--live',
     },
@@ -105,10 +115,10 @@ export default function AppSidebar({
       to: '/games',
       label: 'Jeux',
       shortLabel: 'Jeux',
-      tooltip: 'Catalogue de Jeux — FlashGuess & Nouveautés',
+      tooltip: 'Catalogue complet des jeux & votes de la communauté',
       icon: <IconDice />,
-      badge: 'Nouveau',
-      badgeClass: 'as-badge--new',
+      badge: '5 Jeux',
+      badgeClass: 'as-badge--muted',
     },
     {
       to: '/admin',

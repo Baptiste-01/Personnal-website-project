@@ -210,7 +210,7 @@ export default function GamesHub() {
                         className="gh-btn gh-btn--play"
                         onClick={() => {
                           soundManager.playClick()
-                          navigate('/')
+                          navigate(game.route || '/speedsmik')
                         }}
                       >
                         <IconGamepad />

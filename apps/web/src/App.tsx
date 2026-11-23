@@ -1,5 +1,6 @@
 import { createBrowserRouter, RouterProvider } from 'react-router-dom'
 import MainLayout from './layouts/MainLayout'
+import Home from './pages/Home/index'
 import Lobby from './pages/Lobby/index'
 import Arena from './pages/Arena/index'
 import FlashGuess from './pages/FlashGuess/index'
@@ -14,7 +15,9 @@ const router = createBrowserRouter([
     path: '/',
     element: <MainLayout />,
     children: [
-      { index: true, element: <Lobby /> },
+      { index: true, element: <Home /> },
+      { path: 'speedsmik', element: <Lobby /> },
+      { path: 'speed-smik', element: <Lobby /> },
       { path: 'games', element: <GamesHub /> },
       { path: 'questions', element: <Admin /> },
       { path: 'admin', element: <Admin /> },

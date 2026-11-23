@@ -1018,19 +1018,19 @@ export default function Lobby() {
   return (
     <div className="lobby">
       {/* ─── Modern Retro Pixel Ambiance with animated vignettes ─── */}
-      <ArcadeBackground />
+      <ArcadeBackground variant="speedsmik" />
 
       {/* ─── Header ─── */}
       <header className="lobby-header" id="lobby-header">
         <div className="lobby-brand">
-          <div className="lobby-brand-icon"><IconGamepad /></div>
+          <div className="lobby-brand-icon"><IconZap /></div>
           <h1 className="lobby-title">
-            Smik <span className="lobby-title-accent">Party</span>
+            Speed<span className="lobby-title-accent">Smik</span>
           </h1>
-          <span className="lobby-badge-arcade">ARCADE MULTI</span>
+          <span className="lobby-badge-arcade">CLONE JKLM · FLASHGUESS</span>
         </div>
         <p className="lobby-subtitle">
-          Testez vos connaissances en temps réel. Rejoignez une arène et prouvez que vous êtes le plus rapide.
+          Le jeu de rapidité et de culture générale multijoueur en temps réel. Rejoignez une arène active ou créez votre propre salon de jeu !
         </p>
       </header>
 
