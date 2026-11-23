@@ -1,0 +1,750 @@
+/* ─── Arcade Retro Dynamic Pixel Scene ─── */
+
+.arcade-bg-scene {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* ─── Layer 0: Matrix Grid & Stars ─── */
+.arcade-bg-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, rgba(99, 102, 241, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(99, 102, 241, 0.05) 1px, transparent 1px);
+  background-size: 40px 40px;
+  mask-image: radial-gradient(circle at 50% 50%, black 40%, transparent 90%);
+  opacity: 0.8;
+}
+
+.arcade-bg-stars {
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(1px 1px at 20px 30px, #ffffff, rgba(0, 0, 0, 0)),
+    radial-gradient(1.5px 1.5px at 100px 150px, var(--color-accent-hover), rgba(0, 0, 0, 0)),
+    radial-gradient(1px 1px at 240px 80px, #ffffff, rgba(0, 0, 0, 0)),
+    radial-gradient(2px 2px at 400px 320px, var(--color-accent), rgba(0, 0, 0, 0)),
+    radial-gradient(1.5px 1.5px at 600px 180px, #e2e8f0, rgba(0, 0, 0, 0)),
+    radial-gradient(2px 2px at 800px 450px, #f472b6, rgba(0, 0, 0, 0)),
+    radial-gradient(1px 1px at 950px 120px, #ffffff, rgba(0, 0, 0, 0)),
+    radial-gradient(1.5px 1.5px at 1100px 280px, var(--color-accent-hover), rgba(0, 0, 0, 0));
+  background-size: 550px 550px;
+  opacity: 0.35;
+  animation: starsTwinkle 12s ease-in-out infinite alternate;
+}
+
+@keyframes starsTwinkle {
+  0% {
+    opacity: 0.25;
+  }
+  100% {
+    opacity: 0.45;
+  }
+}
+
+/* ─── Layer 1: Pixel Parallax Clouds ─── */
+.ab-cloud {
+  position: absolute;
+  pointer-events: none;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
+}
+
+.ab-cloud--1 {
+  top: 75px;
+  left: -150px;
+  animation: cloudDrift1 85s linear infinite;
+}
+
+.ab-cloud--2 {
+  top: 145px;
+  left: -120px;
+  animation: cloudDrift2 110s linear infinite 15s;
+}
+
+@keyframes cloudDrift1 {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(calc(100vw + 200px));
+  }
+}
+
+@keyframes cloudDrift2 {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(calc(100vw + 200px));
+  }
+}
+
+/* ─── Layer 2: Space Invader Patrol ─── */
+.ab-invader-flight {
+  position: absolute;
+  top: 90px;
+  left: -60px;
+  color: var(--color-accent);
+  opacity: 0.4;
+  animation: invaderPatrol 55s linear infinite 5s;
+  filter: drop-shadow(0 0 8px var(--color-accent-glow));
+}
+
+.ab-invader-sprite {
+  animation: invaderBob 1.6s ease-in-out infinite alternate;
+}
+
+@keyframes invaderPatrol {
+  0% {
+    transform: translateX(0);
+    opacity: 0;
+  }
+  5% {
+    opacity: 0.45;
+  }
+  95% {
+    opacity: 0.45;
+  }
+  100% {
+    transform: translateX(calc(100vw + 120px));
+    opacity: 0;
+  }
+}
+
+@keyframes invaderBob {
+  0% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(-8px);
+  }
+}
+
+/* ─── Layer 3: Floating Mario Question Block [?] ─── */
+.ab-mario-block-anchor {
+  position: absolute;
+  top: 130px;
+  right: 8%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  opacity: 0.5;
+  animation: blockFloat 4s ease-in-out infinite alternate;
+  filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.5));
+}
+
+@keyframes blockFloat {
+  0% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(-10px);
+  }
+}
+
+.ab-coin {
+  margin-bottom: 4px;
+  animation: coinSpin 1.8s steps(8) infinite, coinBob 2s ease-in-out infinite alternate;
+  filter: drop-shadow(0 0 6px rgba(250, 204, 21, 0.6));
+}
+
+@keyframes coinSpin {
+  0% {
+    transform: scaleX(1);
+  }
+  25% {
+    transform: scaleX(0.2);
+  }
+  50% {
+    transform: scaleX(1);
+  }
+  75% {
+    transform: scaleX(0.2);
+  }
+  100% {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes coinBob {
+  0% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(-6px);
+  }
+}
+
+.ab-question-box {
+  animation: boxBump 6s ease-in-out infinite;
+}
+
+@keyframes boxBump {
+  0%, 92%, 100% {
+    transform: translateY(0);
+  }
+  95% {
+    transform: translateY(-6px);
+  }
+  98% {
+    transform: translateY(2px);
+  }
+}
+
+/* ─── Layer 4: Combat Duels at Bottom Left ─── */
+.ab-combat-bottom-left {
+  position: absolute;
+  bottom: 22px;
+  left: clamp(260px, 18vw, 420px);
+  display: flex;
+  align-items: flex-end;
+  gap: 65px;
+  opacity: 0.7;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.6));
+  z-index: 1;
+  transition: left var(--transition-base, 0.25s ease);
+  pointer-events: none;
+}
+
+.app-shell--sidebar-collapsed .ab-combat-bottom-left {
+  left: clamp(90px, 10vw, 220px);
+}
+
+.ab-fighter {
+  position: relative;
+  transition: transform 0.15s ease;
+}
+
+/* Home Martial Arts Combat: Gi Hero vs Rival Ninja */
+.ab-fighter--hero {
+  animation: fighterBreath 1.8s ease-in-out infinite alternate;
+}
+
+.ab-fighter--rival {
+  animation: fighterGuard 2.2s ease-in-out infinite alternate;
+}
+
+@keyframes fighterBreath {
+  0% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes fighterGuard {
+  0% {
+    transform: translateY(0) scaleX(-1);
+  }
+  100% {
+    transform: translateY(-2px) scaleX(-1);
+  }
+}
+
+.ab-hadouken {
+  position: absolute;
+  bottom: 8px;
+  left: 36px;
+  opacity: 0;
+  filter: drop-shadow(0 0 14px var(--color-accent-glow)) drop-shadow(0 0 6px var(--color-accent));
+  animation: hadoukenBlast 8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@keyframes hadoukenBlast {
+  0%, 74% {
+    opacity: 0;
+    transform: translateX(0) scale(0.6);
+  }
+  75% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  86% {
+    opacity: 1;
+    transform: translateX(75px) scale(1.1);
+  }
+  88% {
+    opacity: 0;
+    transform: translateX(80px) scale(1.3);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(80px);
+  }
+}
+
+/* SpeedSmik Combat: Cyber Knight vs Void Sorcerer */
+.ab-fighter--knight {
+  animation: knightStance 2s ease-in-out infinite alternate;
+}
+
+.ab-fighter--sorcerer {
+  animation: sorcererHover 2.4s ease-in-out infinite alternate;
+}
+
+@keyframes knightStance {
+  0% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes sorcererHover {
+  0% {
+    transform: translateY(0) scaleX(-1);
+  }
+  100% {
+    transform: translateY(-5px) scaleX(-1);
+  }
+}
+
+.ab-duel-energy {
+  position: absolute;
+  bottom: 12px;
+  left: 40px;
+  opacity: 0;
+  filter: drop-shadow(0 0 12px #c084fc) drop-shadow(0 0 6px #38bdf8);
+  animation: duelEnergyPulse 7s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@keyframes duelEnergyPulse {
+  0%, 72% {
+    opacity: 0;
+    transform: translateX(0) scale(0.6);
+  }
+  74% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  86% {
+    opacity: 1;
+    transform: translateX(65px) scale(1.15);
+  }
+  88% {
+    opacity: 0;
+    transform: translateX(70px) scale(1.4);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(70px);
+  }
+}
+
+/* ─── Layer 5: Discrete Bottom Pixel Skyline ─── */
+.ab-pixel-skyline {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 24px;
+  background-image:
+    radial-gradient(2px 2px at 10% 40%, rgba(255, 255, 255, 0.3) 100%, transparent),
+    radial-gradient(2px 2px at 25% 60%, var(--color-accent-hover) 100%, transparent),
+    radial-gradient(2px 2px at 45% 30%, rgba(255, 255, 255, 0.25) 100%, transparent),
+    radial-gradient(2px 2px at 70% 50%, var(--color-accent) 100%, transparent),
+    radial-gradient(2px 2px at 85% 35%, rgba(255, 255, 255, 0.3) 100%, transparent);
+  border-top: 1px dashed var(--color-border);
+  opacity: 0.6;
+}
+
+/* ─── Layer 6A: HOME VARIANT — Endless Horizontal Ground Runner ─── */
+.ab-bottom-runner-zone {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: clamp(340px, 36vw, 520px);
+  height: 120px;
+  pointer-events: none;
+  z-index: 1;
+  overflow: hidden;
+}
+
+.ab-runner-ground-line {
+  position: absolute;
+  bottom: 20px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent 0%, var(--color-accent, #3b82f6) 25%, var(--color-accent-hover, #60a5fa) 100%);
+  box-shadow: 0 0 8px var(--color-accent-glow);
+}
+
+.ab-incoming-obstacle {
+  position: absolute;
+  bottom: 20px;
+  right: -80px;
+  animation: obstacleScrollTrack 2.6s linear forwards;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.6));
+  z-index: 2;
+  pointer-events: none;
+}
+
+@keyframes obstacleScrollTrack {
+  0% {
+    right: -80px;
+  }
+  100% {
+    right: 520px;
+  }
+}
+
+.ab-incoming-obstacle--spikes {
+  filter: drop-shadow(0 0 8px rgba(239, 68, 68, 0.6));
+}
+
+.ab-incoming-obstacle--pit {
+  bottom: 0px;
+  filter: drop-shadow(0 0 8px rgba(220, 38, 38, 0.45));
+}
+
+.ab-stationed-hero {
+  position: absolute;
+  bottom: 20px;
+  right: clamp(40px, 3.8vw, 54px);
+  width: 48px;
+  height: 60px;
+  z-index: 5;
+  transform-origin: 50% 50%;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.65));
+  pointer-events: none;
+  transition: right var(--transition-base, 0.25s ease);
+}
+
+.ab-stationed-hero--jumping-frontflip {
+  animation: heroSaltoFrontflip 0.65s cubic-bezier(0.33, 1, 0.68, 1) forwards;
+}
+
+.ab-stationed-hero--jumping-backflip {
+  animation: heroSaltoBackflip 0.65s cubic-bezier(0.33, 1, 0.68, 1) forwards;
+}
+
+@keyframes heroSaltoFrontflip {
+  0% {
+    transform: translateY(0) rotate(0deg);
+  }
+  25% {
+    transform: translateY(-38px) rotate(80deg);
+  }
+  50% {
+    transform: translateY(-68px) rotate(180deg);
+  }
+  75% {
+    transform: translateY(-38px) rotate(280deg);
+  }
+  92% {
+    transform: translateY(-10px) rotate(350deg);
+  }
+  100% {
+    transform: translateY(0) rotate(360deg);
+  }
+}
+
+@keyframes heroSaltoBackflip {
+  0% {
+    transform: translateY(0) rotate(0deg);
+  }
+  25% {
+    transform: translateY(-40px) rotate(-85deg);
+  }
+  50% {
+    transform: translateY(-72px) rotate(-180deg);
+  }
+  75% {
+    transform: translateY(-40px) rotate(-275deg);
+  }
+  92% {
+    transform: translateY(-10px) rotate(-350deg);
+  }
+  100% {
+    transform: translateY(0) rotate(-360deg);
+  }
+}
+
+.ab-sh-sprite {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 48px;
+  height: 60px;
+  pointer-events: none;
+}
+
+.ab-sh-sprite svg {
+  animation: heroSprintBob 0.28s ease-in-out infinite alternate;
+}
+
+@keyframes heroSprintBob {
+  0% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(-2px);
+  }
+}
+
+.ab-sh-dust {
+  position: absolute;
+  bottom: 1px;
+  left: -4px;
+  width: 8px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.35);
+  border-radius: 50%;
+  animation: heroDustPuff 0.28s infinite;
+  transition: opacity 0.15s ease;
+}
+
+.ab-sh-dust--hidden {
+  opacity: 0 !important;
+}
+
+@keyframes heroDustPuff {
+  0% {
+    opacity: 0.6;
+    transform: scale(0.6);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.4) translateX(-8px);
+  }
+}
+
+/* ─── Layer 6B: SPEEDSMIK VARIANT — Vertical Wall-Slide at Right Side ─── */
+.ab-vertical-wall-zone {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: clamp(200px, 18vw, 260px);
+  height: 440px;
+  pointer-events: none;
+  z-index: 1;
+  overflow: hidden;
+}
+
+.ab-vertical-wall-rail {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 34px;
+  width: 6px;
+  background: linear-gradient(
+    180deg,
+    rgba(99, 102, 241, 0.2) 0%,
+    var(--color-accent, #3b82f6) 30%,
+    var(--color-accent-hover, #60a5fa) 80%,
+    rgba(56, 189, 248, 0.5) 100%
+  );
+  box-shadow: 0 0 10px var(--color-accent-glow), -2px 0 6px rgba(99, 102, 241, 0.3);
+  border-left: 1px dashed rgba(255, 255, 255, 0.4);
+}
+
+.ab-wall-obstacle {
+  position: absolute;
+  right: 28px;
+  bottom: -50px;
+  z-index: 2;
+  pointer-events: none;
+  animation: wallObstacleScrollTrack 2.6s linear forwards;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.6));
+}
+
+@keyframes wallObstacleScrollTrack {
+  0% {
+    bottom: -50px;
+  }
+  100% {
+    bottom: 440px;
+  }
+}
+
+.ab-wall-obstacle--wall-spikes {
+  filter: drop-shadow(0 0 8px rgba(239, 68, 68, 0.7));
+}
+
+.ab-wall-obstacle--wall-pipe {
+  filter: drop-shadow(0 0 8px rgba(34, 197, 94, 0.6));
+}
+
+.ab-wall-obstacle--wall-laser {
+  filter: drop-shadow(0 0 10px rgba(99, 102, 241, 0.8));
+}
+
+.ab-wall-hero {
+  position: absolute;
+  bottom: 160px;
+  right: 38px;
+  width: 52px;
+  height: 60px;
+  z-index: 5;
+  pointer-events: none;
+  transform-origin: 50% 50%;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.7));
+}
+
+.ab-wall-hero--jumping-frontflip {
+  animation: heroWallFrontflip 0.65s cubic-bezier(0.33, 1, 0.68, 1) forwards;
+}
+
+.ab-wall-hero--jumping-backflip {
+  animation: heroWallBackflip 0.65s cubic-bezier(0.33, 1, 0.68, 1) forwards;
+}
+
+@keyframes heroWallFrontflip {
+  0% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  25% {
+    transform: translate(-42px, -30px) rotate(90deg);
+  }
+  50% {
+    transform: translate(-65px, -15px) rotate(180deg);
+  }
+  75% {
+    transform: translate(-42px, 0px) rotate(270deg);
+  }
+  92% {
+    transform: translate(-10px, 0px) rotate(350deg);
+  }
+  100% {
+    transform: translate(0, 0) rotate(360deg);
+  }
+}
+
+@keyframes heroWallBackflip {
+  0% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  25% {
+    transform: translate(-44px, -32px) rotate(-90deg);
+  }
+  50% {
+    transform: translate(-68px, -18px) rotate(-180deg);
+  }
+  75% {
+    transform: translate(-44px, 0px) rotate(-270deg);
+  }
+  92% {
+    transform: translate(-10px, 0px) rotate(-350deg);
+  }
+  100% {
+    transform: translate(0, 0) rotate(-360deg);
+  }
+}
+
+.ab-wall-hero-sprite {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.ab-wall-hero-sprite svg {
+  animation: heroSlideVibe 0.18s ease-in-out infinite alternate;
+}
+
+@keyframes heroSlideVibe {
+  0% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(-2px);
+  }
+}
+
+.ab-wall-sparks {
+  position: absolute;
+  bottom: 0px;
+  right: -2px;
+  width: 14px;
+  height: 18px;
+  pointer-events: none;
+}
+
+.ab-wall-sparks--hidden {
+  opacity: 0 !important;
+}
+
+.ab-spark {
+  position: absolute;
+  border-radius: 50%;
+  opacity: 0;
+}
+
+.ab-spark--1 {
+  width: 4px;
+  height: 4px;
+  background: #fde047;
+  box-shadow: 0 0 6px #fde047;
+  animation: sparkFly1 0.25s infinite;
+}
+
+.ab-spark--2 {
+  width: 3px;
+  height: 3px;
+  background: #38bdf8;
+  box-shadow: 0 0 4px #38bdf8;
+  animation: sparkFly2 0.3s infinite 0.1s;
+}
+
+.ab-spark--3 {
+  width: 3px;
+  height: 3px;
+  background: #ffffff;
+  box-shadow: 0 0 5px #ffffff;
+  animation: sparkFly3 0.22s infinite 0.05s;
+}
+
+@keyframes sparkFly1 {
+  0% {
+    opacity: 0.9;
+    transform: translate(0, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-10px, -14px) scale(0.3);
+  }
+}
+
+@keyframes sparkFly2 {
+  0% {
+    opacity: 0.9;
+    transform: translate(0, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-12px, -8px) scale(0.4);
+  }
+}
+
+@keyframes sparkFly3 {
+  0% {
+    opacity: 0.8;
+    transform: translate(0, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-6px, -18px) scale(0.2);
+  }
+}
+
+/* ─── Responsive adjustments ─── */
+@media (max-width: 900px) {
+  .ab-combat-bottom-left,
+  .ab-bottom-runner-zone,
+  .ab-vertical-wall-zone {
+    display: none;
+  }
+
+  .ab-mario-block-anchor {
+    top: 90px;
+    right: 4%;
+    opacity: 0.35;
+  }
+}

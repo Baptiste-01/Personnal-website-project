@@ -1,11 +1,24 @@
-import 'dotenv/config'
+import dotenv from 'dotenv'
+import path from 'path'
+import { fileURLToPath } from 'url'
 import { PrismaClient } from '@prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
+
+// Automatically find and load .env whether running from root, apps/api, or cloud
+dotenv.config()
+if (!process.env.DATABASE_URL) {
+  const currentDir = typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url))
+  dotenv.config({ path: path.resolve(currentDir, '../../../.env') })
+  if (!process.env.DATABASE_URL) {
+    dotenv.config({ path: path.resolve(process.cwd(), '.env') })
+    dotenv.config({ path: path.resolve(process.cwd(), '../../.env') })
+  }
+}
 
 // DATABASE_URL is injected via .env in local dev or cloud environment variables (Neon, Render)
 const rawDatabaseUrl = process.env.DATABASE_URL
 if (!rawDatabaseUrl) {
-  console.warn('⚠️ [Prisma] DATABASE_URL absente dans l\'environnement.')
+  console.warn("⚠️ [Prisma] DATABASE_URL absente dans l'environnement.")
 }
 
 // Neon appends channel_binding=require which breaks node-pg/Prisma client

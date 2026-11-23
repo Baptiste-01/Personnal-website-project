@@ -22,10 +22,10 @@ export interface GameInfo {
 export const GAME_CATALOG: GameInfo[] = [
   {
     id: 'flashguess',
-    title: 'FlashGuess',
-    slug: 'flashguess',
+    title: 'SpeedSmik (FlashGuess)',
+    slug: 'speedsmik',
     icon: '⚡',
-    tagline: 'Jeu de rapidité et de culture générale en temps réel',
+    tagline: 'Clone JKLM : Jeu de rapidité, culture générale et buzzers en temps réel',
     description:
       'Chaque manche dévoile une question. Tapez la bonne réponse avant vos adversaires pour marquer le maximum de points. Accumulez des séries de flammes et profitez de bonus de vitesse !',
     status: 'available',
@@ -40,8 +40,8 @@ export const GAME_CATALOG: GameInfo[] = [
       'Séries de bonnes réponses avec multiplicateurs x1.5 et x2.0',
       'Détection automatique du 1er joueur à trouver',
     ],
-    actionLabel: 'Lancer une arène',
-    route: '/',
+    actionLabel: 'Rejoindre une arène',
+    route: '/speedsmik',
     accentColor: '#6366f1',
   },
   {

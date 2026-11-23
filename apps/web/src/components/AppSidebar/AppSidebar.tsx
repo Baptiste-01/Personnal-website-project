@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import {
   IconGamepad,
+  IconZap,
   IconDice,
   IconHelpCircle,
-  IconUser,
   IconChevronDoubleLeft,
   IconChevronDoubleRight,
   IconLogOut,
@@ -91,35 +91,45 @@ export default function AppSidebar({
     navigate('/')
   }
 
+  // Navigation Items — sleek, single-line items with concise labels and tooltips
   const navItems = [
     {
       to: '/',
-      label: 'Arènes & Salons',
-      shortLabel: 'Arènes',
-      subtitle: 'Parties multijoueurs',
+      label: 'Accueil',
+      shortLabel: 'Accueil',
+      tooltip: 'Accueil — Présentation de Smik Party & Hub des Jeux',
       icon: <IconGamepad />,
+      badge: 'Hub',
+      badgeClass: 'as-badge--new',
+    },
+    {
+      to: '/speedsmik',
+      label: 'SpeedSmik',
+      shortLabel: 'SpeedSmik',
+      tooltip: 'SpeedSmik (Clone JKLM) — Arènes & Salons multijoueurs en direct',
+      icon: <IconZap />,
       badge: 'En direct',
       badgeClass: 'as-badge--live',
     },
     {
       to: '/games',
-      label: 'Catalogue de Jeux',
+      label: 'Jeux',
       shortLabel: 'Jeux',
-      subtitle: 'FlashGuess & À venir',
+      tooltip: 'Catalogue complet des jeux & votes de la communauté',
       icon: <IconDice />,
-      badge: 'Nouveau',
-      badgeClass: 'as-badge--new',
+      badge: '5 Jeux',
+      badgeClass: 'as-badge--muted',
     },
     {
       to: '/admin',
-      label: isConnected && authUser?.isAdmin ? 'Administration' : 'Questions',
+      label: isConnected && authUser?.isAdmin ? 'Admin' : 'Questions',
       shortLabel: isConnected && authUser?.isAdmin ? 'Admin' : 'Questions',
-      subtitle:
-        isConnected && authUser?.isAdmin && suspendedCount > 0
-          ? `${suspendedCount} suspendue${suspendedCount > 1 ? 's' : ''}`
-          : isConnected && authUser?.isAdmin
-          ? 'Questions & Utilisateurs'
-          : 'Banque & Modération',
+      tooltip:
+        isConnected && authUser?.isAdmin
+          ? suspendedCount > 0
+            ? `Administration (${suspendedCount} question${suspendedCount > 1 ? 's' : ''} suspendue${suspendedCount > 1 ? 's' : ''})`
+            : 'Administration — Questions & Modération'
+          : 'Banque de questions & Modération',
       icon: <IconHelpCircle />,
       badge:
         isConnected && authUser?.isAdmin
@@ -133,15 +143,6 @@ export default function AppSidebar({
             ? 'as-badge--warning'
             : 'as-badge--admin'
           : 'as-badge--muted',
-    },
-    {
-      to: isConnected ? '/profile' : '/login',
-      label: isConnected ? 'Mon Profil' : 'Utilisateur',
-      shortLabel: 'Profil',
-      subtitle: isConnected ? `${authUser?.username || 'Joueur'}` : 'Se connecter',
-      icon: <IconUser />,
-      badge: isConnected ? `Niv. ${Math.floor((authUser?.xp || 0) / 100) + 1}` : undefined,
-      badgeClass: 'as-badge--xp',
     },
   ]
 
@@ -171,41 +172,72 @@ export default function AppSidebar({
       >
         {/* ─── Header / Brand ─── */}
         <div className="as-header">
-          <NavLink
-            to="/"
-            className="as-brand"
-            onClick={() => {
-              soundManager.playClick()
-              if (mobileOpen) onCloseMobile()
-            }}
-            title="Smik Party - Accueil"
-          >
-            <div className="as-brand-icon">
-              <IconGamepad />
-            </div>
-            {!collapsed && (
-              <div className="as-brand-text">
+          {!collapsed ? (
+            <div className="as-header-content">
+              {/* Toggle Brand Icon next to Smik Party */}
+              <button
+                type="button"
+                className="as-brand-icon as-brand-icon--toggle"
+                onClick={() => {
+                  soundManager.playClick()
+                  onToggleCollapse()
+                }}
+                title="Replier le menu latéral"
+                aria-label="Replier le menu latéral"
+              >
+                <IconGamepad />
+              </button>
+
+              {/* Brand title navigating to Home */}
+              <NavLink
+                to="/"
+                className="as-brand-text"
+                onClick={() => {
+                  soundManager.playClick()
+                  if (mobileOpen) onCloseMobile()
+                }}
+                title="Smik Party - Accueil"
+              >
                 <span className="as-brand-title">
                   Smik <span className="as-brand-accent">Party</span>
                 </span>
                 <span className="as-brand-tag">v2.0 Hub</span>
-              </div>
-            )}
-          </NavLink>
+              </NavLink>
 
-          {/* Desktop Collapse Toggle */}
-          <button
-            type="button"
-            className="as-toggle-btn as-toggle-btn--desktop"
-            onClick={() => {
-              soundManager.playClick()
-              onToggleCollapse()
-            }}
-            title={collapsed ? 'Déplier le menu latéral' : 'Replier le menu latéral'}
-            aria-label={collapsed ? 'Déplier le menu' : 'Replier le menu'}
-          >
-            {collapsed ? <IconChevronDoubleRight /> : <IconChevronDoubleLeft />}
-          </button>
+              {/* Desktop Collapse Toggle */}
+              <button
+                type="button"
+                className="as-toggle-btn as-toggle-btn--desktop"
+                onClick={() => {
+                  soundManager.playClick()
+                  onToggleCollapse()
+                }}
+                title="Replier le menu latéral"
+                aria-label="Replier le menu latéral"
+              >
+                <IconChevronDoubleLeft />
+              </button>
+            </div>
+          ) : (
+            <div className="as-header-collapsed">
+              {/* Centered Icon next to Smik Party: reduces and expands the sidebar */}
+              <button
+                type="button"
+                className="as-brand-icon as-brand-icon--collapsed as-brand-icon--toggle"
+                onClick={() => {
+                  soundManager.playClick()
+                  onToggleCollapse()
+                }}
+                title="Déplier le menu latéral (Smik Party)"
+                aria-label="Déplier le menu latéral"
+              >
+                <IconGamepad />
+                <span className="as-brand-expand-hint" aria-hidden="true">
+                  <IconChevronDoubleRight />
+                </span>
+              </button>
+            </div>
+          )}
 
           {/* Mobile Close Button */}
           <button
@@ -243,15 +275,25 @@ export default function AppSidebar({
                       soundManager.playClick()
                       if (mobileOpen) onCloseMobile()
                     }}
-                    title={collapsed ? item.label : undefined}
+                    title={item.tooltip || item.label}
                   >
-                    <span className="as-nav-icon">{item.icon}</span>
-                    {!collapsed && (
-                      <div className="as-nav-info">
-                        <span className="as-nav-label">{item.label}</span>
-                        <span className="as-nav-sub">{item.subtitle}</span>
-                      </div>
-                    )}
+                    <div className="as-nav-link-main">
+                      <span className="as-nav-icon">
+                        {item.icon}
+                        {collapsed && item.badge && (
+                          <span
+                            className={`as-nav-dot-badge ${
+                              item.badgeClass === 'as-badge--warning'
+                                ? 'as-nav-dot-badge--warning'
+                                : item.badgeClass === 'as-badge--live'
+                                ? 'as-nav-dot-badge--live'
+                                : 'as-nav-dot-badge--default'
+                            }`}
+                          />
+                        )}
+                      </span>
+                      {!collapsed && <span className="as-nav-label">{item.label}</span>}
+                    </div>
                     {!collapsed && item.badge && (
                       <span className={`as-badge ${item.badgeClass || ''}`}>
                         {item.badge}
@@ -267,28 +309,54 @@ export default function AppSidebar({
         {/* ─── Audio & Ambient Controls ─── */}
         <div className="as-audio-zone">
           <div className="as-audio-wrapper">
-            <AudioThemeControls compact={collapsed} />
+            <AudioThemeControls
+              compact={collapsed}
+              orientation={collapsed ? 'vertical' : 'horizontal'}
+            />
           </div>
         </div>
 
         {/* ─── Footer User Card ─── */}
         <div className="as-footer">
           {isConnected && authUser ? (
-            <div className={`as-user-card ${collapsed ? 'as-user-card--collapsed' : ''}`}>
-              <div
-                className="as-user-avatar"
-                onClick={() => {
-                  soundManager.playClick()
-                  navigate('/profile')
-                  if (mobileOpen) onCloseMobile()
-                }}
-                title={`Profil de ${authUser.username} (Niveau ${userLevel})`}
-              >
-                <span>{userInitial}</span>
-                {authUser.isAdmin && <span className="as-user-crown">👑</span>}
+            collapsed ? (
+              <div className="as-footer-collapsed">
+                <div
+                  className="as-user-avatar as-user-avatar--collapsed"
+                  onClick={() => {
+                    soundManager.playClick()
+                    navigate('/profile')
+                  }}
+                  title={`Profil de ${authUser.username} (Niveau ${userLevel}) — Cliquer pour ouvrir`}
+                >
+                  <span>{userInitial}</span>
+                  {authUser.isAdmin && <span className="as-user-crown">👑</span>}
+                </div>
+                <button
+                  type="button"
+                  className="as-logout-btn as-logout-btn--collapsed"
+                  onClick={handleLogout}
+                  title="Se déconnecter"
+                  aria-label="Déconnexion"
+                >
+                  <IconLogOut />
+                </button>
               </div>
+            ) : (
+              <div className="as-user-card">
+                <div
+                  className="as-user-avatar"
+                  onClick={() => {
+                    soundManager.playClick()
+                    navigate('/profile')
+                    if (mobileOpen) onCloseMobile()
+                  }}
+                  title={`Profil de ${authUser.username} (Niveau ${userLevel})`}
+                >
+                  <span>{userInitial}</span>
+                  {authUser.isAdmin && <span className="as-user-crown">👑</span>}
+                </div>
 
-              {!collapsed && (
                 <div
                   className="as-user-meta"
                   onClick={() => {
@@ -305,9 +373,7 @@ export default function AppSidebar({
                     Niveau {userLevel} • {authUser.xp || 0} XP
                   </span>
                 </div>
-              )}
 
-              {!collapsed && (
                 <button
                   type="button"
                   className="as-logout-btn"
@@ -317,38 +383,37 @@ export default function AppSidebar({
                 >
                   <IconLogOut />
                 </button>
-              )}
+              </div>
+            )
+          ) : collapsed ? (
+            <div className="as-footer-collapsed">
+              <button
+                type="button"
+                className="as-login-icon-btn"
+                onClick={() => {
+                  soundManager.playClick()
+                  navigate('/login')
+                }}
+                title="Se connecter"
+                aria-label="Se connecter"
+              >
+                <IconLogin />
+              </button>
             </div>
           ) : (
-            <div className={`as-guest-card ${collapsed ? 'as-guest-card--collapsed' : ''}`}>
-              {!collapsed ? (
-                <button
-                  type="button"
-                  className="as-login-btn"
-                  onClick={() => {
-                    soundManager.playClick()
-                    navigate('/login')
-                    if (mobileOpen) onCloseMobile()
-                  }}
-                >
-                  <IconLogin />
-                  <span>Se connecter</span>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="as-login-icon-btn"
-                  onClick={() => {
-                    soundManager.playClick()
-                    navigate('/login')
-                    if (mobileOpen) onCloseMobile()
-                  }}
-                  title="Se connecter"
-                  aria-label="Se connecter"
-                >
-                  <IconLogin />
-                </button>
-              )}
+            <div className="as-guest-card">
+              <button
+                type="button"
+                className="as-login-btn"
+                onClick={() => {
+                  soundManager.playClick()
+                  navigate('/login')
+                  if (mobileOpen) onCloseMobile()
+                }}
+              >
+                <IconLogin />
+                <span>Se connecter</span>
+              </button>
             </div>
           )}
         </div>

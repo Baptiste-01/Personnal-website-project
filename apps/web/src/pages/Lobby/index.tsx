@@ -10,12 +10,12 @@ import { DIFFICULTY_LABELS, CATEGORY_LABELS, ALL_CATEGORIES, CATEGORY_ICONS, DEF
 import type { Difficulty, GameSettings } from '../../types'
 import Slider from '../../components/Slider/Slider'
 import type { SlideItem } from '../../components/Slider/Slider'
-import AudioThemeControls from '../../components/AudioThemeControls'
 import TemplateModal from '../../components/TemplateModal/TemplateModal'
 import { fetchTemplateByCode } from '../../utils/templateApi'
 import { serializeCategoryListMap, serializeDifficultyTimesMap } from '../../utils/tagFilter'
 import { soundManager } from '../../utils/sound'
 import { API_URL, setCustomApiUrl } from '../../utils/config'
+import ArcadeBackground from '../../components/ArcadeBackground/ArcadeBackground'
 import './Lobby.css'
 
 /* ─── Types ─── */
@@ -1022,46 +1022,20 @@ export default function Lobby() {
 
   return (
     <div className="lobby">
-      <div className="lobby-bg-orb lobby-bg-orb--1" />
-      <div className="lobby-bg-orb lobby-bg-orb--2" />
-      <div className="lobby-bg-orb lobby-bg-orb--3" />
-
-      {/* ─── Navbar ─── */}
-      <nav className="lobby-nav" id="lobby-nav">
-        <AudioThemeControls />
-        {isConnected && authUser?.isAdmin && (
-          <button
-            className="btn-login"
-            id="admin-button"
-            onClick={() => navigate('/admin')}
-            title="Administration & Importation de questions"
-          >
-            <span style={{ fontSize: '14px' }}>📊</span> Admin
-          </button>
-        )}
-        {isConnected && authUser ? (
-          <button className="btn-login" id="profile-button" onClick={() => navigate('/profile')}>
-            <IconUser />
-            {authUser.username}
-          </button>
-        ) : (
-          <button className="btn-login" id="login-button" onClick={() => navigate('/login')}>
-            <IconLogin />
-            Se connecter
-          </button>
-        )}
-      </nav>
+      {/* ─── Modern Retro Pixel Ambiance with animated vignettes ─── */}
+      <ArcadeBackground variant="speedsmik" />
 
       {/* ─── Header ─── */}
       <header className="lobby-header" id="lobby-header">
         <div className="lobby-brand">
-          <div className="lobby-brand-icon"><IconGamepad /></div>
+          <div className="lobby-brand-icon"><IconZap /></div>
           <h1 className="lobby-title">
-            Smik <span className="lobby-title-accent">Party</span>
+            Speed<span className="lobby-title-accent">Smik</span>
           </h1>
+          <span className="lobby-badge-arcade">CLONE JKLM · FLASHGUESS</span>
         </div>
         <p className="lobby-subtitle">
-          Testez vos connaissances en temps réel. Rejoignez une arène et prouvez que vous êtes le plus rapide.
+          Le jeu de rapidité et de culture générale multijoueur en temps réel. Rejoignez une arène active ou créez votre propre salon de jeu !
         </p>
       </header>
 

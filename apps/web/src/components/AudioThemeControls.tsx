@@ -7,9 +7,13 @@ import './AudioThemeControls.css'
 
 interface AudioThemeControlsProps {
   compact?: boolean
+  orientation?: 'horizontal' | 'vertical'
 }
 
-export default function AudioThemeControls({ compact = false }: AudioThemeControlsProps) {
+export default function AudioThemeControls({
+  compact = false,
+  orientation = 'horizontal',
+}: AudioThemeControlsProps) {
   const [muted, setMuted] = useState(soundManager.isMuted())
   const [theme, setTheme] = useState<ThemeId>(themeManager.getTheme())
 
@@ -37,7 +41,7 @@ export default function AudioThemeControls({ compact = false }: AudioThemeContro
   const currentThemeMeta = AVAILABLE_THEMES.find(t => t.id === theme) ?? AVAILABLE_THEMES[0]
 
   return (
-    <div className="at-controls">
+    <div className={`at-controls at-controls--${orientation} ${compact ? 'at-controls--compact' : ''}`}>
       {/* Sound Mute Toggle */}
       <button
         type="button"
@@ -47,7 +51,7 @@ export default function AudioThemeControls({ compact = false }: AudioThemeContro
         aria-label={muted ? 'Activer le son' : 'Couper le son'}
       >
         {muted ? <IconVolumeMute /> : <IconVolume />}
-        {!compact && <span>{muted ? 'Muet' : 'Audio ON'}</span>}
+        {!compact && <span>{muted ? 'Muet' : 'Son'}</span>}
       </button>
 
       {/* Theme Switcher Button */}
