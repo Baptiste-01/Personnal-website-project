@@ -469,9 +469,21 @@ export class GameRoom {
     return newPlayer
   }
 
-  public handlePlayerDisconnect(id: string) {
+  public handlePlayerDisconnect(id: string, closingWs?: any) {
     const player = this.players.get(id)
     if (!player) return
+
+    // Socket identity check: If a closing socket is provided, only mark disconnected
+    // if it is still the player's active socket. If the player already reconnected on a new socket
+    // (e.g. navigation transition between /arena and /play), ignore closure of the stale socket.
+    if (
+      closingWs &&
+      player.ws &&
+      player.ws !== closingWs &&
+      (!closingWs.raw || player.ws.raw !== closingWs.raw)
+    ) {
+      return
+    }
 
     player.isOnline = false
     player.ws = null
@@ -730,9 +742,11 @@ export class GameRoom {
       players: this.getPlayerSummaries(),
     })
 
-    // Server-authoritative timer
+    // Server-authoritative timestamp timer (drift-resilient and leak-proof)
     this.timer = setInterval(() => {
-      this.timeLeft -= 1
+      const elapsed = Math.floor((Date.now() - this.roundStartTime) / 1000)
+      this.timeLeft = Math.max(0, roundTime - elapsed)
+
       this.broadcast({
         type: 'tick',
         timeLeft: this.timeLeft,

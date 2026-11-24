@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   IconArrowLeft, IconGamepad, IconUser, IconCheck, IconClock,
@@ -465,10 +465,16 @@ useEffect(() => {
         if (typeof data.maxPlayers === 'number') {
           setMaxPlayers(data.maxPlayers)
         }
+        if (!searchParams.get('categories') && Array.isArray(data.categories) && data.categories.length > 0) {
+          setSettings(prev => ({
+            ...prev,
+            categories: data.categories as Category[],
+          }))
+        }
       }
     })
     .catch(() => setArenaName('Mon Arène'))
-}, [arenaId])
+}, [arenaId, searchParams])
 
 useEffect(() => {
   document.title = arenaName && arenaName !== 'Chargement...' ? `${arenaName} — Smik Party` : 'Arène — Smik Party'
@@ -542,15 +548,25 @@ const copyInviteLink = () => {
 
 const readyCount = players.filter(p => p.isReady).length
 
-const displayCategories: CategoryInfo[] = availableCategories.length > 0
-  ? availableCategories
-  : ALL_CATEGORIES.map(c => ({
-    id: c,
-    name: CATEGORY_LABELS[c] ?? c,
-    icon: CATEGORY_ICONS[c] ?? '🏷️',
-    count: 0,
-    tags: [],
-  }))
+const displayCategories: CategoryInfo[] = useMemo(() => {
+  const source = availableCategories.length > 0
+    ? availableCategories
+    : ALL_CATEGORIES.map(c => ({
+        id: c,
+        name: CATEGORY_LABELS[c] ?? c,
+        icon: CATEGORY_ICONS[c] ?? '🏷️',
+        count: 0,
+        tags: [],
+      }))
+
+  const seen = new Set<string>()
+  return source.filter(cat => {
+    const key = (cat.name || cat.id).toLowerCase().trim()
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}, [availableCategories])
 
 return (
   <div className="arena" id="arena-page">

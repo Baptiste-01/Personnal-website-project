@@ -78,6 +78,7 @@ export function useArenaSocket({
   const reconnectTimeoutRef = useRef<any>(null)
   const onGameStartedRef = useRef(onGameStarted)
   const onGameRestartedRef = useRef(onGameRestarted)
+  const roundDeadlineRef = useRef<number | null>(null)
 
   useEffect(() => {
     onGameStartedRef.current = onGameStarted
@@ -168,7 +169,12 @@ export function useArenaSocket({
           if (typeof room.currentRound === 'number') setCurrentRound(room.currentRound)
           if (typeof room.totalRounds === 'number') setTotalRounds(room.totalRounds)
           if (typeof room.isInfinite === 'boolean') setIsInfinite(room.isInfinite)
-          if (typeof room.timeLeft === 'number') setTimeLeft(room.timeLeft)
+          if (typeof room.timeLeft === 'number') {
+            setTimeLeft(room.timeLeft)
+            if (room.status === 'playing') {
+              roundDeadlineRef.current = Date.now() + room.timeLeft * 1000
+            }
+          }
           if (typeof room.timePerRound === 'number') setRoundMaxTime(room.timePerRound)
           if (typeof room.isSpeedrun === 'boolean') setIsSpeedrun(room.isSpeedrun)
           if (room.question && room.question.text) setCurrentQuestion(room.question)
@@ -243,6 +249,7 @@ export function useArenaSocket({
         if (typeof msg.timePerRound === 'number') {
           setTimeLeft(msg.timePerRound)
           setRoundMaxTime(msg.timePerRound)
+          roundDeadlineRef.current = Date.now() + msg.timePerRound * 1000
         }
         setIsSpeedrun(Boolean(msg.isSpeedrun))
         if (msg.question) setCurrentQuestion(msg.question)
@@ -260,6 +267,7 @@ export function useArenaSocket({
       case 'tick': {
         if (typeof msg.timeLeft === 'number') {
           setTimeLeft(msg.timeLeft)
+          roundDeadlineRef.current = Date.now() + msg.timeLeft * 1000
           if (msg.timeLeft <= 5 && msg.timeLeft > 0) {
             soundManager.playWarning()
           }
@@ -318,6 +326,7 @@ export function useArenaSocket({
       }
 
       case 'round_end': {
+        roundDeadlineRef.current = null
         setRoomStatus('reveal')
         if (msg.answer) setRevealedAnswer(msg.answer)
         if (Array.isArray(msg.acceptedAnswers)) setAcceptedAnswers(msg.acceptedAnswers)
@@ -326,6 +335,7 @@ export function useArenaSocket({
       }
 
       case 'game_over': {
+        roundDeadlineRef.current = null
         setRoomStatus('finished')
         soundManager.playVictory()
         triggerVictoryConfetti()
@@ -337,6 +347,7 @@ export function useArenaSocket({
       }
 
       case 'game_restarted': {
+        roundDeadlineRef.current = null
         setRoomStatus('waiting')
         setAnswerFeedback('none')
         setRevealedAnswer(null)
@@ -449,6 +460,44 @@ export function useArenaSocket({
       return () => clearTimeout(timer)
     }
   }, [connected, roomStatus, currentQuestion, requestCurrentRound])
+
+  // Resilient Client-Side Countdown Timer: Interpolates smoothly between server ticks
+  useEffect(() => {
+    if (roomStatus !== 'playing') {
+      roundDeadlineRef.current = null
+      return
+    }
+
+    const interval = setInterval(() => {
+      if (roundDeadlineRef.current) {
+        const remaining = Math.max(0, Math.ceil((roundDeadlineRef.current - Date.now()) / 1000))
+        setTimeLeft(prev => (prev !== remaining ? remaining : prev))
+      }
+    }, 250)
+
+    return () => clearInterval(interval)
+  }, [roomStatus])
+
+  // Watchdog Recovery: If local timer reaches 0 but no round_end received after grace period, sync state
+  useEffect(() => {
+    if (connected && roomStatus === 'playing' && timeLeft === 0) {
+      const graceTimeout = setTimeout(() => {
+        if (roomStatus === 'playing' && timeLeft === 0) {
+          requestCurrentRound()
+        }
+      }, 1500)
+      return () => clearTimeout(graceTimeout)
+    }
+  }, [connected, roomStatus, timeLeft, requestCurrentRound])
+
+  // Periodic heartbeat (ping) to prevent proxy idle disconnection (Render / Cloudflare / Nginx)
+  useEffect(() => {
+    if (!connected) return
+    const pingInterval = setInterval(() => {
+      send({ type: 'ping' })
+    }, 15000)
+    return () => clearInterval(pingInterval)
+  }, [connected, send])
 
   const myPlayer = players.find(p => p.id === selfId)
 

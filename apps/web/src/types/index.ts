@@ -25,6 +25,9 @@ export const ALL_CATEGORIES: string[] = [
 
 export const CATEGORY_ICONS: Record<string, string> = {
   mythologie: '🏛️',
+  'mythologie & légende': '🏛️',
+  'mythologie & légendes': '🏛️',
+  'mythologie-legende': '🏛️',
   capitale: '🌍',
   capitales: '🌍',
   drapeau: '🚩',
@@ -35,14 +38,24 @@ export const CATEGORY_ICONS: Record<string, string> = {
   cinema: '🎬',
   musique: '🎵',
   sport: '⚽',
+  sports: '⚽',
   litterature: '📚',
   gastronomie: '🍽️',
   warframe: '⚔️',
   'anime & manga': '🎌',
+  'anime-manga': '🎌',
+  'animaux & dinosaures': '🦕',
+  'animaux-dinosaures': '🦕',
+  'jeux vidéo': '🎮',
+  'jeux video': '🎮',
+  'jeux-video': '🎮',
 }
 
 export const CATEGORY_LABELS: Record<string, string> = {
   mythologie: 'Mythologie & Légendes',
+  'mythologie & légende': 'Mythologie & Légendes',
+  'mythologie & légendes': 'Mythologie & Légendes',
+  'mythologie-legende': 'Mythologie & Légendes',
   capitale: 'Capitales',
   capitales: 'Capitales',
   drapeau: 'Drapeaux',
@@ -53,10 +66,17 @@ export const CATEGORY_LABELS: Record<string, string> = {
   cinema: 'Cinéma',
   musique: 'Musique',
   sport: 'Sport',
+  sports: 'Sports',
   litterature: 'Littérature',
   gastronomie: 'Gastronomie',
   warframe: 'Warframe',
   'anime & manga': 'Anime & Manga',
+  'anime-manga': 'Anime & Manga',
+  'animaux & dinosaures': 'Animaux & Dinosaures',
+  'animaux-dinosaures': 'Animaux & Dinosaures',
+  'jeux vidéo': 'Jeux Vidéo',
+  'jeux video': 'Jeux Vidéo',
+  'jeux-video': 'Jeux Vidéo',
 }
 
 export const DIFFICULTY_LABELS: Record<Difficulty, string> = {
@@ -213,15 +233,26 @@ export const ALL_DIFFICULTIES: Difficulty[] = ['facile', 'moyen', 'difficile']
 
 export const DEFAULT_CATEGORY_DIFFICULTIES: Record<string, Difficulty[]> = {
   mythologie: ['facile', 'moyen', 'difficile'],
+  'mythologie & légende': ['facile', 'moyen', 'difficile'],
+  'mythologie & légendes': ['facile', 'moyen', 'difficile'],
   capitale: ['facile', 'moyen', 'difficile'],
+  capitales: ['facile', 'moyen', 'difficile'],
+  drapeau: ['facile', 'moyen', 'difficile'],
+  drapeaux: ['facile', 'moyen', 'difficile'],
   geographie: ['facile', 'moyen', 'difficile'],
   histoire: ['facile', 'moyen', 'difficile'],
   sciences: ['facile', 'moyen', 'difficile'],
   cinema: ['facile', 'moyen', 'difficile'],
   musique: ['facile', 'moyen', 'difficile'],
   sport: ['facile', 'moyen', 'difficile'],
+  sports: ['facile', 'moyen', 'difficile'],
   litterature: ['facile', 'moyen', 'difficile'],
   gastronomie: ['facile', 'moyen', 'difficile'],
+  warframe: ['facile', 'moyen', 'difficile'],
+  'anime & manga': ['facile', 'moyen', 'difficile'],
+  'animaux & dinosaures': ['facile', 'moyen', 'difficile'],
+  'jeux vidéo': ['facile', 'moyen', 'difficile'],
+  'jeux video': ['facile', 'moyen', 'difficile'],
 }
 
 export const DEFAULT_GAME_SETTINGS: GameSettings = {

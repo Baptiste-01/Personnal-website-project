@@ -1515,6 +1515,57 @@
 }
 
 /* ─── Per Category Difficulty Styles ─── */
+.category-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.cat-selection-counter {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-accent);
+  margin-left: 6px;
+}
+
+.category-header-btn-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.category-quick-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.category-quick-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--color-text-primary);
+  border-color: var(--color-border-hover);
+}
+
+.cat-empty-warning {
+  padding: 8px 12px;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: var(--radius-md, 8px);
+  color: #fca5a5;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
 .category-diff-list {
   display: flex;
   flex-direction: column;
@@ -1541,6 +1592,19 @@
   box-shadow: 0 2px 14px rgba(0, 0, 0, 0.2);
 }
 
+.category-card--inactive {
+  opacity: 0.5;
+  filter: grayscale(0.5);
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.01);
+}
+
+.category-card--inactive:hover {
+  opacity: 0.75;
+  filter: grayscale(0.2);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
 .category-card-header {
   display: flex;
   align-items: center;
@@ -1553,6 +1617,70 @@
   gap: 8px;
   cursor: pointer;
   user-select: none;
+}
+
+.category-card-checkbox {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--color-accent, #3b82f6);
+  cursor: pointer;
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.category-card-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cat-toggle-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+  border: 1px solid transparent;
+}
+
+.cat-toggle-badge--active {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+  border-color: rgba(59, 130, 246, 0.35);
+}
+
+.cat-toggle-badge--active:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.cat-toggle-badge--inactive {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--color-text-muted);
+  border-color: var(--color-border);
+}
+
+.cat-toggle-badge--inactive:hover {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+.cat-card-count-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--color-text-muted);
+}
+
+.category-card-diff-pills--disabled {
+  opacity: 0.45;
+  pointer-events: none;
 }
 
 .category-card-name {
