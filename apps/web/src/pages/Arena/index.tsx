@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   IconArrowLeft, IconGamepad, IconUser, IconCheck, IconClock,
@@ -17,6 +17,7 @@ import { useArenaSocket } from '../../hooks/useArenaSocket'
 import {
   parseCategoryListParam,
   serializeCategoryListMap,
+  setCanonicalCategoryDifficulties,
   parseDifficultyTimesMap,
   serializeDifficultyTimesMap,
 } from '../../utils/tagFilter'
@@ -128,7 +129,84 @@ export default function Arena() {
   const [tagSearchByCat, setTagSearchByCat] = useState<Record<string, string>>({})
   const [subTagSearchByGroup, setSubTagSearchByGroup] = useState<Record<string, string>>({})
 
+  const storageKey = arenaId ? `smik_arena_settings_${arenaId}` : null
+  const hasUrlParams = Boolean(
+    searchParams.get('categories') ||
+    searchParams.get('difficulty') ||
+    searchParams.get('rounds') ||
+    searchParams.get('time') ||
+    searchParams.get('maxPoints') ||
+    searchParams.get('speedrunMode')
+  )
+  const hasSavedLocalSettings = (() => {
+    if (!storageKey) return false
+    try {
+      return Boolean(localStorage.getItem(storageKey))
+    } catch {
+      return false
+    }
+  })()
+  const hasHydratedFromServerRef = useRef(hasUrlParams || hasSavedLocalSettings)
+  const skipNextServerSyncRef = useRef(false)
+
+  // Clean creation query params from URL once initialized so browser F5 refresh never reverts modified settings
+  useEffect(() => {
+    if (hasUrlParams && arenaId) {
+      window.history.replaceState(null, '', `/arena/${arenaId}`)
+    }
+  }, [hasUrlParams, arenaId])
+
   const [settings, setSettings] = useState<GameSettings>(() => {
+    const defaultSettings: GameSettings = {
+      categories: ['mythologie', 'capitale', 'geographie', 'histoire', 'sciences'],
+      difficulty: 'facile',
+      difficulties: ['facile', 'moyen', 'difficile'],
+      categoryDifficulties: { ...DEFAULT_CATEGORY_DIFFICULTIES },
+      categoryTags: {},
+      bannedCategoryTags: {},
+      tags: [],
+      bannedTags: [],
+      roundCount: 10,
+      timePerRound: 20,
+      maxPoints: 1000,
+      infiniteRounds: false,
+      pointsPerAnswer: 100,
+      speedrunMode: false,
+      speedrunDifficulties: ['facile'],
+      speedrunTime: 5,
+      difficultySpeedrunTimes: {
+        facile: 3,
+        moyen: 5,
+        difficile: 8,
+      },
+    }
+
+    // Priority 1: Restore persisted local settings for this arena (survives F5 refresh, Replay, and Salon return)
+    if (storageKey) {
+      try {
+        const saved = localStorage.getItem(storageKey)
+        if (saved) {
+          const parsed = JSON.parse(saved)
+          if (parsed && typeof parsed === 'object') {
+            return {
+              ...defaultSettings,
+              ...parsed,
+              categoryDifficulties: {
+                ...defaultSettings.categoryDifficulties,
+                ...(parsed.categoryDifficulties || {}),
+              },
+              difficultySpeedrunTimes: {
+                ...defaultSettings.difficultySpeedrunTimes,
+                ...(parsed.difficultySpeedrunTimes || {}),
+              },
+            }
+          }
+        }
+      } catch {
+        // Ignore corrupted localStorage
+      }
+    }
+
     const categoriesParam = searchParams.get('categories')
     const diff = searchParams.get('difficulty') as Difficulty | null
     const inf = searchParams.get('infiniteRounds')
@@ -143,12 +221,19 @@ export default function Arena() {
 
     const initialCategories = categoriesParam
       ? categoriesParam.split(',').map(c => c.trim()).filter(Boolean)
-      : ['mythologie', 'capitale', 'geographie', 'histoire', 'sciences']
+      : defaultSettings.categories
 
-    const initialCatDiffs: Record<string, Difficulty[]> = { ...DEFAULT_CATEGORY_DIFFICULTIES }
+    let initialCatDiffs: Record<string, Difficulty[]> = { ...DEFAULT_CATEGORY_DIFFICULTIES }
+    if (diff) {
+      Object.keys(initialCatDiffs).forEach(k => {
+        initialCatDiffs[k] = [diff]
+      })
+    }
     const parsedDiffs = parseCategoryListParam(catDiffsStr)
     Object.entries(parsedDiffs).forEach(([c, diffs]) => {
-      if (diffs.length > 0) initialCatDiffs[c] = diffs as Difficulty[]
+      if (diffs.length > 0) {
+        initialCatDiffs = setCanonicalCategoryDifficulties(initialCatDiffs, c, diffs as Difficulty[])
+      }
     })
 
     const initialCategoryTags = parseCategoryListParam(catTagsStr)
@@ -159,9 +244,9 @@ export default function Arena() {
       : []
 
     return {
-      categories: initialCategories.length > 0 ? initialCategories : ['mythologie', 'capitale', 'geographie', 'histoire', 'sciences'],
+      ...defaultSettings,
+      categories: initialCategories.length > 0 ? initialCategories : defaultSettings.categories,
       difficulty: diff ?? 'facile',
-      difficulties: ['facile', 'moyen', 'difficile'],
       categoryDifficulties: initialCatDiffs,
       categoryTags: initialCategoryTags,
       bannedCategoryTags: initialBannedCategoryTags,
@@ -171,7 +256,6 @@ export default function Arena() {
       timePerRound: time ? Number(time) : 20,
       maxPoints: maxPts ? Number(maxPts) : 1000,
       infiniteRounds: inf === 'true' || rounds === 'infinite',
-      pointsPerAnswer: 100,
       speedrunMode: searchParams.get('speedrunMode') === 'true',
       speedrunDifficulties: searchParams.get('speedrunDiffs')
         ? (searchParams.get('speedrunDiffs')!.split(',').filter(Boolean) as Difficulty[])
@@ -180,9 +264,7 @@ export default function Arena() {
         ? Math.max(2, Math.min(30, Number(searchParams.get('speedrunTime'))))
         : 5,
       difficultySpeedrunTimes: {
-        facile: 3,
-        moyen: 5,
-        difficile: 8,
+        ...defaultSettings.difficultySpeedrunTimes,
         ...parseDifficultyTimesMap(searchParams.get('diffSpeedrun')),
       },
     }
@@ -242,9 +324,12 @@ export default function Arena() {
     navigate('/')
   }, [actions, navigate])
 
-  // Sync settings when received from host (guest mode)
+  // Sync settings from server (for guests, and for host returning to lobby without URL params)
   useEffect(() => {
-    if (wsSettings && !isHost) {
+    if (!wsSettings) return
+    if (!isHost || !hasHydratedFromServerRef.current) {
+      hasHydratedFromServerRef.current = true
+      skipNextServerSyncRef.current = true
       setSettings(prev => ({
         ...prev,
         ...wsSettings,
@@ -260,12 +345,24 @@ export default function Arena() {
     }
   }, [wsSettings, isHost])
 
-  // Sync settings to server when host modifies them
+  // Persist settings locally & sync to server when host modifies them
   useEffect(() => {
-    if (isHost && connected) {
+    if (storageKey) {
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(settings))
+      } catch {
+        // Ignore storage quota errors
+      }
+    }
+
+    if (isHost && connected && hasHydratedFromServerRef.current) {
+      if (skipNextServerSyncRef.current) {
+        skipNextServerSyncRef.current = false
+        return
+      }
       actions.updateSettings(settings as any)
     }
-  }, [settings, isHost, connected, actions])
+  }, [settings, isHost, connected, actions, storageKey])
 
   const players: PlayerSummary[] = wsPlayers.length > 0
     ? wsPlayers
@@ -465,10 +562,16 @@ useEffect(() => {
         if (typeof data.maxPlayers === 'number') {
           setMaxPlayers(data.maxPlayers)
         }
+        if (!hasUrlParams && !hasHydratedFromServerRef.current && !(storageKey && localStorage.getItem(storageKey)) && Array.isArray(data.categories) && data.categories.length > 0) {
+          setSettings(prev => ({
+            ...prev,
+            categories: data.categories as Category[],
+          }))
+        }
       }
     })
     .catch(() => setArenaName('Mon Arène'))
-}, [arenaId])
+}, [arenaId, searchParams])
 
 useEffect(() => {
   document.title = arenaName && arenaName !== 'Chargement...' ? `${arenaName} — Smik Party` : 'Arène — Smik Party'
@@ -491,7 +594,12 @@ const toggleCategory = (cat: Category) => {
   setSettings(prev => {
     const has = prev.categories.includes(cat)
     if (has && prev.categories.length === 1) return prev
-    return { ...prev, categories: has ? prev.categories.filter(c => c !== cat) : [...prev.categories, cat] }
+    const nextCats = has ? prev.categories.filter(c => c !== cat) : [...prev.categories, cat]
+    const nextDiffs = { ...prev.categoryDifficulties }
+    if (!has && (!nextDiffs[cat] || nextDiffs[cat].length === 0)) {
+      nextDiffs[cat] = [prev.difficulty]
+    }
+    return { ...prev, categories: nextCats, categoryDifficulties: nextDiffs }
   })
 }
 
@@ -508,10 +616,7 @@ const toggleCategoryDifficulty = (cat: Category, diff: Difficulty) => {
     }
     return {
       ...prev,
-      categoryDifficulties: {
-        ...prev.categoryDifficulties,
-        [cat]: updated,
-      },
+      categoryDifficulties: setCanonicalCategoryDifficulties(prev.categoryDifficulties, cat, updated),
     }
   })
 }
@@ -519,10 +624,7 @@ const toggleCategoryDifficulty = (cat: Category, diff: Difficulty) => {
 const setCategoryAllDifficulties = (cat: Category) => {
   setSettings(prev => ({
     ...prev,
-    categoryDifficulties: {
-      ...prev.categoryDifficulties,
-      [cat]: ['facile', 'moyen', 'difficile'],
-    },
+    categoryDifficulties: setCanonicalCategoryDifficulties(prev.categoryDifficulties, cat, ['facile', 'moyen', 'difficile']),
   }))
 }
 
@@ -542,15 +644,25 @@ const copyInviteLink = () => {
 
 const readyCount = players.filter(p => p.isReady).length
 
-const displayCategories: CategoryInfo[] = availableCategories.length > 0
-  ? availableCategories
-  : ALL_CATEGORIES.map(c => ({
-    id: c,
-    name: CATEGORY_LABELS[c] ?? c,
-    icon: CATEGORY_ICONS[c] ?? '🏷️',
-    count: 0,
-    tags: [],
-  }))
+const displayCategories: CategoryInfo[] = useMemo(() => {
+  const source = availableCategories.length > 0
+    ? availableCategories
+    : ALL_CATEGORIES.map(c => ({
+        id: c,
+        name: CATEGORY_LABELS[c] ?? c,
+        icon: CATEGORY_ICONS[c] ?? '🏷️',
+        count: 0,
+        tags: [],
+      }))
+
+  const seen = new Set<string>()
+  return source.filter(cat => {
+    const key = (cat.name || cat.id).toLowerCase().trim()
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}, [availableCategories])
 
 return (
   <div className="arena" id="arena-page">
@@ -755,7 +867,12 @@ return (
                     <button
                       key={d}
                       className={`difficulty-btn ${settings.difficulty === d ? 'difficulty-btn--active' : ''}`}
-                      onClick={() => setSettings(prev => ({ ...prev, difficulty: d }))}
+                      onClick={() => setSettings(prev => {
+                        const nextDiffs = { ...prev.categoryDifficulties }
+                        Object.keys(nextDiffs).forEach(k => { nextDiffs[k] = [d] })
+                        displayCategories.forEach(c => { nextDiffs[c.id] = [d] })
+                        return { ...prev, difficulty: d, categoryDifficulties: nextDiffs }
+                      })}
                       id={`difficulty-${d}`}
                     >
                       <span className="diff-emoji">
@@ -919,12 +1036,18 @@ return (
 
                     return (
                         <div key={catId} className={`category-card ${isSelected ? 'category-card--active' : ''}`}>
-                          <div className="category-card-header">
-                            <div className="category-card-title-group" onClick={() => toggleCategory(catId)}>
+                          <div
+                            className="category-card-header"
+                            onClick={() => toggleCategory(catId)}
+                            style={{ cursor: 'pointer' }}
+                            title={isSelected ? 'Cliquez pour désactiver' : 'Cliquez pour activer'}
+                          >
+                            <div className="category-card-title-group">
                               <input
                                 type="checkbox"
                                 checked={isSelected}
                                 onChange={() => toggleCategory(catId)}
+                                onClick={e => e.stopPropagation()}
                                 style={{ accentColor: 'var(--color-accent)', cursor: 'pointer' }}
                               />
                               <span className="category-emoji">{catItem.icon || CATEGORY_ICONS[catId] || '🏷️'}</span>

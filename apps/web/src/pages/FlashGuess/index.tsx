@@ -30,6 +30,8 @@ export default function FlashGuess() {
   const [modalImage, setModalImage] = useState<string | null>(null)
   const [isChatOpen, setIsChatOpen] = useState(false)
   const [muteFeedback, setMuteFeedback] = useState<string | null>(null)
+  const [imageLoaded, setImageLoaded] = useState(false)
+  const [imageError, setImageError] = useState(false)
 
   useEffect(() => {
     document.title = 'FlashGuess en direct — Smik Party'
@@ -74,6 +76,12 @@ export default function FlashGuess() {
       setTimeout(() => inputRef.current?.focus(), 50)
     }
   }, [roomStatus, currentRound, myPlayer?.answeredCorrectly])
+
+  // Reset image loading state cleanly whenever the question or its image changes
+  useEffect(() => {
+    setImageLoaded(false)
+    setImageError(false)
+  }, [currentQuestion?.id, currentQuestion?.imageUrl])
 
   const handleSendAnswer = () => {
     const trimmed = answer.trim()
@@ -213,65 +221,67 @@ export default function FlashGuess() {
                   key={p.id}
                   className={`fg-player-card ${isSelf ? 'fg-player-card--self' : ''}`}
                 >
-                  <div className="fg-player-rank">
-                    {isFirst ? <IconCrown /> : `#${idx + 1}`}
-                  </div>
-                  <div className="fg-player-avatar">
-                    <IconUser />
-                  </div>
-                  <div className="fg-player-info">
-                    <span className="fg-player-name">
-                      {p.name}
-                      {isSelf && <span className="ap-self-badge">Vous</span>}
-                      {p.isHost && <span className="ap-host-badge" style={{ marginLeft: 4 }}>👑</span>}
-                    </span>
+                  <div className="fg-player-row">
+                    <div className="fg-player-rank">
+                      {isFirst ? <IconCrown /> : `#${idx + 1}`}
+                    </div>
+                    <div className="fg-player-avatar">
+                      <IconUser />
+                    </div>
+                    <div className="fg-player-info">
+                      <span className="fg-player-name">
+                        <span className="fg-player-name-text">{p.name}</span>
+                        {isSelf && <span className="ap-self-badge">Vous</span>}
+                        {p.isHost && <span className="ap-host-badge">👑</span>}
+                      </span>
+                    </div>
                     <span className="fg-player-score">{p.score} pts</span>
                   </div>
 
-                  {/* Live status badge */}
-                  {roomStatus === 'playing' && (
-                    p.answeredCorrectly ? (
-                      <span className="fg-player-status fg-player-status--done" title="A trouvé !">
-                        <IconCheck /> OK
-                      </span>
-                    ) : (
-                      <span className="fg-player-status fg-player-status--thinking" title="En train de chercher...">
-                        •••
-                      </span>
-                    )
-                  )}
+                  {(roomStatus === 'playing' || roomStatus === 'reveal' || (p.firstAnswersCount ?? 0) > 0 || p.streak >= 2) && (
+                    <div className="fg-player-badges">
+                      {roomStatus === 'playing' && (
+                        p.answeredCorrectly ? (
+                          <span className="fg-player-status fg-player-status--done" title="A trouvé !">
+                            <IconCheck /> OK
+                          </span>
+                        ) : (
+                          <span className="fg-player-status fg-player-status--thinking" title="En train de chercher...">
+                            •••
+                          </span>
+                        )
+                      )}
 
-                  {roomStatus === 'reveal' && (
-                    p.answeredCorrectly ? (
-                      <span className="fg-player-status fg-player-status--done">
-                        <IconCheck /> +{p.answerTime ? `${p.answerTime.toFixed(1)}s` : 'pts'}
-                      </span>
-                    ) : (
-                      <span className="fg-player-status fg-player-status--wrong">
-                        <IconX /> 0 pt
-                      </span>
-                    )
-                  )}
+                      {roomStatus === 'reveal' && (
+                        p.answeredCorrectly ? (
+                          <span className="fg-player-status fg-player-status--done">
+                            <IconCheck /> +{p.answerTime ? `${p.answerTime.toFixed(1)}s` : 'pts'}
+                          </span>
+                        ) : (
+                          <span className="fg-player-status fg-player-status--wrong">
+                            <IconX /> 0 pt
+                          </span>
+                        )
+                      )}
 
-                  {/* Real-time badges for streak & first-to-answer */}
-                  <div className="fg-player-badges">
-                    {(p.firstAnswersCount ?? 0) > 0 && (
-                      <span
-                        className="fg-first-badge"
-                        title={`${p.firstAnswersCount} fois 1er à répondre correctement`}
-                      >
-                        ⚡ {p.firstAnswersCount}
-                      </span>
-                    )}
-                    {p.streak >= 2 && (
-                      <span
-                        className={`fg-streak-badge ${p.streak >= 5 ? 'fg-streak-badge--fire' : ''}`}
-                        title={`Série en cours : ${p.streak} bonnes réponses d'affilée`}
-                      >
-                        x{p.streak} 🔥
-                      </span>
-                    )}
-                  </div>
+                      {(p.firstAnswersCount ?? 0) > 0 && (
+                        <span
+                          className="fg-first-badge"
+                          title={`${p.firstAnswersCount} fois 1er à répondre correctement`}
+                        >
+                          ⚡ {p.firstAnswersCount}
+                        </span>
+                      )}
+                      {p.streak >= 2 && (
+                        <span
+                          className={`fg-streak-badge ${p.streak >= 5 ? 'fg-streak-badge--fire' : ''}`}
+                          title={`Série en cours : ${p.streak} bonnes réponses d'affilée`}
+                        >
+                          x{p.streak} 🔥
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               )
             })}
@@ -424,16 +434,32 @@ export default function FlashGuess() {
 
                 {currentQuestion.imageUrl && (
                   <div className="fg-question-image-wrapper">
-                    <img
-                      src={currentQuestion.imageUrl}
-                      alt="Illustration de la question"
-                      className="fg-question-image"
-                      onClick={() => {
-                        soundManager.playClick()
-                        setModalImage(currentQuestion.imageUrl ?? null)
-                      }}
-                      title="Cliquer pour agrandir"
-                    />
+                    {!imageLoaded && !imageError && (
+                      <div className="fg-image-loading">
+                        <div className="fg-spinner" style={{ width: 24, height: 24, margin: '0 auto 6px' }} />
+                        <span>Chargement de l'image...</span>
+                      </div>
+                    )}
+                    {imageError ? (
+                      <div className="fg-image-loading">
+                        <span>⚠️ Impossible de charger l'image</span>
+                      </div>
+                    ) : (
+                      <img
+                        key={`${currentQuestion.id}-${currentQuestion.imageUrl}`}
+                        src={currentQuestion.imageUrl}
+                        alt="Illustration de la question"
+                        className="fg-question-image"
+                        style={imageLoaded ? undefined : { display: 'none' }}
+                        onLoad={() => setImageLoaded(true)}
+                        onError={() => setImageError(true)}
+                        onClick={() => {
+                          soundManager.playClick()
+                          setModalImage(currentQuestion.imageUrl ?? null)
+                        }}
+                        title="Cliquer pour agrandir"
+                      />
+                    )}
                     <button
                       type="button"
                       className="fg-image-zoom-btn"

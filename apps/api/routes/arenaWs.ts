@@ -35,6 +35,12 @@ export const arenaWs = new Elysia()
             if (arena.maxPlayers) {
               room.settings.maxPlayers = arena.maxPlayers
             }
+            if (Array.isArray(arena.categories) && arena.categories.length > 0) {
+              room.settings.categories = arena.categories
+            }
+            if (arena.difficulty) {
+              room.settings.difficulty = arena.difficulty
+            }
           }
         })
         .catch(() => {})
@@ -56,7 +62,28 @@ export const arenaWs = new Elysia()
 
       const room = roomManager.getOrCreate(arenaId)
 
+      // Keep active player socket and online status synchronized
+      const effectivePlayerId = data.playerId || (typeof msg.playerId === 'string' ? msg.playerId : undefined)
+      if (effectivePlayerId) {
+        const player = room.players.get(effectivePlayerId)
+        if (player) {
+          player.ws = ws
+          player.isOnline = true
+          if (player.disconnectTimeout) {
+            clearTimeout(player.disconnectTimeout)
+            player.disconnectTimeout = null
+          }
+        }
+      }
+
       switch (msg.type) {
+        case 'ping': {
+          try {
+            ws.send(JSON.stringify({ type: 'pong', timestamp: Date.now() }))
+          } catch {}
+          break
+        }
+
         case 'join': {
           const playerId = String(msg.playerId || data.playerId || data.query?.playerId || `p_${Math.random().toString(36).slice(2, 9)}`)
           const playerName = String(msg.playerName || data.playerName || data.query?.playerName || 'Anonyme')
@@ -321,8 +348,20 @@ export const arenaWs = new Elysia()
 
       if (!playerId) return
 
+      const player = room.players.get(playerId)
+      // If a newer socket is already active for this player (e.g. fast page transition /arena -> /play),
+      // ignore the close event of the previous stale socket!
+      if (
+        player &&
+        player.ws &&
+        player.ws !== ws &&
+        (!ws.raw || player.ws.raw !== ws.raw)
+      ) {
+        return
+      }
+
       // Graceful disconnect (does not destroy the room instantly on route transitions)
-      room.handlePlayerDisconnect(playerId)
+      room.handlePlayerDisconnect(playerId, ws)
 
       // Sync active player count to DB
       const activeCount = room.getActivePlayerCount()

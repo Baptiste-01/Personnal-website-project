@@ -1,5 +1,5 @@
 import prisma from '../lib/prisma'
-import { buildWhereClause, normalizeDifficulty, shuffle } from '../routes/questions'
+import { buildWhereClause, getCanonicalCategoryKey, normalizeDifficulty, shuffle } from '../routes/questions'
 import { mutedQuestionsStore } from '../lib/mutedQuestions'
 
 export interface PlayerSummary {
@@ -81,16 +81,30 @@ function serializeCategoryMap(
   activeCategories?: string[]
 ): string | undefined {
   if (!map || typeof map !== 'object') return undefined
-  const activeSet =
+  const activeExactSet =
     activeCategories && activeCategories.length > 0
       ? new Set(activeCategories.map(c => c.toLowerCase().trim()))
       : null
-  const encoded = Object.entries(map)
-    .filter(([cat, vals]) => {
-      if (!Array.isArray(vals) || vals.length === 0) return false
-      return !activeSet || activeSet.has(cat.toLowerCase().trim())
-    })
-    .map(([cat, vals]) => `${cat}:${vals.join('+')}`)
+  const activeCanonicalSet =
+    activeCategories && activeCategories.length > 0
+      ? new Set(activeCategories.map(c => getCanonicalCategoryKey(c)))
+      : null
+
+  // Deduplicate by canonical key, prioritizing exact active category keys over stale alias keys
+  const deduped = new Map<string, { vals: string[]; isExact: boolean }>()
+  for (const [cat, vals] of Object.entries(map)) {
+    if (!Array.isArray(vals) || vals.length === 0) continue
+    const canonical = getCanonicalCategoryKey(cat)
+    if (activeCanonicalSet && !activeCanonicalSet.has(canonical)) continue
+    const isExact = Boolean(activeExactSet && activeExactSet.has(cat.toLowerCase().trim()))
+    const prev = deduped.get(canonical)
+    if (!prev || isExact || !prev.isExact) {
+      deduped.set(canonical, { vals, isExact })
+    }
+  }
+
+  const encoded = Array.from(deduped.entries())
+    .map(([canonical, { vals }]) => `${canonical}:${vals.join('+')}`)
     .join(',')
   return encoded || undefined
 }
@@ -261,6 +275,7 @@ export class GameRoom {
   public currentRoundTime = 20
   public isCurrentRoundSpeedrun = false
   public roundStartTime = 0
+  public firstAnswerTime = 0
   public questions: QuestionData[] = []
   public chatMessages: ChatMessage[] = []
   public timer: any = null
@@ -469,9 +484,21 @@ export class GameRoom {
     return newPlayer
   }
 
-  public handlePlayerDisconnect(id: string) {
+  public handlePlayerDisconnect(id: string, closingWs?: any) {
     const player = this.players.get(id)
     if (!player) return
+
+    // Socket identity check: If a closing socket is provided, only mark disconnected
+    // if it is still the player's active socket. If the player already reconnected on a new socket
+    // (e.g. navigation transition between /arena and /play), ignore closure of the stale socket.
+    if (
+      closingWs &&
+      player.ws &&
+      player.ws !== closingWs &&
+      (!closingWs.raw || player.ws.raw !== closingWs.raw)
+    ) {
+      return
+    }
 
     player.isOnline = false
     player.ws = null
@@ -661,6 +688,34 @@ export class GameRoom {
     // Filter out any question marked as muted (containing errors)
     loadedQuestions = loadedQuestions.filter(q => !mutedQuestionsStore.isMuted(q))
 
+    // Enforce category difficulty filter in memory as an extra safeguard against DB alias mismatches
+    if (this.settings.categoryDifficulties && Object.keys(this.settings.categoryDifficulties).length > 0) {
+      const activeExactSet = new Set(this.settings.categories.map(c => c.toLowerCase().trim()))
+      const canonicalDiffMap = new Map<string, { diffs: string[]; isExact: boolean }>()
+      for (const [catKey, diffs] of Object.entries(this.settings.categoryDifficulties)) {
+        if (Array.isArray(diffs) && diffs.length > 0) {
+          const canonical = getCanonicalCategoryKey(catKey)
+          const normalized = diffs
+            .map(d => normalizeDifficulty(d))
+            .filter((d): d is string => Boolean(d) && d !== 'mixte')
+          if (normalized.length === 0) continue
+          const isExact = activeExactSet.has(catKey.toLowerCase().trim())
+          const prev = canonicalDiffMap.get(canonical)
+          if (!prev || isExact || !prev.isExact) {
+            canonicalDiffMap.set(canonical, { diffs: normalized, isExact })
+          }
+        }
+      }
+      loadedQuestions = loadedQuestions.filter(q => {
+        const qCatKey = getCanonicalCategoryKey(q.category || '')
+        const entry = canonicalDiffMap.get(qCatKey)
+        const allowedDiffs = entry?.diffs
+        if (!allowedDiffs || allowedDiffs.length === 0 || allowedDiffs.length >= 3) return true
+        const qDiff = normalizeDifficulty(q.difficulty)
+        return Boolean(qDiff && allowedDiffs.includes(qDiff))
+      })
+    }
+
     // Fallback: guaranteed question list if database returned empty (no DB records)
     if (loadedQuestions.length === 0) {
       loadedQuestions = FALLBACK_QUESTIONS.filter(q => !mutedQuestionsStore.isMuted(q))
@@ -709,6 +764,7 @@ export class GameRoom {
     this.isCurrentRoundSpeedrun = isSpeedrun
     this.timeLeft = roundTime
     this.roundStartTime = Date.now()
+    this.firstAnswerTime = 0
 
     // Reset round states
     for (const player of this.players.values()) {
@@ -716,6 +772,11 @@ export class GameRoom {
       player.answeredCorrectly = false
       player.answerTime = null
     }
+
+    const nextQ =
+      this.questions.length > 0
+        ? this.questions[(roundIndex + 1) % this.questions.length] ?? null
+        : null
 
     // Broadcast round info (ANTI-CHEAT: NO answers sent!)
     this.broadcast({
@@ -727,12 +788,15 @@ export class GameRoom {
       isSpeedrun,
       speedrunTime: roundTime,
       question: this.getPublicQuestion(q),
+      nextImageUrl: nextQ?.imageUrl ?? null,
       players: this.getPlayerSummaries(),
     })
 
-    // Server-authoritative timer
+    // Server-authoritative timestamp timer (drift-resilient and leak-proof)
     this.timer = setInterval(() => {
-      this.timeLeft -= 1
+      const elapsed = Math.floor((Date.now() - this.roundStartTime) / 1000)
+      this.timeLeft = Math.max(0, roundTime - elapsed)
+
       this.broadcast({
         type: 'tick',
         timeLeft: this.timeLeft,
@@ -779,10 +843,21 @@ export class GameRoom {
       player.bestStreak = Math.max(player.bestStreak, nextStreak)
 
       const effectiveRoundTime = this.currentRoundTime || this.settings.timePerRound || 20
-      const speedRatio = Math.max(0, this.timeLeft / effectiveRoundTime)
-      const speedBonus = Math.round(speedRatio * (this.settings.pointsPerAnswer * 0.5))
-      const streakMultiplier = nextStreak >= 5 ? 2.0 : nextStreak >= 3 ? 1.5 : 1.0
-      const roundPts = Math.round((this.settings.pointsPerAnswer + speedBonus) * streakMultiplier)
+      const basePoints = Math.max(10, this.settings.pointsPerAnswer || 100)
+      const minPoints = Math.max(10, Math.round(basePoints * 0.1))
+
+      let roundPts = basePoints
+      if (isFirst) {
+        this.firstAnswerTime = Date.now()
+        roundPts = basePoints
+      } else {
+        const now = Date.now()
+        const delayAfterFirstSec = Math.max(0, (now - this.firstAnswerTime) / 1000)
+        const firstElapsedSec = Math.max(0, (this.firstAnswerTime - this.roundStartTime) / 1000)
+        const remainingWindowSec = Math.max(1, effectiveRoundTime - firstElapsedSec)
+        const decayRatio = Math.min(1, delayAfterFirstSec / remainingWindowSec)
+        roundPts = Math.max(minPoints, Math.round(basePoints - (basePoints - minPoints) * decayRatio))
+      }
 
       player.score += roundPts
       player.roundScores.push(roundPts)
@@ -865,7 +940,10 @@ export class GameRoom {
     })
 
     if (isGameOver) {
-      this.finishGame()
+      // Keep 3.5 seconds reveal so players can see the final question's answer before podium/results
+      this.revealTimeout = setTimeout(() => {
+        this.finishGame()
+      }, 3500)
     } else {
       // 3.5 seconds reveal before next round starts
       this.revealTimeout = setTimeout(() => {

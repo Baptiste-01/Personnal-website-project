@@ -28,6 +28,49 @@ export function normalizeDifficulty(d: string | undefined): string | undefined {
   return DIFFICULTY_MAP[lower] ?? lower
 }
 
+export function getDifficultyQueryVariants(diffs: string[]): string[] {
+  const variants = new Set<string>()
+  for (const d of diffs) {
+    const norm = normalizeDifficulty(d)
+    if (norm === 'facile') {
+      variants.add('facile')
+      variants.add('easy')
+    } else if (norm === 'moyen') {
+      variants.add('moyen')
+      variants.add('normal')
+      variants.add('medium')
+    } else if (norm === 'difficile') {
+      variants.add('difficile')
+      variants.add('hard')
+    } else if (norm) {
+      variants.add(norm)
+    }
+  }
+  return Array.from(variants)
+}
+
+export function getCanonicalCategoryKey(str: string): string {
+  const clean = str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+    .replace(/&/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+
+  if (clean === 'mythologie' || clean === 'mythologie-l-gende' || clean === 'mythologie-legendes') {
+    return 'mythologie-legende'
+  }
+  if (clean === 'capitales') return 'capitale'
+  if (clean === 'drapeaux') return 'drapeau'
+  if (clean === 'sports') return 'sport'
+  if (clean === 'jeux-vid-o' || clean === 'jeux-video') return 'jeux-video'
+  if (clean === 'anime-manga') return 'anime-manga'
+  if (clean === 'animaux-dinosaures') return 'animaux-dinosaures'
+  return clean
+}
+
 /** Parse comma-separated category maps encoded as "cat:val1+val2,cat2:val3". */
 function parseCategoryListMap(
   raw: string | undefined,
@@ -38,7 +81,7 @@ function parseCategoryListMap(
   raw.split(',').filter(Boolean).forEach(entry => {
     const colonIdx = entry.indexOf(':')
     if (colonIdx <= 0) return
-    const cat = entry.slice(0, colonIdx).toLowerCase().trim()
+    const cat = getCanonicalCategoryKey(entry.slice(0, colonIdx))
     const itemsPart = entry.slice(colonIdx + 1)
     if (!cat || !itemsPart) return
     const values = itemsPart
@@ -53,6 +96,81 @@ function parseCategoryListMap(
     }
   })
   return map
+}
+
+/** Helper to expand category aliases and variants for query filtering */
+export function getCategoryQueryVariants(cat: string): string[] {
+  const norm = cat
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+  const variants = new Set<string>([cat, cat.trim(), cat.toLowerCase().trim()])
+
+  if (norm === 'mythologie' || norm.includes('mythologie')) {
+    variants.add('mythologie')
+    variants.add('Mythologie & Légende')
+    variants.add('mythologie & légende')
+    variants.add('Mythologie & Légendes')
+    variants.add('mythologie & légendes')
+    variants.add('mythologie-l-gende')
+    variants.add('mythologie-legende')
+  }
+  if (norm.includes('animaux') || norm.includes('dinosaures')) {
+    variants.add('Animaux & Dinosaures')
+    variants.add('animaux & dinosaures')
+    variants.add('animaux-dinosaures')
+  }
+  if (norm.includes('jeux') || norm.includes('video') || norm.includes('vid-o')) {
+    variants.add('Jeux Vidéo')
+    variants.add('jeux vidéo')
+    variants.add('jeux video')
+    variants.add('jeux-video')
+    variants.add('jeux-vid-o')
+  }
+  if (norm.includes('anime') || norm.includes('manga')) {
+    variants.add('Anime & Manga')
+    variants.add('anime & manga')
+    variants.add('anime-manga')
+  }
+  if (norm === 'capitale' || norm === 'capitales') {
+    variants.add('capitale')
+    variants.add('capitales')
+    variants.add('Capitale')
+    variants.add('Capitales')
+  }
+  if (norm === 'drapeau' || norm === 'drapeaux') {
+    variants.add('drapeau')
+    variants.add('drapeaux')
+    variants.add('Drapeau')
+    variants.add('Drapeaux')
+  }
+  if (norm === 'sport' || norm === 'sports') {
+    variants.add('sport')
+    variants.add('sports')
+    variants.add('Sport')
+    variants.add('Sports')
+  }
+  if (norm === 'geographie') {
+    variants.add('geographie')
+    variants.add('Geographie')
+    variants.add('Géographie')
+    variants.add('géographie')
+  }
+  if (norm === 'cinema') {
+    variants.add('cinema')
+    variants.add('Cinema')
+    variants.add('Cinéma')
+    variants.add('cinéma')
+  }
+  if (norm === 'litterature') {
+    variants.add('litterature')
+    variants.add('Litterature')
+    variants.add('Littérature')
+    variants.add('littérature')
+  }
+
+  return Array.from(variants)
 }
 
 export function buildWhereClause(query: Record<string, string | undefined>) {
@@ -78,17 +196,25 @@ export function buildWhereClause(query: Record<string, string | undefined>) {
         ])
       )
 
+  const globalRawDiffs = (query.difficulty ?? '').split(',').filter(Boolean)
+  const globalNormDiffs = globalRawDiffs
+    .map(d => normalizeDifficulty(d))
+    .filter((d): d is string => Boolean(d) && d !== 'mixte')
+
   if (activeCategories.length > 0) {
     const orClauses = activeCategories.map(cat => {
+      const canonicalCat = getCanonicalCategoryKey(cat)
+      const variants = getCategoryQueryVariants(cat)
       const cond: Record<string, unknown> = {
-        category: { equals: cat, mode: 'insensitive' },
+        category: { in: variants, mode: 'insensitive' },
       }
-      const diffs = catDiffsMap[cat]
-      if (diffs && diffs.length > 0 && diffs.length < 3) {
-        cond.difficulty = { in: diffs }
+      const diffs = catDiffsMap[canonicalCat] ?? catDiffsMap[cat]
+      const effectiveDiffs = diffs && diffs.length > 0 ? diffs : globalNormDiffs
+      if (effectiveDiffs && effectiveDiffs.length > 0 && effectiveDiffs.length < 3) {
+        cond.difficulty = { in: getDifficultyQueryVariants(effectiveDiffs), mode: 'insensitive' }
       }
-      const includedTags = catTagsMap[cat]
-      const bannedTags = bannedCatTagsMap[cat]
+      const includedTags = catTagsMap[canonicalCat] ?? catTagsMap[cat]
+      const bannedTags = bannedCatTagsMap[canonicalCat] ?? bannedCatTagsMap[cat]
 
       if (includedTags && includedTags.length > 0 && bannedTags && bannedTags.length > 0) {
         cond.AND = [
@@ -130,6 +256,9 @@ export function buildWhereClause(query: Record<string, string | undefined>) {
 
 const DEFAULT_CATEGORY_META: Record<string, { name: string; icon: string }> = {
   mythologie: { name: 'Mythologie & Légendes', icon: '🏛️' },
+  'mythologie & légende': { name: 'Mythologie & Légendes', icon: '🏛️' },
+  'mythologie & légendes': { name: 'Mythologie & Légendes', icon: '🏛️' },
+  'mythologie-legende': { name: 'Mythologie & Légendes', icon: '🏛️' },
   capitale: { name: 'Capitales', icon: '🌍' },
   capitales: { name: 'Capitales', icon: '🌍' },
   drapeau: { name: 'Drapeaux', icon: '🚩' },
@@ -140,10 +269,17 @@ const DEFAULT_CATEGORY_META: Record<string, { name: string; icon: string }> = {
   cinema: { name: 'Cinéma', icon: '🎬' },
   musique: { name: 'Musique', icon: '🎵' },
   sport: { name: 'Sport', icon: '⚽' },
+  sports: { name: 'Sports', icon: '⚽' },
   litterature: { name: 'Littérature', icon: '📚' },
   gastronomie: { name: 'Gastronomie', icon: '🍽️' },
   warframe: { name: 'Warframe', icon: '⚔️' },
   'anime & manga': { name: 'Anime & Manga', icon: '🎌' },
+  'anime-manga': { name: 'Anime & Manga', icon: '🎌' },
+  'jeux vidéo': { name: 'Jeux Vidéo', icon: '🎮' },
+  'jeux video': { name: 'Jeux Vidéo', icon: '🎮' },
+  'jeux-video': { name: 'Jeux Vidéo', icon: '🎮' },
+  'animaux & dinosaures': { name: 'Animaux & Dinosaures', icon: '🦕' },
+  'animaux-dinosaures': { name: 'Animaux & Dinosaures', icon: '🦕' },
 }
 
 export const questionsRoute = new Elysia({ prefix: '/questions' })
@@ -161,50 +297,120 @@ export const questionsRoute = new Elysia({ prefix: '/questions' })
       select: { category: true, tags: true },
     })
 
-    // 2. Group questions by category
-    const catMap: Record<
-      string,
-      { count: number; tagCounts: Record<string, number>; personnageChildren: Record<string, number> }
-    > = {}
+    // 2. Registered categories from Category table
+    const registeredCategories = await prisma.category.findMany()
+
+    // Helper to get a canonical normalization key for category deduplication & matching
+    const getCanonicalKey = getCanonicalCategoryKey
+
+    interface CategoryAggregator {
+      canonicalKey: string
+      primaryId: string
+      displayName: string
+      icon: string
+      count: number
+      rawVariants: Set<string>
+      tagCounts: Record<string, number>
+      personnageChildren: Record<string, number>
+      registeredMeta?: { name: string; icon?: string; tags: string[] }
+    }
+
+    const categoriesMap = new Map<string, CategoryAggregator>()
+
+    // Ingest questions and aggregate by canonical key
     for (const q of questions) {
-      const catKey = q.category.toLowerCase().trim()
-      if (!catMap[catKey]) {
-        catMap[catKey] = { count: 0, tagCounts: {}, personnageChildren: {} }
+      if (!q.category) continue
+      const rawCat = q.category.trim()
+      if (!rawCat) continue
+      const cKey = getCanonicalKey(rawCat)
+
+      let item = categoriesMap.get(cKey)
+      if (!item) {
+        item = {
+          canonicalKey: cKey,
+          primaryId: rawCat,
+          displayName: rawCat,
+          icon: '🏷️',
+          count: 0,
+          rawVariants: new Set(),
+          tagCounts: {},
+          personnageChildren: {},
+        }
+        categoriesMap.set(cKey, item)
       }
-      catMap[catKey].count++
+
+      item.count++
+      item.rawVariants.add(rawCat)
+
+      // Keep the most visually pleasing display name (prefer capitalized over all-lowercase)
+      if (rawCat !== rawCat.toLowerCase() && item.displayName === item.displayName.toLowerCase()) {
+        item.displayName = rawCat
+        item.primaryId = rawCat
+      }
+
       if (Array.isArray(q.tags)) {
         const cleanedTags = q.tags.map(t => t.trim()).filter(Boolean)
-        const hasPersonnageTag =
-          catKey === 'anime & manga' && cleanedTags.some(t => t.toLowerCase() === 'personnage')
+        const isAnime = cKey === 'anime-manga'
+        const hasPersonnageTag = isAnime && cleanedTags.some(t => t.toLowerCase() === 'personnage')
 
         for (const trimmed of cleanedTags) {
-          catMap[catKey].tagCounts[trimmed] = (catMap[catKey].tagCounts[trimmed] ?? 0) + 1
+          item.tagCounts[trimmed] = (item.tagCounts[trimmed] ?? 0) + 1
           if (hasPersonnageTag && trimmed.toLowerCase() !== 'personnage') {
-            catMap[catKey].personnageChildren[trimmed] =
-              (catMap[catKey].personnageChildren[trimmed] ?? 0) + 1
+            item.personnageChildren[trimmed] = (item.personnageChildren[trimmed] ?? 0) + 1
           }
         }
       }
     }
 
-    // 3. Registered categories from Category table
-    const registeredCategories = await prisma.category.findMany()
-    const registeredMap = new Map(registeredCategories.map(c => [c.slug.toLowerCase().trim(), c]))
+    // Merge registered categories metadata
+    for (const reg of registeredCategories) {
+      const regSlugKey = getCanonicalKey(reg.slug)
+      const regNameKey = getCanonicalKey(reg.name)
+      const targetKey = categoriesMap.has(regSlugKey) ? regSlugKey : regNameKey
 
-    // 4. Merge all keys
-    const allKeys = Array.from(new Set([...Object.keys(catMap), ...registeredMap.keys()]))
+      let item = categoriesMap.get(targetKey)
+      if (!item) {
+        // Category with 0 questions in Question table
+        item = {
+          canonicalKey: regSlugKey,
+          primaryId: reg.slug,
+          displayName: reg.name,
+          icon: reg.icon || '🏷️',
+          count: 0,
+          rawVariants: new Set([reg.slug, reg.name]),
+          tagCounts: {},
+          personnageChildren: {},
+          registeredMeta: reg,
+        }
+        categoriesMap.set(regSlugKey, item)
+      } else {
+        item.registeredMeta = reg
+        if (reg.name && reg.name.trim()) {
+          item.displayName = reg.name.trim()
+        }
+        if (reg.icon && reg.icon !== '🏷️') {
+          item.icon = reg.icon
+        }
+      }
+    }
 
-    const result = allKeys.map(key => {
-      const stats = catMap[key] ?? { count: 0, tagCounts: {}, personnageChildren: {} }
-      const reg = registeredMap.get(key)
-      const meta = DEFAULT_CATEGORY_META[key]
+    // Format final deduplicated list
+    const result = Array.from(categoriesMap.values()).map(item => {
+      const meta =
+        DEFAULT_CATEGORY_META[item.canonicalKey] ||
+        DEFAULT_CATEGORY_META[item.primaryId.toLowerCase()] ||
+        DEFAULT_CATEGORY_META[item.displayName.toLowerCase()]
 
-      const name = reg?.name ?? meta?.name ?? (key.charAt(0).toUpperCase() + key.slice(1))
-      const icon = reg?.icon ?? meta?.icon ?? '🏷️'
+      const name = item.registeredMeta?.name || meta?.name || item.displayName
+      const icon =
+        (item.registeredMeta?.icon && item.registeredMeta.icon !== '🏷️' ? item.registeredMeta.icon : null) ||
+        meta?.icon ||
+        item.icon ||
+        '🏷️'
 
-      const tagsObj: Record<string, number> = { ...stats.tagCounts }
-      if (reg?.tags) {
-        for (const t of reg.tags) {
+      const tagsObj: Record<string, number> = { ...item.tagCounts }
+      if (item.registeredMeta?.tags) {
+        for (const t of item.registeredMeta.tags) {
           if (tagsObj[t] === undefined) {
             tagsObj[t] = 0
           }
@@ -215,18 +421,17 @@ export const questionsRoute = new Elysia({ prefix: '/questions' })
         .map(([tagName, tagCount]) => ({ name: tagName, count: tagCount }))
         .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
 
-      // Group co-occurring secondary tags exclusively under "Personnage" for Anime & Manga
       let finalTags = sortedTags
       let tagChildren: Record<string, { name: string; count: number }[]> | undefined
 
-      if (key === 'anime & manga') {
+      if (item.canonicalKey === 'anime-manga') {
         const parentTag = sortedTags.find(t => t.name.toLowerCase() === 'personnage')
         if (parentTag) {
           const childTags = sortedTags.filter(
             t =>
               t.name !== parentTag.name &&
-              stats.personnageChildren[t.name] !== undefined &&
-              stats.personnageChildren[t.name] === t.count
+              item.personnageChildren[t.name] !== undefined &&
+              item.personnageChildren[t.name] === t.count
           )
           if (childTags.length > 0) {
             const childNameSet = new Set(childTags.map(t => t.name))
@@ -237,16 +442,19 @@ export const questionsRoute = new Elysia({ prefix: '/questions' })
       }
 
       return {
-        id: key,
+        id: item.primaryId,
         name,
         icon,
-        count: stats.count,
+        count: item.count,
         tags: finalTags,
         ...(tagChildren ? { tagChildren } : {}),
       }
     })
 
-    return result.sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+    // Filter out duplicate ghost categories with 0 questions when questions exist in the database
+    return result
+      .filter(cat => cat.count > 0 || questions.length === 0)
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
   })
   .post('/categories', async ({ body, set }) => {
     const data = body as {
