@@ -4,9 +4,10 @@
 :root,
 [data-theme="retro"] {
   /* Typography */
-  --font-display: 'Outfit', system-ui, sans-serif;
-  --font-pixel: 'Press Start 2P', monospace;
-  --font-body: 'Inter', system-ui, sans-serif;
+  --font-digits: 'Outfit';
+  --font-display: var(--font-digits), 'Pixelify Sans', system-ui, sans-serif;
+  --font-pixel: var(--font-digits), 'Press Start 2P', monospace;
+  --font-body: var(--font-digits), 'Inter', system-ui, sans-serif;
 
   /* Core palette — Dark night retro arcade */
   --color-bg-primary:    #080c14;
