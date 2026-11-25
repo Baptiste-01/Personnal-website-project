@@ -253,6 +253,10 @@ export function useArenaSocket({
         }
         setIsSpeedrun(Boolean(msg.isSpeedrun))
         if (msg.question) setCurrentQuestion(msg.question)
+        if (typeof msg.nextImageUrl === 'string' && msg.nextImageUrl) {
+          const preloadImg = new Image()
+          preloadImg.src = msg.nextImageUrl
+        }
         if (Array.isArray(msg.players)) setPlayers(msg.players)
 
         // Reset per-round states

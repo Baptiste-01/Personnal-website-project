@@ -12,9 +12,10 @@ import Slider from '../../components/Slider/Slider'
 import type { SlideItem } from '../../components/Slider/Slider'
 import TemplateModal from '../../components/TemplateModal/TemplateModal'
 import { fetchTemplateByCode } from '../../utils/templateApi'
-import { serializeCategoryListMap, serializeDifficultyTimesMap } from '../../utils/tagFilter'
+import { serializeCategoryListMap, serializeDifficultyTimesMap, setCanonicalCategoryDifficulties } from '../../utils/tagFilter'
 import { soundManager } from '../../utils/sound'
 import { API_URL, setCustomApiUrl } from '../../utils/config'
+import { getLocalPlayer } from '../../hooks/useArenaSocket'
 import ArcadeBackground from '../../components/ArcadeBackground/ArcadeBackground'
 import './Lobby.css'
 
@@ -152,8 +153,13 @@ function CreateArenaModal({
   onCreate: (settings: CreateArenaSettings) => Promise<void>
   initialSettings?: Partial<CreateArenaSettings>
 }) {
-  const [name, setName] = useState(initialSettings?.name ?? '')
+  const [name, setName] = useState(() => {
+    if (initialSettings?.name) return initialSettings.name
+    const playerName = getLocalPlayer().name
+    return `Arène de ${playerName}`.slice(0, 40)
+  })
   const [difficulty, setDifficulty] = useState<Difficulty>(initialSettings?.difficulty ?? 'moyen')
+  const [isAllDiffMode, setIsAllDiffMode] = useState<boolean>(false)
   const [availableCategories, setAvailableCategories] = useState<CategoryInfo[]>([])
   const [selectedCategories, setSelectedCategories] = useState<string[]>(() => {
     if (initialSettings?.categories && initialSettings.categories.length > 0) {
@@ -242,11 +248,13 @@ function CreateArenaModal({
   }, [isTemplateModalOpen])
 
   const handleGlobalDifficultyChange = (d: Difficulty | 'all') => {
+    setIsAllDiffMode(d === 'all')
     if (d !== 'all') setDifficulty(d)
     const targetDiffs = d === 'all' ? ['facile', 'moyen', 'difficile'] as Difficulty[] : [d]
     setCategoryDifficulties(prev => {
       const next = { ...prev }
       Object.keys(next).forEach(k => { next[k] = targetDiffs })
+      displayCategories.forEach(c => { next[c.id] = targetDiffs })
       return next
     })
   }
@@ -277,16 +285,18 @@ function CreateArenaModal({
 
   const toggleCategoryDiff = (cat: string, diff: Difficulty) => {
     setCategoryDifficulties(prev => {
-      const current = prev[cat] ?? ['facile', 'moyen', 'difficile']
+      const current = prev[cat] ?? (isAllDiffMode ? ['facile', 'moyen', 'difficile'] : [difficulty])
       const has = current.includes(diff)
       if (has && current.length === 1) return prev
       const updated = has ? current.filter(d => d !== diff) : [...current, diff]
-      return { ...prev, [cat]: updated }
+      return setCanonicalCategoryDifficulties(prev, cat, updated)
     })
   }
 
   const setCategoryAllDiffs = (cat: string) => {
-    setCategoryDifficulties(prev => ({ ...prev, [cat]: ['facile', 'moyen', 'difficile'] }))
+    setCategoryDifficulties(prev =>
+      setCanonicalCategoryDifficulties(prev, cat, ['facile', 'moyen', 'difficile'])
+    )
   }
 
   const handleApplyTemplate = (tplSettings: GameSettings, templateName: string) => {
@@ -476,7 +486,7 @@ function CreateArenaModal({
               {displayCategories.map(catItem => {
                 const cat = catItem.id
                 const isSelected = selectedCategories.includes(cat)
-                const currentDiffs = categoryDifficulties[cat] ?? ['facile', 'moyen', 'difficile']
+                const currentDiffs = categoryDifficulties[cat] ?? (isAllDiffMode ? ['facile', 'moyen', 'difficile'] : [difficulty])
                 const isAllSelected = currentDiffs.length === 3
                 const catIcon = catItem.icon || CATEGORY_ICONS[cat] || '🏷️'
                 const catName = catItem.name || CATEGORY_LABELS[cat] || cat
@@ -486,12 +496,13 @@ function CreateArenaModal({
                     key={cat}
                     className={`category-card ${isSelected ? 'category-card--active' : 'category-card--inactive'}`}
                   >
-                    <div className="category-card-header">
-                      <div
-                        className="category-card-title-group"
-                        onClick={() => toggleCategory(cat)}
-                        title={isSelected ? 'Cliquez pour exclure' : 'Cliquez pour inclure'}
-                      >
+                    <div
+                      className="category-card-header"
+                      onClick={() => toggleCategory(cat)}
+                      style={{ cursor: 'pointer' }}
+                      title={isSelected ? 'Cliquez pour exclure' : 'Cliquez pour inclure'}
+                    >
+                      <div className="category-card-title-group">
                         <input
                           type="checkbox"
                           className="category-card-checkbox"
@@ -512,7 +523,10 @@ function CreateArenaModal({
                         <button
                           type="button"
                           className={`cat-toggle-badge ${isSelected ? 'cat-toggle-badge--active' : 'cat-toggle-badge--inactive'}`}
-                          onClick={() => toggleCategory(cat)}
+                          onClick={e => {
+                            e.stopPropagation()
+                            toggleCategory(cat)
+                          }}
                           title={isSelected ? 'Exclure cette catégorie' : 'Inclure cette catégorie'}
                         >
                           {isSelected ? '✓ Inclus' : '+ Exclu'}

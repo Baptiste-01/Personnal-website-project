@@ -28,6 +28,49 @@ export function normalizeDifficulty(d: string | undefined): string | undefined {
   return DIFFICULTY_MAP[lower] ?? lower
 }
 
+export function getDifficultyQueryVariants(diffs: string[]): string[] {
+  const variants = new Set<string>()
+  for (const d of diffs) {
+    const norm = normalizeDifficulty(d)
+    if (norm === 'facile') {
+      variants.add('facile')
+      variants.add('easy')
+    } else if (norm === 'moyen') {
+      variants.add('moyen')
+      variants.add('normal')
+      variants.add('medium')
+    } else if (norm === 'difficile') {
+      variants.add('difficile')
+      variants.add('hard')
+    } else if (norm) {
+      variants.add(norm)
+    }
+  }
+  return Array.from(variants)
+}
+
+export function getCanonicalCategoryKey(str: string): string {
+  const clean = str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+    .replace(/&/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+
+  if (clean === 'mythologie' || clean === 'mythologie-l-gende' || clean === 'mythologie-legendes') {
+    return 'mythologie-legende'
+  }
+  if (clean === 'capitales') return 'capitale'
+  if (clean === 'drapeaux') return 'drapeau'
+  if (clean === 'sports') return 'sport'
+  if (clean === 'jeux-vid-o' || clean === 'jeux-video') return 'jeux-video'
+  if (clean === 'anime-manga') return 'anime-manga'
+  if (clean === 'animaux-dinosaures') return 'animaux-dinosaures'
+  return clean
+}
+
 /** Parse comma-separated category maps encoded as "cat:val1+val2,cat2:val3". */
 function parseCategoryListMap(
   raw: string | undefined,
@@ -38,7 +81,7 @@ function parseCategoryListMap(
   raw.split(',').filter(Boolean).forEach(entry => {
     const colonIdx = entry.indexOf(':')
     if (colonIdx <= 0) return
-    const cat = entry.slice(0, colonIdx).toLowerCase().trim()
+    const cat = getCanonicalCategoryKey(entry.slice(0, colonIdx))
     const itemsPart = entry.slice(colonIdx + 1)
     if (!cat || !itemsPart) return
     const values = itemsPart
@@ -153,18 +196,25 @@ export function buildWhereClause(query: Record<string, string | undefined>) {
         ])
       )
 
+  const globalRawDiffs = (query.difficulty ?? '').split(',').filter(Boolean)
+  const globalNormDiffs = globalRawDiffs
+    .map(d => normalizeDifficulty(d))
+    .filter((d): d is string => Boolean(d) && d !== 'mixte')
+
   if (activeCategories.length > 0) {
     const orClauses = activeCategories.map(cat => {
+      const canonicalCat = getCanonicalCategoryKey(cat)
       const variants = getCategoryQueryVariants(cat)
       const cond: Record<string, unknown> = {
         category: { in: variants, mode: 'insensitive' },
       }
-      const diffs = catDiffsMap[cat]
-      if (diffs && diffs.length > 0 && diffs.length < 3) {
-        cond.difficulty = { in: diffs }
+      const diffs = catDiffsMap[canonicalCat] ?? catDiffsMap[cat]
+      const effectiveDiffs = diffs && diffs.length > 0 ? diffs : globalNormDiffs
+      if (effectiveDiffs && effectiveDiffs.length > 0 && effectiveDiffs.length < 3) {
+        cond.difficulty = { in: getDifficultyQueryVariants(effectiveDiffs), mode: 'insensitive' }
       }
-      const includedTags = catTagsMap[cat]
-      const bannedTags = bannedCatTagsMap[cat]
+      const includedTags = catTagsMap[canonicalCat] ?? catTagsMap[cat]
+      const bannedTags = bannedCatTagsMap[canonicalCat] ?? bannedCatTagsMap[cat]
 
       if (includedTags && includedTags.length > 0 && bannedTags && bannedTags.length > 0) {
         cond.AND = [
@@ -251,27 +301,7 @@ export const questionsRoute = new Elysia({ prefix: '/questions' })
     const registeredCategories = await prisma.category.findMany()
 
     // Helper to get a canonical normalization key for category deduplication & matching
-    const getCanonicalKey = (str: string): string => {
-      const clean = str
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .toLowerCase()
-        .trim()
-        .replace(/&/g, '')
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '')
-
-      if (clean === 'mythologie' || clean === 'mythologie-l-gende' || clean === 'mythologie-legendes') {
-        return 'mythologie-legende'
-      }
-      if (clean === 'capitales') return 'capitale'
-      if (clean === 'drapeaux') return 'drapeau'
-      if (clean === 'sports') return 'sport'
-      if (clean === 'jeux-vid-o' || clean === 'jeux-video') return 'jeux-video'
-      if (clean === 'anime-manga') return 'anime-manga'
-      if (clean === 'animaux-dinosaures') return 'animaux-dinosaures'
-      return clean
-    }
+    const getCanonicalKey = getCanonicalCategoryKey
 
     interface CategoryAggregator {
       canonicalKey: string

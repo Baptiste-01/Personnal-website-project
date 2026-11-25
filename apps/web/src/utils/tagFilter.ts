@@ -1,4 +1,43 @@
-import type { GameSettings } from '../types'
+import type { Difficulty, GameSettings } from '../types'
+
+/** Canonical normalization key matching backend getCanonicalCategoryKey for alias-safe client state. */
+export function getCanonicalClientCategoryKey(str: string): string {
+  const clean = str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+    .replace(/&/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+
+  if (clean === 'mythologie' || clean === 'mythologie-l-gende' || clean === 'mythologie-legendes') {
+    return 'mythologie-legende'
+  }
+  if (clean === 'capitales') return 'capitale'
+  if (clean === 'drapeaux') return 'drapeau'
+  if (clean === 'sports') return 'sport'
+  if (clean === 'jeux-vid-o' || clean === 'jeux-video') return 'jeux-video'
+  if (clean === 'anime-manga') return 'anime-manga'
+  if (clean === 'animaux-dinosaures') return 'animaux-dinosaures'
+  return clean
+}
+
+/** Update categoryDifficulties cleanly, keeping all canonical alias keys (e.g. drapeau & drapeaux) synchronized. */
+export function setCanonicalCategoryDifficulties(
+  map: Record<string, Difficulty[]>,
+  targetCat: string,
+  diffs: Difficulty[]
+): Record<string, Difficulty[]> {
+  const targetCanonical = getCanonicalClientCategoryKey(targetCat)
+  const next: Record<string, Difficulty[]> = { ...map, [targetCat]: diffs }
+  for (const key of Object.keys(next)) {
+    if (getCanonicalClientCategoryKey(key) === targetCanonical) {
+      next[key] = diffs
+    }
+  }
+  return next
+}
 
 /** Parse URL parameter encoded as "cat1:val1+val2,cat2:val3" into a Record. */
 export function parseCategoryListParam(raw: string | null): Record<string, string[]> {
@@ -20,18 +59,35 @@ export function parseCategoryListParam(raw: string | null): Record<string, strin
   return result
 }
 
-/** Serialize a Record<category, values[]> into "cat1:val1+val2,cat2:val3". */
+/** Serialize a Record<category, values[]> into "cat1:val1+val2,cat2:val3", deduplicating aliases. */
 export function serializeCategoryListMap(
   map: Record<string, string[]> | undefined,
   activeCategories?: string[]
 ): string {
   if (!map) return ''
-  return Object.entries(map)
-    .filter(([cat, vals]) => {
-      if (!Array.isArray(vals) || vals.length === 0) return false
-      return !activeCategories || activeCategories.includes(cat)
-    })
-    .map(([cat, vals]) => `${cat}:${vals.join('+')}`)
+  const activeExactSet =
+    activeCategories && activeCategories.length > 0
+      ? new Set(activeCategories.map(c => c.toLowerCase().trim()))
+      : null
+  const activeCanonicalSet =
+    activeCategories && activeCategories.length > 0
+      ? new Set(activeCategories.map(c => getCanonicalClientCategoryKey(c)))
+      : null
+
+  const deduped = new Map<string, { outKey: string; vals: string[]; isExact: boolean }>()
+  for (const [cat, vals] of Object.entries(map)) {
+    if (!Array.isArray(vals) || vals.length === 0) continue
+    const canonical = getCanonicalClientCategoryKey(cat)
+    if (activeCanonicalSet && !activeCanonicalSet.has(canonical)) continue
+    const isExact = Boolean(activeExactSet && activeExactSet.has(cat.toLowerCase().trim()))
+    const prev = deduped.get(canonical)
+    if (!prev || isExact || !prev.isExact) {
+      deduped.set(canonical, { outKey: cat, vals, isExact })
+    }
+  }
+
+  return Array.from(deduped.values())
+    .map(({ outKey, vals }) => `${outKey}:${vals.join('+')}`)
     .join(',')
 }
 
