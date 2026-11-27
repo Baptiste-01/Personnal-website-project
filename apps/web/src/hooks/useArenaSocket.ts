@@ -234,6 +234,14 @@ export function useArenaSocket({
       case 'game_started': {
         setRoomError(null)
         setRoomStatus('playing')
+        setAnswerFeedback('none')
+        setRevealedAnswer(null)
+        setAcceptedAnswers([])
+        setLastEarnedPoints(0)
+        setWasFirstAnswerer(false)
+        setLeaderboard([])
+        setPodium([])
+        setWinner(null)
         soundManager.playClick()
         if (onGameStartedRef.current) {
           onGameStartedRef.current()

@@ -771,7 +771,7 @@ export default function FlashGuess() {
                     className="fg-replay-btn"
                     onClick={() => {
                       soundManager.playClick()
-                      actions.restartGame()
+                      actions.startGame()
                     }}
                     id="replay-together"
                   >
