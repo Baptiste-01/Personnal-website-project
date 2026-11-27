@@ -212,6 +212,35 @@
 .fg-results-score { font-size: 18px; color: var(--color-text-secondary); margin-bottom: 4px; }
 .fg-results-score strong { color: var(--color-accent-hover); }
 .fg-results-detail { font-size: 14px; color: var(--color-text-muted); margin-bottom: 28px; }
+
+/* End-game asked questions review list */
+.fg-asked-questions { margin: 28px 0 24px; text-align: left; }
+.fg-asked-list { display: flex; flex-direction: column; gap: 10px; max-height: 420px; overflow-y: auto; padding-right: 4px; }
+.fg-asked-card { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 16px; border-radius: var(--radius-md); background: rgba(15, 23, 42, 0.72); border: 1px solid var(--color-border); transition: border-color var(--transition-fast), background var(--transition-fast); }
+.fg-asked-card--verified { border-color: rgba(34, 197, 94, 0.45); background: rgba(20, 83, 45, 0.18); }
+.fg-asked-card--suspect { border-color: rgba(245, 158, 11, 0.45); background: rgba(120, 53, 15, 0.18); }
+.fg-asked-main { flex: 1; min-width: 0; }
+.fg-asked-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 6px; }
+.fg-asked-round { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-text-muted); }
+.fg-asked-cat { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: var(--radius-full); background: rgba(99, 102, 241, 0.15); color: #a5b4fc; text-transform: capitalize; }
+.fg-asked-status { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: var(--radius-full); }
+.fg-asked-status--verified { background: rgba(34, 197, 94, 0.16); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.35); }
+.fg-asked-status--suspect { background: rgba(245, 158, 11, 0.16); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.35); }
+.fg-asked-text { font-size: 14px; font-weight: 600; color: var(--color-text-primary); margin: 0 0 4px; line-height: 1.4; }
+.fg-asked-answer { font-size: 13px; color: var(--color-text-secondary); margin: 0; }
+.fg-asked-answer strong { color: #38bdf8; }
+.fg-asked-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.fg-admin-verify-btn,
+.fg-admin-suspect-btn { display: inline-flex; align-items: center; gap: 5px; padding: 7px 12px; font-size: 12px; font-weight: 700; font-family: var(--font-body); border-radius: var(--radius-md); cursor: pointer; transition: all var(--transition-fast); border: 1px solid transparent; }
+.fg-admin-verify-btn { background: rgba(34, 197, 94, 0.14); color: #4ade80; border-color: rgba(34, 197, 94, 0.35); }
+.fg-admin-verify-btn:hover:not(:disabled) { background: rgba(34, 197, 94, 0.25); transform: translateY(-1px); }
+.fg-admin-verify-btn.is-active,
+.fg-admin-verify-btn:disabled { opacity: 0.65; cursor: default; }
+.fg-admin-suspect-btn { background: rgba(245, 158, 11, 0.14); color: #fbbf24; border-color: rgba(245, 158, 11, 0.35); }
+.fg-admin-suspect-btn:hover:not(:disabled) { background: rgba(245, 158, 11, 0.25); transform: translateY(-1px); }
+.fg-admin-suspect-btn.is-active,
+.fg-admin-suspect-btn:disabled { opacity: 0.65; cursor: default; }
+
 .fg-results-actions { display: flex; justify-content: center; gap: 12px; }
 .fg-replay-btn { padding: 12px 32px; font-size: 14px; font-weight: 700; font-family: var(--font-body); color: white; background: linear-gradient(135deg, var(--color-accent), #8b5cf6); border: none; border-radius: var(--radius-full); cursor: pointer; transition: all var(--transition-fast); box-shadow: 0 4px 16px var(--color-accent-glow); }
 .fg-replay-btn:hover { transform: translateY(-2px); }

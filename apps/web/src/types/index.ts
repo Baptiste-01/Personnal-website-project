@@ -128,6 +128,11 @@ export interface Question {
   difficulty?: Difficulty | string
   tags?: string[]
   isMuted?: boolean
+  isVerified?: boolean
+}
+
+export interface AskedQuestion extends Question {
+  round?: number
 }
 
 export interface Player {

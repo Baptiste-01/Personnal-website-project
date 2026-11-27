@@ -1,6 +1,7 @@
 import prisma from '../lib/prisma'
 import { buildWhereClause, getCanonicalCategoryKey, normalizeDifficulty, shuffle } from '../routes/questions'
 import { mutedQuestionsStore } from '../lib/mutedQuestions'
+import { verifiedQuestionsStore } from '../lib/verifiedQuestions'
 
 export interface PlayerSummary {
   id: string
@@ -277,6 +278,7 @@ export class GameRoom {
   public roundStartTime = 0
   public firstAnswerTime = 0
   public questions: QuestionData[] = []
+  public askedQuestions: QuestionData[] = []
   public chatMessages: ChatMessage[] = []
   public timer: any = null
   public revealTimeout: any = null
@@ -598,6 +600,7 @@ export class GameRoom {
   public async startGame(): Promise<boolean> {
     this.clearAllTimers()
     this.currentRoundIndex = 0
+    this.askedQuestions = []
 
     // Reset player scores
     for (const player of this.players.values()) {
@@ -756,6 +759,10 @@ export class GameRoom {
     if (!q) {
       this.finishGame()
       return
+    }
+
+    if (!this.askedQuestions.some(aq => aq.id === q.id)) {
+      this.askedQuestions.push(q)
     }
 
     const isSpeedrun = this.isQuestionSpeedrun(q)
@@ -962,6 +969,7 @@ export class GameRoom {
       leaderboard,
       podium: leaderboard.slice(0, 3),
       winner: leaderboard[0] ?? null,
+      askedQuestions: this.getAskedQuestionsSummary(),
     })
 
     if (leaderboard[0]) {
@@ -978,6 +986,7 @@ export class GameRoom {
     this.clearAllTimers()
     this.status = 'waiting'
     this.currentRoundIndex = 0
+    this.askedQuestions = []
 
     for (const p of this.players.values()) {
       p.score = 0
@@ -1001,6 +1010,7 @@ export class GameRoom {
   }
 
   public async muteQuestion(questionId: string, reason?: string, byPlayerName?: string) {
+    await verifiedQuestionsStore.unverify(questionId)
     await mutedQuestionsStore.mute(questionId, reason)
     this.broadcast({
       type: 'question_muted',
@@ -1011,9 +1021,40 @@ export class GameRoom {
     this.addChatMessage({
       playerId: 'system',
       playerName: 'Système',
-      text: `🔇 La question #${questionId} a été mise en sourdine${byPlayerName ? ` par ${byPlayerName}` : ''}${reason ? ` (${reason})` : ''}.`,
+      text: `⚠️ La question #${questionId} a été marquée comme suspecte${byPlayerName ? ` par ${byPlayerName}` : ''}${reason ? ` (${reason})` : ''}.`,
       isSystem: true,
     })
+  }
+
+  public async verifyQuestion(questionId: string, byPlayerName?: string) {
+    await mutedQuestionsStore.unmute(questionId)
+    await verifiedQuestionsStore.verify(questionId, byPlayerName)
+    this.broadcast({
+      type: 'question_verified',
+      questionId,
+      byPlayerName,
+    })
+    this.addChatMessage({
+      playerId: 'system',
+      playerName: 'Système',
+      text: `✅ La question #${questionId} a été marquée comme vérifiée${byPlayerName ? ` par ${byPlayerName}` : ''}.`,
+      isSystem: true,
+    })
+  }
+
+  public getAskedQuestionsSummary() {
+    return this.askedQuestions.map((q, index) => ({
+      round: index + 1,
+      id: q.id,
+      text: q.text,
+      answer: q.answer,
+      acceptedAnswers: q.acceptedAnswers,
+      category: q.category,
+      difficulty: q.difficulty,
+      imageUrl: q.imageUrl,
+      isMuted: mutedQuestionsStore.isMuted(q),
+      isVerified: verifiedQuestionsStore.isVerified(q),
+    }))
   }
 
   /** Serialize question payload for players without leaking answers, hints, or tags. */
@@ -1052,6 +1093,8 @@ export class GameRoom {
         (this.status === 'playing' || this.status === 'reveal') && q
           ? this.getPublicQuestion(q)
           : null,
+      askedQuestions:
+        this.status === 'finished' ? this.getAskedQuestionsSummary() : undefined,
     }
   }
 }

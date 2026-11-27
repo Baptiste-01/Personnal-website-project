@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import {
   IconArrowLeft, IconGamepad, IconUser, IconHash, IconClock,
   IconCheck, IconX, IconInfinity, IconTrophy, IconFlame, IconTarget, IconZap,
-  IconMessageCircle, IconVolumeMute
+  IconMessageCircle
 } from '../../components/Icons'
 import AudioThemeControls from '../../components/AudioThemeControls'
 import ArenaChat from '../../components/ArenaChat/ArenaChat'
@@ -29,7 +29,6 @@ export default function FlashGuess() {
   const [answer, setAnswer] = useState('')
   const [modalImage, setModalImage] = useState<string | null>(null)
   const [isChatOpen, setIsChatOpen] = useState(false)
-  const [muteFeedback, setMuteFeedback] = useState<string | null>(null)
   const [imageLoaded, setImageLoaded] = useState(false)
   const [imageError, setImageError] = useState(false)
 
@@ -54,6 +53,8 @@ export default function FlashGuess() {
     isSpeedrun,
     currentQuestion,
     mutedQuestions,
+    verifiedQuestions,
+    askedQuestions,
     revealedAnswer,
     acceptedAnswers,
     answerFeedback,
@@ -95,16 +96,34 @@ export default function FlashGuess() {
     }
   }
 
-  // Admin action: mute question that contains errors
-  const handleAdminMuteQuestion = async () => {
-    if (!isAdmin || !currentQuestion) return
+  // Admin actions on end-game question list
+  const handleVerifyQuestion = async (questionId: string | number) => {
+    if (!isAdmin) return
     soundManager.playClick()
-    const qId = String(currentQuestion.id)
+    const qId = String(questionId)
+    actions.verifyQuestion(qId)
 
-    // 1. Real-time WebSocket notification to all players in arena
-    actions.muteQuestion(qId, 'Erreur signalée par admin en cours de partie')
+    try {
+      const token = localStorage.getItem('auth_token')
+      await fetch(`${API_URL}/admin/questions/${encodeURIComponent(qId)}/verify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({}),
+      })
+    } catch {
+      // Offline / fallback handled by WebSocket & local state
+    }
+  }
 
-    // 2. Direct HTTP API persistence
+  const handleSuspectQuestion = async (questionId: string | number) => {
+    if (!isAdmin) return
+    soundManager.playClick()
+    const qId = String(questionId)
+    actions.muteQuestion(qId, 'Question signalée comme suspecte en fin de partie')
+
     try {
       const token = localStorage.getItem('auth_token')
       await fetch(`${API_URL}/admin/questions/${encodeURIComponent(qId)}/mute`, {
@@ -113,14 +132,11 @@ export default function FlashGuess() {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ reason: 'Erreur signalée par admin en cours de partie' }),
+        body: JSON.stringify({ reason: 'Question signalée comme suspecte en fin de partie' }),
       })
     } catch {
       // Offline / fallback handled by WebSocket & local state
     }
-
-    setMuteFeedback('Question mise en sourdine avec succès.')
-    setTimeout(() => setMuteFeedback(null), 3500)
   }
 
   // Sorted players for real-time leaderboard
@@ -348,6 +364,7 @@ export default function FlashGuess() {
                 </div>
                 <div className="fg-timer-track">
                   <div
+                    key={`${currentRound}-${currentQuestion.id}`}
                     className={`fg-timer-fill ${isSpeedrun ? 'fg-timer-fill--speedrun' : ''}`}
                     style={{ width: `${timerPct}%`, backgroundColor: timerColor }}
                   />
@@ -358,10 +375,7 @@ export default function FlashGuess() {
               <div className={`fg-prompt ${roomStatus === 'reveal' ? 'fg-prompt--reveal' : ''}`}>
                 {(() => {
                   const diffBadge = getDifficultyBadge(currentQuestion.difficulty)
-                  const isCurrentMuted = Boolean(
-                    currentQuestion.isMuted || mutedQuestions.includes(String(currentQuestion.id))
-                  )
-                  return (diffBadge || isSpeedrun || isAdmin) ? (
+                  return (diffBadge || isSpeedrun) ? (
                     <div className="fg-prompt-meta">
                       {diffBadge && (
                         <span className={`fg-difficulty-badge fg-difficulty-badge--${diffBadge.key}`}>
@@ -373,38 +387,9 @@ export default function FlashGuess() {
                           ⚡ SPEEDRUN ({roundMaxTime ?? 5}s)
                         </span>
                       )}
-                      {/* Action Admin : Mettre en sourdine la question contenant une erreur */}
-                      {isAdmin && (
-                        <div className="fg-admin-action-wrapper">
-                          {isCurrentMuted ? (
-                            <span
-                              className="fg-admin-muted-badge"
-                              title="Cette question a été mise en sourdine car elle contient une erreur."
-                            >
-                              <IconVolumeMute /> En sourdine (Erreur signalée)
-                            </span>
-                          ) : (
-                            <button
-                              type="button"
-                              className="fg-admin-mute-btn"
-                              onClick={handleAdminMuteQuestion}
-                              title="Mettre en sourdine cette question (visible uniquement par les admins)"
-                              id="btn-admin-mute-question"
-                            >
-                              <IconVolumeMute />
-                              <span>Mettre en sourdine</span>
-                            </button>
-                          )}
-                        </div>
-                      )}
                     </div>
                   ) : null
                 })()}
-                {isAdmin && muteFeedback && (
-                  <div className="fg-admin-toast fade-in" id="fg-admin-mute-feedback">
-                    {muteFeedback}
-                  </div>
-                )}
                 <p className="fg-prompt-text">{currentQuestion.text}</p>
 
                 {currentQuestion.imageUrl && (
@@ -764,6 +749,78 @@ export default function FlashGuess() {
                   </tbody>
                 </table>
               </div>
+
+              {/* Asked Questions Review List */}
+              {askedQuestions.length > 0 && (
+                <div className="fg-asked-questions">
+                  <h3 className="fg-section-subtitle">Questions posées durant la partie</h3>
+                  <div className="fg-asked-list">
+                    {askedQuestions.map((q, idx) => {
+                      const qId = String(q.id)
+                      const isSuspect = Boolean(q.isMuted || mutedQuestions.includes(qId))
+                      const isVerified = Boolean(q.isVerified || verifiedQuestions.includes(qId)) && !isSuspect
+                      const diffBadge = getDifficultyBadge(q.difficulty)
+                      return (
+                        <div
+                          key={`${qId}-${idx}`}
+                          className={`fg-asked-card ${isVerified ? 'fg-asked-card--verified' : ''} ${isSuspect ? 'fg-asked-card--suspect' : ''}`}
+                        >
+                          <div className="fg-asked-main">
+                            <div className="fg-asked-meta">
+                              <span className="fg-asked-round">Manche #{q.round ?? idx + 1}</span>
+                              {q.category && <span className="fg-asked-cat">{q.category}</span>}
+                              {diffBadge && (
+                                <span className={`fg-difficulty-badge fg-difficulty-badge--${diffBadge.key}`}>
+                                  {diffBadge.emoji} {diffBadge.label}
+                                </span>
+                              )}
+                              {isVerified && (
+                                <span className="fg-asked-status fg-asked-status--verified">
+                                  ✅ Vérifiée
+                                </span>
+                              )}
+                              {isSuspect && (
+                                <span className="fg-asked-status fg-asked-status--suspect">
+                                  ⚠️ Suspecte
+                                </span>
+                              )}
+                            </div>
+                            <p className="fg-asked-text">{q.text}</p>
+                            {q.answer && (
+                              <p className="fg-asked-answer">
+                                Réponse : <strong>{q.answer}</strong>
+                              </p>
+                            )}
+                          </div>
+
+                          {isAdmin && (
+                            <div className="fg-asked-actions">
+                              <button
+                                type="button"
+                                className={`fg-admin-verify-btn ${isVerified ? 'is-active' : ''}`}
+                                onClick={() => handleVerifyQuestion(q.id)}
+                                disabled={isVerified}
+                                id={`btn-verify-question-${qId}`}
+                              >
+                                ✅ {isVerified ? 'Vérifiée' : 'Vérifier'}
+                              </button>
+                              <button
+                                type="button"
+                                className={`fg-admin-suspect-btn ${isSuspect ? 'is-active' : ''}`}
+                                onClick={() => handleSuspectQuestion(q.id)}
+                                disabled={isSuspect}
+                                id={`btn-suspect-question-${qId}`}
+                              >
+                                ⚠️ {isSuspect ? 'Suspecte' : 'Suspect'}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
 
               <div className="fg-results-actions">
                 {isHost && (

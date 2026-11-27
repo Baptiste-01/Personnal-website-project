@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import type { PlayerSummary, Question, GameSettings, ChatMessage } from '../types'
+import type { PlayerSummary, Question, AskedQuestion, GameSettings, ChatMessage } from '../types'
 import { soundManager } from '../utils/sound'
 import { triggerVictoryConfetti, triggerStreakConfetti } from '../utils/confetti'
 import { WS_URL } from '../utils/config'
@@ -54,6 +54,8 @@ export function useArenaSocket({
   const [roomStatus, setRoomStatus] = useState<RoomStatus>('waiting')
   const [settings, setSettings] = useState<GameSettings | null>(null)
   const [mutedQuestions, setMutedQuestions] = useState<string[]>([])
+  const [verifiedQuestions, setVerifiedQuestions] = useState<string[]>([])
+  const [askedQuestions, setAskedQuestions] = useState<AskedQuestion[]>([])
 
   // Game state
   const [currentRound, setCurrentRound] = useState(0)
@@ -179,6 +181,7 @@ export function useArenaSocket({
           if (typeof room.isSpeedrun === 'boolean') setIsSpeedrun(room.isSpeedrun)
           if (room.question && room.question.text) setCurrentQuestion(room.question)
           if (room.revealedAnswer) setRevealedAnswer(room.revealedAnswer)
+          if (Array.isArray(room.askedQuestions)) setAskedQuestions(room.askedQuestions)
           if (Array.isArray(room.chatMessages)) setChatMessages(room.chatMessages)
         }
         break
@@ -242,6 +245,7 @@ export function useArenaSocket({
         setLeaderboard([])
         setPodium([])
         setWinner(null)
+        setAskedQuestions([])
         soundManager.playClick()
         if (onGameStartedRef.current) {
           onGameStartedRef.current()
@@ -355,6 +359,7 @@ export function useArenaSocket({
         if (Array.isArray(msg.leaderboard)) setLeaderboard(msg.leaderboard)
         if (Array.isArray(msg.podium)) setPodium(msg.podium)
         if (msg.winner) setWinner(msg.winner)
+        if (Array.isArray(msg.askedQuestions)) setAskedQuestions(msg.askedQuestions)
         break
       }
 
@@ -367,6 +372,7 @@ export function useArenaSocket({
         setLeaderboard([])
         setPodium([])
         setWinner(null)
+        setAskedQuestions([])
         if (msg.room && Array.isArray(msg.room.players)) {
           setPlayers(msg.room.players)
         }
@@ -387,7 +393,22 @@ export function useArenaSocket({
       case 'question_muted': {
         const qId = String(msg.questionId)
         setMutedQuestions(prev => (prev.includes(qId) ? prev : [...prev, qId]))
-        setCurrentQuestion(prev => (prev && String(prev.id) === qId ? { ...prev, isMuted: true } : prev))
+        setVerifiedQuestions(prev => prev.filter(id => id !== qId))
+        setCurrentQuestion(prev => (prev && String(prev.id) === qId ? { ...prev, isMuted: true, isVerified: false } : prev))
+        setAskedQuestions(prev =>
+          prev.map(q => (String(q.id) === qId ? { ...q, isMuted: true, isVerified: false } : q))
+        )
+        break
+      }
+
+      case 'question_verified': {
+        const qId = String(msg.questionId)
+        setVerifiedQuestions(prev => (prev.includes(qId) ? prev : [...prev, qId]))
+        setMutedQuestions(prev => prev.filter(id => id !== qId))
+        setCurrentQuestion(prev => (prev && String(prev.id) === qId ? { ...prev, isMuted: false, isVerified: true } : prev))
+        setAskedQuestions(prev =>
+          prev.map(q => (String(q.id) === qId ? { ...q, isMuted: false, isVerified: true } : q))
+        )
         break
       }
     }
@@ -446,6 +467,13 @@ export function useArenaSocket({
   const muteQuestion = useCallback(
     (questionId: string | number, reason?: string) => {
       send({ type: 'admin_mute_question', questionId: String(questionId), reason })
+    },
+    [send]
+  )
+
+  const verifyQuestion = useCallback(
+    (questionId: string | number) => {
+      send({ type: 'admin_verify_question', questionId: String(questionId) })
     },
     [send]
   )
@@ -531,6 +559,8 @@ export function useArenaSocket({
     isSpeedrun,
     currentQuestion,
     mutedQuestions,
+    verifiedQuestions,
+    askedQuestions,
     revealedAnswer,
     acceptedAnswers,
     answerFeedback,
@@ -550,6 +580,7 @@ export function useArenaSocket({
       sendChatMessage,
       requestCurrentRound,
       muteQuestion,
+      verifyQuestion,
       leaveArena,
     },
   }

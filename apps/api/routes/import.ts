@@ -2,6 +2,7 @@ import Elysia from 'elysia'
 import * as XLSX from 'xlsx'
 import prisma from '../lib/prisma'
 import { mutedQuestionsStore } from '../lib/mutedQuestions'
+import { verifiedQuestionsStore } from '../lib/verifiedQuestions'
 import { FALLBACK_QUESTIONS } from '../ws/roomManager'
 
 /* ─── Types ──────────────────────────────────────────────────── */
@@ -900,16 +901,43 @@ export const importRoute = new Elysia({ prefix: '/admin' })
     }
   })
 
-  /** POST /admin/questions/:id/mute — mute a question that contains errors */
+  /** POST /admin/questions/:id/mute — mute (mark suspect) a question that contains errors */
   .post('/questions/:id/mute', async ({ params, body, set }) => {
     try {
       const id = params.id
       const b = (body || {}) as { reason?: string }
+      await verifiedQuestionsStore.unverify(id)
       const res = await mutedQuestionsStore.mute(id, b.reason)
       return { success: true, message: res.message, id }
     } catch (err) {
       set.status = 500
       return { error: `Impossible de mettre la question en sourdine : ${String(err)}` }
+    }
+  })
+
+  /** POST /admin/questions/:id/verify — mark a question as verified and unmute it */
+  .post('/questions/:id/verify', async ({ params, body, set }) => {
+    try {
+      const id = params.id
+      const b = (body || {}) as { verifiedBy?: string }
+      await mutedQuestionsStore.unmute(id)
+      const res = await verifiedQuestionsStore.verify(id, b.verifiedBy)
+      return { success: true, message: res.message, id }
+    } catch (err) {
+      set.status = 500
+      return { error: `Impossible de vérifier la question : ${String(err)}` }
+    }
+  })
+
+  /** POST /admin/questions/:id/unverify — remove verified status from a question */
+  .post('/questions/:id/unverify', async ({ params, set }) => {
+    try {
+      const id = params.id
+      const res = await verifiedQuestionsStore.unverify(id)
+      return { success: true, message: res.message, id }
+    } catch (err) {
+      set.status = 500
+      return { error: `Impossible de retirer le statut vérifié : ${String(err)}` }
     }
   })
 

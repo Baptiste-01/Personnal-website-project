@@ -324,6 +324,19 @@ export const arenaWs = new Elysia()
           await room.muteQuestion(questionId, reason, player.name)
           break
         }
+
+        case 'admin_verify_question': {
+          const playerId = data.playerId
+          if (!playerId) return
+          const player = room.players.get(playerId)
+          if (!player) return
+
+          const questionId = String(msg.questionId || '').trim()
+          if (!questionId) return
+
+          await room.verifyQuestion(questionId, player.name)
+          break
+        }
       }
     },
 

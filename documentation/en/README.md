@@ -56,6 +56,7 @@ Each commit/task is documented following a standardized format (`Objective`, `Ac
 | **40** | 2026-11-25 | `Workspace` | [Task_40_2026-11-25.md](file:///c:/Users/bapti/Desktop/Moi/Projet-Perso/Personnal-website-project/documentation/en/Task_40_2026-11-25.md) | FlashGuess UI overhaul, arena settings persistence, degressive scoring & strict category difficulty filtering |
 | **41** | 2026-11-27 | `Workspace` | [Task_41_2026-11-27.md](file:///c:/Users/bapti/Desktop/Moi/Projet-Perso/Personnal-website-project/documentation/en/Task_41_2026-11-27.md) | `feat/ui-improvements` branch, hybrid typography (`Pixelify Sans` / `Inter` / `Outfit`) & SpeedSmik leaderboard card overhaul |
 | **42** | 2026-11-27 | `Workspace` | [Task_42_2026-11-27.md](file:///c:/Users/bapti/Desktop/Moi/Projet-Perso/Personnal-website-project/documentation/en/Task_42_2026-11-27.md) | Fix Mythologie & Légendes category remaining active by default when unselected |
+| **43** | 2026-11-27 | `Workspace` | [Task_43_2026-11-27.md](file:///c:/Users/bapti/Desktop/Moi/Projet-Perso/Personnal-website-project/documentation/en/Task_43_2026-11-27.md) | End-game asked questions review (Verify / Suspect) & in-game suspect button removal |
 
 ---
 
