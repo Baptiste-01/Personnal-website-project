@@ -12,7 +12,13 @@ import Slider from '../../components/Slider/Slider'
 import type { SlideItem } from '../../components/Slider/Slider'
 import TemplateModal from '../../components/TemplateModal/TemplateModal'
 import { fetchTemplateByCode } from '../../utils/templateApi'
-import { serializeCategoryListMap, serializeDifficultyTimesMap, setCanonicalCategoryDifficulties } from '../../utils/tagFilter'
+import {
+  hasCanonicalCategory,
+  serializeCategoryListMap,
+  serializeDifficultyTimesMap,
+  setCanonicalCategoryDifficulties,
+  toggleCanonicalCategory,
+} from '../../utils/tagFilter'
 import { soundManager } from '../../utils/sound'
 import { API_URL, setCustomApiUrl } from '../../utils/config'
 import { getLocalPlayer } from '../../hooks/useArenaSocket'
@@ -262,13 +268,7 @@ function CreateArenaModal({
   const toggleCategory = (catId: string) => {
     hasUserTouchedCategories.current = true
     soundManager.playClick()
-    setSelectedCategories(prev => {
-      if (prev.includes(catId)) {
-        return prev.filter(c => c !== catId)
-      } else {
-        return [...prev, catId]
-      }
-    })
+    setSelectedCategories(prev => toggleCanonicalCategory(prev, catId, 0))
   }
 
   const selectAllCategories = () => {
@@ -485,7 +485,7 @@ function CreateArenaModal({
             <div className="category-diff-list">
               {displayCategories.map(catItem => {
                 const cat = catItem.id
-                const isSelected = selectedCategories.includes(cat)
+                const isSelected = hasCanonicalCategory(selectedCategories, cat)
                 const currentDiffs = categoryDifficulties[cat] ?? (isAllDiffMode ? ['facile', 'moyen', 'difficile'] : [difficulty])
                 const isAllSelected = currentDiffs.length === 3
                 const catIcon = catItem.icon || CATEGORY_ICONS[cat] || '🏷️'

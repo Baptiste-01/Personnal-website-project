@@ -23,6 +23,53 @@ export function getCanonicalClientCategoryKey(str: string): string {
   return clean
 }
 
+/** Check whether a category (or any canonical alias of it) is present in a list. */
+export function hasCanonicalCategory(categories: string[], targetCat: string): boolean {
+  const targetCanonical = getCanonicalClientCategoryKey(targetCat)
+  return categories.some(c => getCanonicalClientCategoryKey(c) === targetCanonical)
+}
+
+/** Toggle a category by canonical key, removing all aliases when unchecking and respecting minCount. */
+export function toggleCanonicalCategory(
+  categories: string[],
+  targetCat: string,
+  minCount = 0
+): string[] {
+  const targetCanonical = getCanonicalClientCategoryKey(targetCat)
+  const has = categories.some(c => getCanonicalClientCategoryKey(c) === targetCanonical)
+  if (has) {
+    const next = categories.filter(c => getCanonicalClientCategoryKey(c) !== targetCanonical)
+    const uniqueCanonicalCount = new Set(categories.map(getCanonicalClientCategoryKey)).size
+    if (uniqueCanonicalCount <= minCount) return categories
+    return next
+  }
+  return [...categories, targetCat]
+}
+
+/** Map stored category aliases to the active API category IDs and deduplicate by canonical key. */
+export function normalizeCategoriesToAvailable(
+  categories: string[],
+  available: Array<{ id: string }>
+): string[] {
+  if (available.length === 0) return categories
+  const availableByCanonical = new Map<string, string>()
+  for (const item of available) {
+    const key = getCanonicalClientCategoryKey(item.id)
+    if (!availableByCanonical.has(key)) {
+      availableByCanonical.set(key, item.id)
+    }
+  }
+  const seen = new Set<string>()
+  const normalized: string[] = []
+  for (const cat of categories) {
+    const key = getCanonicalClientCategoryKey(cat)
+    if (seen.has(key)) continue
+    seen.add(key)
+    normalized.push(availableByCanonical.get(key) ?? cat)
+  }
+  return normalized
+}
+
 /** Update categoryDifficulties cleanly, keeping all canonical alias keys (e.g. drapeau & drapeaux) synchronized. */
 export function setCanonicalCategoryDifficulties(
   map: Record<string, Difficulty[]>,
