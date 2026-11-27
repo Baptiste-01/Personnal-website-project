@@ -246,10 +246,11 @@
 
 .as-nav-section-title {
   padding: 4px 10px 8px;
-  font-size: 10px;
-  font-weight: 800;
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   color: var(--color-text-muted);
   display: flex;
   align-items: center;
@@ -598,7 +599,8 @@
 }
 
 .as-user-name {
-  font-size: 13px;
+  font-family: var(--font-display);
+  font-size: 15px;
   font-weight: 700;
   color: var(--color-text-primary);
   white-space: nowrap;
