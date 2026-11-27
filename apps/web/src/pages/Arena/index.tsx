@@ -15,11 +15,14 @@ import ArenaChat from '../../components/ArenaChat/ArenaChat'
 import { soundManager } from '../../utils/sound'
 import { useArenaSocket } from '../../hooks/useArenaSocket'
 import {
+  hasCanonicalCategory,
+  normalizeCategoriesToAvailable,
   parseCategoryListParam,
   serializeCategoryListMap,
   setCanonicalCategoryDifficulties,
   parseDifficultyTimesMap,
   serializeDifficultyTimesMap,
+  toggleCanonicalCategory,
 } from '../../utils/tagFilter'
 import { API_URL } from '../../utils/config'
 import './Arena.css'
@@ -398,6 +401,16 @@ export default function Arena() {
         const data = await res.json()
         if (Array.isArray(data) && data.length > 0) {
           setAvailableCategories(data)
+          setSettings(prev => {
+            const normalized = normalizeCategoriesToAvailable(prev.categories, data)
+            if (
+              normalized.length === prev.categories.length &&
+              normalized.every((c, i) => c === prev.categories[i])
+            ) {
+              return prev
+            }
+            return { ...prev, categories: normalized }
+          })
         }
       }
     } catch {
@@ -592,9 +605,9 @@ const handleMaxPlayersChange = (val: number) => {
 
 const toggleCategory = (cat: Category) => {
   setSettings(prev => {
-    const has = prev.categories.includes(cat)
-    if (has && prev.categories.length === 1) return prev
-    const nextCats = has ? prev.categories.filter(c => c !== cat) : [...prev.categories, cat]
+    const has = hasCanonicalCategory(prev.categories, cat)
+    const nextCats = toggleCanonicalCategory(prev.categories, cat, 1)
+    if (nextCats === prev.categories) return prev
     const nextDiffs = { ...prev.categoryDifficulties }
     if (!has && (!nextDiffs[cat] || nextDiffs[cat].length === 0)) {
       nextDiffs[cat] = [prev.difficulty]
@@ -1010,7 +1023,7 @@ return (
                 <div className="category-diff-list">
                   {displayCategories.map(catItem => {
                     const catId = catItem.id
-                    const isSelected = settings.categories.includes(catId)
+                    const isSelected = hasCanonicalCategory(settings.categories, catId)
                     const currentDiffs = settings.categoryDifficulties[catId] ?? ['facile', 'moyen', 'difficile']
                     const isAllDiffsSelected = currentDiffs.length === 3
                     const selectedTagsForCat = settings.categoryTags[catId] ?? []

@@ -6,46 +6,46 @@
   /* Typography */
   --font-digits: 'Outfit';
   --font-display: var(--font-digits), 'Pixelify Sans', system-ui, sans-serif;
-  --font-pixel: var(--font-digits), 'Press Start 2P', monospace;
+  --font-pixel: var(--font-digits), 'Inter', system-ui, sans-serif;
   --font-body: var(--font-digits), 'Inter', system-ui, sans-serif;
 
   /* Core palette — Dark night retro arcade */
-  --color-bg-primary:    #080c14;
-  --color-bg-secondary:  #0d1525;
-  --color-bg-card:       #111b2e;
+  --color-bg-primary: #080c14;
+  --color-bg-secondary: #0d1525;
+  --color-bg-card: #111b2e;
   --color-bg-card-hover: #162135;
-  --color-bg-elevated:   #1a2840;
+  --color-bg-elevated: #1a2840;
 
-  --color-border:        rgba(59, 130, 246, 0.16);
-  --color-border-hover:  rgba(59, 130, 246, 0.35);
+  --color-border: rgba(59, 130, 246, 0.16);
+  --color-border-hover: rgba(59, 130, 246, 0.35);
 
-  --color-text-primary:   #e8eef8;
+  --color-text-primary: #e8eef8;
   --color-text-secondary: #7a94b8;
-  --color-text-muted:     #4a6080;
+  --color-text-muted: #4a6080;
 
   /* Accent — Arcade Electric Blue */
-  --color-accent:        #3b82f6;
-  --color-accent-hover:  #60a5fa;
-  --color-accent-dark:   #1d4ed8;
+  --color-accent: #3b82f6;
+  --color-accent-hover: #60a5fa;
+  --color-accent-dark: #1d4ed8;
   --color-accent-subtle: rgba(59, 130, 246, 0.12);
-  --color-accent-glow:   rgba(59, 130, 246, 0.30);
+  --color-accent-glow: rgba(59, 130, 246, 0.30);
 
   /* Secondary accent — Cyan */
-  --color-accent2:       #0ea5e9;
-  --color-accent2-glow:  rgba(14, 165, 233, 0.22);
+  --color-accent2: #0ea5e9;
+  --color-accent2-glow: rgba(14, 165, 233, 0.22);
 
   /* Status */
-  --color-status-live:        #22c55e;
-  --color-status-live-bg:     rgba(34, 197, 94, 0.10);
-  --color-status-waiting:     #f59e0b;
-  --color-status-waiting-bg:  rgba(245, 158, 11, 0.10);
+  --color-status-live: #22c55e;
+  --color-status-live-bg: rgba(34, 197, 94, 0.10);
+  --color-status-waiting: #f59e0b;
+  --color-status-waiting-bg: rgba(245, 158, 11, 0.10);
 
   /* Spacing */
-  --radius-sm:   6px;
-  --radius-md:   10px;
-  --radius-lg:   14px;
-  --radius-xl:   18px;
-  --radius-2xl:  24px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --radius-2xl: 24px;
   --radius-full: 9999px;
 
   /* Transitions */
@@ -67,58 +67,60 @@
 
 /* ─── Theme: Dark Zinc / Violet Minimalist ─── */
 [data-theme="dark"] {
-  --color-bg-primary:    #09090b;
-  --color-bg-secondary:  #121216;
-  --color-bg-card:       #18181b;
+  --color-bg-primary: #09090b;
+  --color-bg-secondary: #121216;
+  --color-bg-card: #18181b;
   --color-bg-card-hover: #222227;
-  --color-bg-elevated:   #27272a;
+  --color-bg-elevated: #27272a;
 
-  --color-border:        rgba(139, 92, 246, 0.16);
-  --color-border-hover:  rgba(139, 92, 246, 0.35);
+  --color-border: rgba(139, 92, 246, 0.16);
+  --color-border-hover: rgba(139, 92, 246, 0.35);
 
-  --color-text-primary:   #fafafa;
+  --color-text-primary: #fafafa;
   --color-text-secondary: #a1a1aa;
-  --color-text-muted:     #71717a;
+  --color-text-muted: #71717a;
 
   /* Accent — Deep Violet / Purple */
-  --color-accent:        #8b5cf6;
-  --color-accent-hover:  #a78bfa;
-  --color-accent-dark:   #6d28d9;
+  --color-accent: #8b5cf6;
+  --color-accent-hover: #a78bfa;
+  --color-accent-dark: #6d28d9;
   --color-accent-subtle: rgba(139, 92, 246, 0.14);
-  --color-accent-glow:   rgba(139, 92, 246, 0.32);
+  --color-accent-glow: rgba(139, 92, 246, 0.32);
 
-  --color-accent2:       #06b6d4;
-  --color-accent2-glow:  rgba(6, 182, 212, 0.20);
+  --color-accent2: #06b6d4;
+  --color-accent2-glow: rgba(6, 182, 212, 0.20);
 }
 
 /* ─── Theme: Cyberpunk Neon Pink ─── */
 [data-theme="cyberpunk"] {
-  --color-bg-primary:    #0c0414;
-  --color-bg-secondary:  #150824;
-  --color-bg-card:       #1e0b33;
+  --color-bg-primary: #0c0414;
+  --color-bg-secondary: #150824;
+  --color-bg-card: #1e0b33;
   --color-bg-card-hover: #2a1047;
-  --color-bg-elevated:   #39155f;
+  --color-bg-elevated: #39155f;
 
-  --color-border:        rgba(236, 72, 153, 0.18);
-  --color-border-hover:  rgba(236, 72, 153, 0.45);
+  --color-border: rgba(236, 72, 153, 0.18);
+  --color-border-hover: rgba(236, 72, 153, 0.45);
 
-  --color-text-primary:   #fdf2f8;
+  --color-text-primary: #fdf2f8;
   --color-text-secondary: #e9d5ff;
-  --color-text-muted:     #a855f7;
+  --color-text-muted: #a855f7;
 
   /* Accent — Hot Neon Pink */
-  --color-accent:        #ec4899;
-  --color-accent-hover:  #f472b6;
-  --color-accent-dark:   #be185d;
+  --color-accent: #ec4899;
+  --color-accent-hover: #f472b6;
+  --color-accent-dark: #be185d;
   --color-accent-subtle: rgba(236, 72, 153, 0.18);
-  --color-accent-glow:   rgba(236, 72, 153, 0.38);
+  --color-accent-glow: rgba(236, 72, 153, 0.38);
 
-  --color-accent2:       #06b6d4;
-  --color-accent2-glow:  rgba(6, 182, 212, 0.30);
+  --color-accent2: #06b6d4;
+  --color-accent2-glow: rgba(6, 182, 212, 0.30);
 }
 
 /* ─── Reset ─── */
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
@@ -141,13 +143,22 @@ body {
 }
 
 /* ─── Scrollbar ─── */
-::-webkit-scrollbar { width: 5px; }
-::-webkit-scrollbar-track { background: var(--color-bg-primary); }
+::-webkit-scrollbar {
+  width: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-bg-primary);
+}
+
 ::-webkit-scrollbar-thumb {
   background: var(--color-accent-subtle);
   border-radius: var(--radius-full);
 }
-::-webkit-scrollbar-thumb:hover { background: var(--color-accent-hover); }
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-accent-hover);
+}
 
 /* ─── Selection ─── */
 ::selection {

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
-  IconArrowLeft, IconGamepad, IconUser, IconCrown, IconHash, IconClock,
+  IconArrowLeft, IconGamepad, IconUser, IconHash, IconClock,
   IconCheck, IconX, IconInfinity, IconTrophy, IconFlame, IconTarget, IconZap,
   IconMessageCircle, IconVolumeMute
 } from '../../components/Icons'
@@ -213,75 +213,50 @@ export default function FlashGuess() {
           </div>
 
           <div className="fg-players-list" style={{ padding: '8px 0', overflowY: 'auto', flex: 1 }}>
-            {sortedPlayers.map((p, idx) => {
+            {sortedPlayers.map((p) => {
               const isSelf = p.id === selfId
-              const isFirst = idx === 0
+              const isAnswered = (roomStatus === 'playing' || roomStatus === 'reveal') && p.answeredCorrectly
+              const isWrong = roomStatus === 'reveal' && !p.answeredCorrectly
+              const hasStreak = p.streak >= 2
+              const flameIntensity = hasStreak ? Math.min(1, 0.22 + (p.streak - 2) * 0.13) : 0
+              const showAnswerTime = (roomStatus === 'playing' || roomStatus === 'reveal') && p.answeredCorrectly && p.answerTime != null
               return (
                 <div
                   key={p.id}
-                  className={`fg-player-card ${isSelf ? 'fg-player-card--self' : ''}`}
+                  style={hasStreak ? ({ '--flame-intensity': flameIntensity } as React.CSSProperties) : undefined}
+                  className={[
+                    'fg-player-card',
+                    isSelf ? 'fg-player-card--self' : '',
+                    isAnswered ? 'fg-player-card--answered' : '',
+                    isWrong ? 'fg-player-card--wrong' : '',
+                    hasStreak ? 'fg-player-card--streak' : '',
+                    p.streak >= 5 ? 'fg-player-card--fire' : '',
+                  ].filter(Boolean).join(' ')}
                 >
-                  <div className="fg-player-row">
-                    <div className="fg-player-rank">
-                      {isFirst ? <IconCrown /> : `#${idx + 1}`}
-                    </div>
-                    <div className="fg-player-avatar">
-                      <IconUser />
-                    </div>
-                    <div className="fg-player-info">
-                      <span className="fg-player-name">
-                        <span className="fg-player-name-text">{p.name}</span>
-                        {isSelf && <span className="ap-self-badge">Vous</span>}
-                        {p.isHost && <span className="ap-host-badge">👑</span>}
-                      </span>
-                    </div>
-                    <span className="fg-player-score">{p.score} pts</span>
-                  </div>
-
-                  {(roomStatus === 'playing' || roomStatus === 'reveal' || (p.firstAnswersCount ?? 0) > 0 || p.streak >= 2) && (
-                    <div className="fg-player-badges">
-                      {roomStatus === 'playing' && (
-                        p.answeredCorrectly ? (
-                          <span className="fg-player-status fg-player-status--done" title="A trouvé !">
-                            <IconCheck /> OK
-                          </span>
-                        ) : (
-                          <span className="fg-player-status fg-player-status--thinking" title="En train de chercher...">
-                            •••
-                          </span>
-                        )
-                      )}
-
-                      {roomStatus === 'reveal' && (
-                        p.answeredCorrectly ? (
-                          <span className="fg-player-status fg-player-status--done">
-                            <IconCheck /> +{p.answerTime ? `${p.answerTime.toFixed(1)}s` : 'pts'}
-                          </span>
-                        ) : (
-                          <span className="fg-player-status fg-player-status--wrong">
-                            <IconX /> 0 pt
-                          </span>
-                        )
-                      )}
-
-                      {(p.firstAnswersCount ?? 0) > 0 && (
-                        <span
-                          className="fg-first-badge"
-                          title={`${p.firstAnswersCount} fois 1er à répondre correctement`}
-                        >
-                          ⚡ {p.firstAnswersCount}
-                        </span>
-                      )}
-                      {p.streak >= 2 && (
-                        <span
-                          className={`fg-streak-badge ${p.streak >= 5 ? 'fg-streak-badge--fire' : ''}`}
-                          title={`Série en cours : ${p.streak} bonnes réponses d'affilée`}
-                        >
-                          x{p.streak} 🔥
-                        </span>
-                      )}
+                  {hasStreak && (
+                    <div className="fg-player-flames" aria-hidden="true">
+                      <span className="fg-flame-glow" />
+                      <span className="fg-flame-tongue fg-flame-tongue--1" />
+                      <span className="fg-flame-tongue fg-flame-tongue--2" />
+                      <span className="fg-flame-tongue fg-flame-tongue--3" />
                     </div>
                   )}
+                  <div className="fg-player-avatar">
+                    <IconUser />
+                  </div>
+                  <div className="fg-player-info">
+                    <span className="fg-player-name">
+                      <span className="fg-player-name-text">{p.name}</span>
+                    </span>
+                  </div>
+                  <div className="fg-player-right">
+                    <span className="fg-player-score">{p.score} pts</span>
+                    {showAnswerTime && (
+                      <span className="fg-player-time" title="Temps de réponse">
+                        {p.answerTime!.toFixed(1)}s
+                      </span>
+                    )}
+                  </div>
                 </div>
               )
             })}
@@ -796,7 +771,7 @@ export default function FlashGuess() {
                     className="fg-replay-btn"
                     onClick={() => {
                       soundManager.playClick()
-                      actions.restartGame()
+                      actions.startGame()
                     }}
                     id="replay-together"
                   >

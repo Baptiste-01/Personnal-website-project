@@ -54,6 +54,8 @@ Each commit/task is documented following a standardized format (`Objective`, `Ac
 | **38** | 2026-11-20 | `Workspace` | [Task_38_2026-11-20.md](file:///c:/Users/bapti/Desktop/Moi/Projet-Perso/Personnal-website-project/documentation/en/Task_38_2026-11-20.md) | Global layout overhaul, 100vh full-height sidebar, ergonomic collapse & duplicate controls removal |
 | **39** | 2026-11-24 | `Workspace` | [Task_39_2026-11-24.md](file:///c:/Users/bapti/Desktop/Moi/Projet-Perso/Personnal-website-project/documentation/en/Task_39_2026-11-24.md) | Arena category selection & hardening, Neon deduplication, and multiplayer timer fix |
 | **40** | 2026-11-25 | `Workspace` | [Task_40_2026-11-25.md](file:///c:/Users/bapti/Desktop/Moi/Projet-Perso/Personnal-website-project/documentation/en/Task_40_2026-11-25.md) | FlashGuess UI overhaul, arena settings persistence, degressive scoring & strict category difficulty filtering |
+| **41** | 2026-11-27 | `Workspace` | [Task_41_2026-11-27.md](file:///c:/Users/bapti/Desktop/Moi/Projet-Perso/Personnal-website-project/documentation/en/Task_41_2026-11-27.md) | `feat/ui-improvements` branch, hybrid typography (`Pixelify Sans` / `Inter` / `Outfit`) & SpeedSmik leaderboard card overhaul |
+| **42** | 2026-11-27 | `Workspace` | [Task_42_2026-11-27.md](file:///c:/Users/bapti/Desktop/Moi/Projet-Perso/Personnal-website-project/documentation/en/Task_42_2026-11-27.md) | Fix Mythologie & Légendes category remaining active by default when unselected |
 
 ---
 
